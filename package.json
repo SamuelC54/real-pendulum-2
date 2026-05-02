@@ -1,0 +1,16 @@
+{
+  "name": "real-pendulum-2",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "predev": "npx --yes kill-port 4000 50051 5173 5174",
+    "dev": "concurrently -n motor,api,web -c blue,green,magenta \"npm run dev -w @real-pendulum/motor-grpc\" \"npm run dev -w @real-pendulum/control-api\" \"npm run dev -w web\"",
+    "dev:no-kill": "concurrently -n motor,api,web -c blue,green,magenta \"npm run dev -w @real-pendulum/motor-grpc\" \"npm run dev -w @real-pendulum/control-api\" \"npm run dev -w web\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

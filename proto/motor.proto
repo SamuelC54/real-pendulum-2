@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package motor.v1;
+
+// Motor control service (ClearPath / Teknic node behind this implementation).
+service MotorService {
+  rpc SetJogVelocity(SetJogVelocityRequest) returns (SetJogVelocityReply);
+  rpc Stop(StopRequest) returns (StopReply);
+  rpc GetStatus(GetStatusRequest) returns (GetStatusReply);
+}
+
+message SetJogVelocityRequest {
+  double rpm = 1;
+}
+
+message SetJogVelocityReply {
+  bool ok = 1;
+  string error_message = 2;
+}
+
+message StopRequest {}
+
+message StopReply {
+  bool ok = 1;
+  string error_message = 2;
+}
+
+message GetStatusRequest {}
+
+message GetStatusReply {
+  bool connected = 1;
+  double commanded_rpm = 2;
+  string detail = 3;
+}
