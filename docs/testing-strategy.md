@@ -1,6 +1,6 @@
 # Testing strategy — real-pendulum-2
 
-This document proposes how to test the stack **without** relying on a single “run everything on hardware” loop. The project combines **browser → tRPC → gRPC → native DLL → Teknic hardware**, so tests should be layered: fast automated checks where possible, explicit hardware sessions where unavoidable.
+This document describes how the repo is tested **without** relying on a single “run everything on hardware” loop. The stack is **browser → tRPC → gRPC → native DLL → Teknic hardware**, so checks are layered: fast automated tests in CI, explicit hardware passes when motion changes.
 
 ---
 
@@ -9,8 +9,8 @@ This document proposes how to test the stack **without** relying on a single “
 | Goal | Why it matters |
 |------|----------------|
 | **Catch regressions before touching the rail** | Logic bugs in parsing, RPC wiring, and UI state should not require powered hardware. |
-| **Isolate hardware** | Motor and hub behavior are non-deterministic across machines; CI should not depend on USB/COM. |
-| **Keep motion tests safe** | Any test that commands torque must assume pinch/crush risk and use bounded velocities and operator presence. |
+| **Isolate hardware** | Motor and hub behavior is machine-specific; CI must not open USB/COM. |
+| **Keep motion tests safe** | Any test that commands torque assumes pinch/crush risk — use bounded velocities and operator presence for manual passes. |
 
 ---
 
@@ -21,105 +21,118 @@ This document proposes how to test the stack **without** relying on a single “
                     │ Manual / smoke  │  bench, cleared travel, operator
                     │ on real hardware│
                 ┌───┴─────────────────┴───┐
-                │ E2E (optional)          │  Playwright against dev stack + stub or lab
+                │ E2E                       │  Playwright — fake gRPC + control-api + Vite dev
             ┌───┴─────────────────────────┴───┐
-            │ Integration                    │  control-api ↔ fake motor-grpc
+            │ Integration                    │  control-api ↔ fake `MotorService` (in-process gRPC)
         ┌───┴─────────────────────────────────┴───┐
-        │ Contract / proto                         │  generated stubs, golden JSON
+        │ Contract / proto                         │  Golden JSON + `mapMotorInfo` snapshot
     ┌───┴─────────────────────────────────────────┴───┐
-    │ Unit                                              │  pure TS: Zod, mappers, helpers
+    │ Unit                                              │  Vitest: helpers, router mocks, `JogControls`
     └───────────────────────────────────────────────────┘
 ```
 
-**Bottom layers** run in CI on every push. **Top layers** run on demand in a controlled lab.
+**Bottom layers** run on every `npm test`. **E2E** runs in CI via **`npm run test:e2e`** (after **`npm run build`**). **Manual** bench pass: [`hardware-smoke-checklist.md`](./hardware-smoke-checklist.md).
 
 ---
 
-## 3. What to test where
+## 3. What is implemented where
 
-### 3.1 Unit tests (Node / TypeScript)
+### 3.1 Unit tests (Node / TypeScript) — `apps/control-api`
 
-**Best targets**
+| Area | Location |
+|------|-----------|
+| gRPC unreachable messaging | `src/motorErrors.ts`, `src/motorErrors.test.ts` |
+| `mapMotorInfo` | `src/motorClient.ts`, `src/motorClient.test.ts` |
+| tRPC procedures (gRPC mocked) | `src/router.ts`, `src/router.test.ts` |
 
-- **Zod schemas** and validation at API boundaries (input clamping, enums).
-- **Pure functions**: velocity scaling, status mapping from gRPC payloads to UI models, error-message helpers.
-- **tRPC router procedures** when dependencies are **injected** (pass a fake `MotorClient` instead of live gRPC).
-
-**Tooling**: [Vitest](https://vitest.dev/) fits Vite/React workspaces and runs fast under `tsx`; alternatively Node’s built-in test runner.
-
-**Avoid** in unit tests: importing `koffi`, loading `teknic_motor.dll`, or opening real gRPC ports unless behind an interface you swap in tests.
+Run: `npm run test -w @real-pendulum/control-api` or `npm test` from repo root.
 
 ### 3.2 Contract and serialization
 
-- **Proto / JSON shapes**: If you add fields to `motor.proto` or motor-info JSON from the native layer, add **snapshot or fixture tests** so server and UI stay aligned.
-- **Breaking API checks**: When changing tRPC procedures, treat **web + control-api** as one contract; a small test that imports shared types or runs `tsc` across workspaces already catches many mismatches.
+| Area | Location |
+|------|-----------|
+| Fixture for `GetStatus`-style wire JSON | `apps/control-api/src/fixtures/motor-status-wire.sample.json` |
+| Snapshot of mapped `MotorInfo` | `apps/control-api/src/motorContract.test.ts` |
+
+When **`motor.proto`** or **`mapMotorInfo`** changes, update the fixture and/or snapshot deliberately.
 
 ### 3.3 Integration tests — control-api without hardware
 
-**Pattern**: Start an **in-process fake** gRPC server that implements the same `.proto` as `motor-grpc`, returning canned `GetStatus` / acknowledging `Connect` / `Jog` without touching the DLL.
+| Area | Location |
+|------|-----------|
+| In-process fake **MotorService** (same `.proto` as `motor-grpc`) | `apps/control-api/src/test-support/fakeMotorGrpcServer.ts` |
+| Real `motorClient` calls against fake server | `apps/control-api/src/motorClient.integration.test.ts` |
 
-- Validates **wiring**: tRPC → gRPC client → timeouts, error mapping, reconnect behavior.
-- Runs in CI.
-
-**Pattern**: **Recorded responses** (golden files): capture one successful `GetStatus` blob from a lab machine (no secrets), commit as fixture, assert parsers still accept it.
+Uses ephemeral TCP (`127.0.0.1:0`), sets **`MOTOR_GRPC_URL`**, and **`resetMotorGrpcClientForTests()`** so the gRPC client cache does not leak between runs.
 
 ### 3.4 motor-grpc (Node + native DLL)
 
-Split concerns:
-
-| Piece | Test approach |
-|-------|----------------|
-| **gRPC server** (TypeScript) | Integration test against **fake DLL** or **mock koffi symbols** if you introduce a thin loader interface — otherwise manual/smoke only. |
-| **Native `teknic_motor`** | **No Teknic hardware in CI**: rely on **desktop builds** (`cmake --build`) as a compile/regression gate; optional **mock SysManager** layer is a large investment — usually deferred. |
-| **Smoke after build** | Script that loads the DLL and exports symbols exist (`teknic_init` present) without calling USB — possible on Windows agents if DLL is built as an artifact. |
+| Piece | Status |
+|-------|--------|
+| **DLL load smoke** (Windows; no `teknic_init`) | `npm run check:dll -w @real-pendulum/motor-grpc` → `scripts/check-teknic-dll.ts`. Exits **0** if no DLL or non-Windows (skip). |
+| **Native C++ build in CI** | Job **`native-windows`** on **`windows-latest`** when **`TEKNIC_SDK_ROOT`** (repository variable) or the default **`C:\Program Files (x86)\Teknic\ClearView\sdk`** contains **`inc`** and **`sFoundation Source\...\Release\x64\sFoundation20.lib`**. Otherwise the job prints a notice and skips the compile (green CI). Requires **Visual Studio 2022** / MSVC (runner provides this) and **sFoundation built Release x64**. |
 
 ### 3.5 Web (React)
 
-- **Component tests** (Vitest + React Testing Library): jog buttons disabled when disconnected, fault banners, numeric inputs.
-- **E2E** (Playwright): optional; high value for “operator flows,” cost of flakiness unless motor-grpc is **stubbed** or you run against a **fixed lab URL**.
+| Area | Location |
+|------|-----------|
+| Pure jog sign/magnitude | `apps/web/src/lib/jogMath.ts`, `jogMath.test.ts` |
+| Jog buttons enabled/disabled vs `connected` / `busy` | `apps/web/src/components/JogControls.tsx`, `JogControls.test.tsx` |
+
+`App.tsx` composes **`JogControls`** and **`jogMath`** so UI logic can be tested without tRPC providers.
+
+### 3.6 Playwright E2E
+
+| Mode | Command | Orchestrator | Ports (defaults) |
+|------|---------|--------------|------------------|
+| **Fake motor** (default, CI) | **`npm run test:e2e`** | **`scripts/e2e-stack.mjs`** — in-process fake **`MotorService`** → **`start:tsx`** control-api → **Vite dev** | **50552** / **14001** / **4174** — avoids clashing with **`npm run dev`** |
+| **Real motor** (local + hardware) | **`npm run test:e2e:real`** | **`scripts/e2e-stack-real.mjs`** — **`motor-grpc`** (**`start:tsx`**, loads **`teknic_motor.dll`**) → control-api → Vite | **50051** / **4000** / **5173** (or **`.env`**: **`MOTOR_GRPC_PORT`**, **`CONTROL_API_PORT`**, **`VITE_DEV_PORT`** / **`E2E_WEB_PORT`**) |
+
+Set **`E2E_USE_REAL_MOTOR=1`** (or use **`cross-env`** via **`npm run test:e2e:real`**) so **`playwright.config.cjs`** selects **`e2e-stack-real.mjs`**. Loads repo **`.env`** / **`.env.local`** so **`TEKNIC_DLL`** etc. apply. Real runs need **`npm run build:native`** first, hub power, and **ClearView** closed — same as **[hardware-smoke-checklist.md](./hardware-smoke-checklist.md)**.
+
+Run **`npm run build`** before E2E so workspace TypeScript builds; **Vite dev** picks up **`VITE_CONTROL_API_URL`** at stack start.
+
+**Real-hardware Motor API coverage** (skipped unless **`E2E_USE_REAL_MOTOR=1`**): **`e2e/motor-api-real.spec.ts`** — serial tests for **GetStatus** (UI), **SetJogVelocity** + **Stop** (brief jog, then assert rpm near zero), and **Disconnect**. Supervise the bench; same risks as manual jog.
 
 ---
 
-## 4. Hardware and smoke testing (mandatory for motion changes)
+## 4. Hardware and smoke testing
 
-Use a short **checklist** each time native code or motion parameters change:
-
-1. **Environment**: ClearView closed; only one owner of the hub; bench clear; emergency stop accessible if fitted.
-2. **Connect**: UI or `grpcurl` — verify `Connect` / status reflects hub found.
-3. **Zero-motion**: `GetStatus` / motor info JSON sane (node online, no unexpected faults).
-4. **Bounded jog**: small velocity, short duration, hand ready to stop; verify stop command and idle state.
-5. **Fault injection** (when safe): disconnect USB during idle — service should surface error without crashing the whole Node process (document actual behavior).
-
-Treat this as **release QA**, not something to automate blindly without safeguards.
+See **[hardware-smoke-checklist.md](./hardware-smoke-checklist.md)** for the manual sequence (connect, status, bounded jog, fault).
 
 ---
 
-## 5. CI recommendations
+## 5. CI (GitHub Actions)
 
-| Job | Purpose |
-|-----|---------|
-| **`npm run build`** (all workspaces) | TypeScript + web bundle compile. |
-| **Native build** (Windows runner or self-hosted) | Ensure `teknic_motor` still links after SDK/C++ edits; artifact optional. |
-| **Unit + integration tests** | Once added — must not open COM ports. |
-| **Lint/format** (optional) | Consistency if you add ESLint/Prettier. |
+Workflow **`.github/workflows/ci.yml`** defines:
 
-Skip **full hardware E2E** in generic cloud CI.
+| Job | Runner | Steps |
+|-----|--------|--------|
+| **`build-test-e2e`** | `ubuntu-latest` | `npm ci` → **`npm test`** → **`npm run build`** → **`playwright install --with-deps chromium`** → **`npm run test:e2e`** (`CI=true`). |
+| **`native-windows`** | `windows-latest` | `npm ci` → **`ilammy/msvc-dev-cmd`** → detect SDK → **`npm run build:native`** if SDK present → upload **`teknic_motor.dll`** artifact on success. |
+
+Set repository variable **`TEKNIC_SDK_ROOT`** if the SDK is not under the default ClearView path. You must build Teknic **sFoundation** (Release **x64**) once so **`sFoundation20.lib`** exists before CMake links **`teknic_motor`**.
 
 ---
 
-## 6. Prioritized rollout
+## 6. Commands reference
 
-1. **Vitest** + first tests on **pure helpers and Zod** in `control-api` (lowest risk, immediate value).
-2. **Fake gRPC motor** + integration tests for **tRPC procedures** that talk to the motor client.
-3. **Web component tests** for jog UI state machine.
-4. **Playwright** only after stubs exist or for static pages.
-5. **Documented hardware smoke script** (manual checklist / optional semi-automated grpcurl steps).
+| Command | Purpose |
+|---------|---------|
+| `npm test` | All workspace Vitest suites (`control-api` + `web`). |
+| `npm run test:e2e` | Playwright (`e2e/`); fake motor stack via **`scripts/e2e-stack.mjs`**. **`npm run build`** first. |
+| `npm run test:e2e:real` | Playwright with **real** **`motor-grpc`** via **`scripts/e2e-stack-real.mjs`** (**`E2E_USE_REAL_MOTOR=1`**). Requires native DLL + hardware. |
+| `npm run test:e2e:ui` | Playwright UI mode (local debugging). |
+| `npm run test -w @real-pendulum/control-api` | API/router/integration only. |
+| `npm run test -w web` | Web unit/component tests only. |
+| `npm run check:dll -w @real-pendulum/motor-grpc` | Windows: load DLL with koffi if present (optional local smoke). |
 
 ---
 
 ## 7. Related documents
 
 - [TECHDOC.md](./TECHDOC.md) — architecture and Phase 1 scope.
+- [hardware-smoke-checklist.md](./hardware-smoke-checklist.md) — manual bench verification.
 
 ---
 
@@ -128,3 +141,6 @@ Skip **full hardware E2E** in generic cloud CI.
 | Date | Change |
 |------|--------|
 | 2026-05-02 | Initial testing strategy. |
+| 2026-05-02 | Documented Vitest, fake gRPC, fixtures, web components, CI, DLL smoke, hardware checklist. |
+| 2026-05-03 | Playwright E2E (`e2e-stack`, dedicated ports), CI `native-windows` + Teknic SDK detection. |
+| 2026-05-03 | Real-motor E2E (`e2e-stack-real`, `E2E_USE_REAL_MOTOR`); `playwright.config.cjs` (CJS + dotenv). |

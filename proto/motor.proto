@@ -4,9 +4,26 @@ package motor.v1;
 
 // Motor control service (ClearPath / Teknic node behind this implementation).
 service MotorService {
+  // Call after the process starts to open the hub and enable the node (was automatic at startup).
+  rpc Connect(ConnectRequest) returns (ConnectReply);
+  rpc Disconnect(DisconnectRequest) returns (DisconnectReply);
   rpc SetJogVelocity(SetJogVelocityRequest) returns (SetJogVelocityReply);
   rpc Stop(StopRequest) returns (StopReply);
   rpc GetStatus(GetStatusRequest) returns (GetStatusReply);
+}
+
+message ConnectRequest {}
+
+message ConnectReply {
+  bool ok = 1;
+  string error_message = 2;
+}
+
+message DisconnectRequest {}
+
+message DisconnectReply {
+  bool ok = 1;
+  string error_message = 2;
 }
 
 message SetJogVelocityRequest {
@@ -27,8 +44,20 @@ message StopReply {
 
 message GetStatusRequest {}
 
+// Teknic IInfo fields — same family of data as SCNetworkReport (node scan).
+message MotorInfo {
+  int32 node_index = 1;
+  int32 node_type_code = 2;
+  string node_type_label = 3;
+  string user_id = 4;
+  string firmware_version = 5;
+  uint64 serial_number = 6;
+  string model = 7;
+}
+
 message GetStatusReply {
   bool connected = 1;
   double commanded_rpm = 2;
   string detail = 3;
+  MotorInfo motor = 4;
 }

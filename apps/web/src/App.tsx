@@ -1,12 +1,14 @@
-import { ChevronLeft, ChevronRight, OctagonAlert } from "lucide-react";
+import { Link2, Link2Off } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { JogControls } from "@/components/JogControls";
+import { JOG_RPM, jogRpmForDirection } from "@/lib/jogMath";
 import { trpc } from "@/trpc";
-
-const JOG_RPM = 120;
 
 export default function App() {
   const status = trpc.status.get.useQuery(undefined, { refetchInterval: 1000 });
+  const connect = trpc.connection.connect.useMutation();
+  const disconnect = trpc.connection.disconnect.useMutation();
   const setVelocity = trpc.jog.setVelocity.useMutation();
   const stop = trpc.jog.stop.useMutation();
 
@@ -14,19 +16,22 @@ export default function App() {
 
   const refetchStatus = status.refetch;
 
+  const connected = status.data?.connected ?? false;
+
   const applyHold = useCallback(
     async (dir: "left" | "right" | null) => {
+      if (!connected && dir) return;
       setHolding(dir);
       if (!dir) {
         await stop.mutateAsync();
         await refetchStatus();
         return;
       }
-      const rpm = dir === "left" ? -JOG_RPM : JOG_RPM;
+      const rpm = jogRpmForDirection(dir);
       await setVelocity.mutateAsync({ rpm });
       await refetchStatus();
     },
-    [setVelocity, stop, refetchStatus],
+    [connected, setVelocity, stop, refetchStatus],
   );
 
   useEffect(() => {
@@ -45,7 +50,23 @@ export default function App() {
     };
   }, []);
 
-  const busy = setVelocity.isPending || stop.isPending;
+  const busy =
+    connect.isPending || disconnect.isPending || setVelocity.isPending || stop.isPending;
+
+  const onConnect = useCallback(async () => {
+    connect.reset();
+    const r = await connect.mutateAsync();
+    await refetchStatus();
+    if (!r.ok && r.error) {
+      console.warn("[jog] connect failed:", r.error);
+    }
+  }, [connect, refetchStatus]);
+
+  const onDisconnect = useCallback(async () => {
+    setHolding(null);
+    await disconnect.mutateAsync();
+    await refetchStatus();
+  }, [disconnect, refetchStatus]);
 
   return (
     <div className="min-h-dvh bg-background text-foreground">
@@ -71,69 +92,82 @@ export default function App() {
                   rpm
                 </>
               ) : (
-                <span className="text-destructive">motor unavailable</span>
+                <span className="text-destructive">not connected</span>
               )}
             </span>
           </div>
           {status.data?.detail ? (
             <p className="text-muted-foreground text-xs leading-relaxed">{status.data.detail}</p>
           ) : null}
-        </section>
-
-        <section className="flex flex-col items-center gap-6">
-          <div className="flex w-full max-w-md gap-4">
-            <Button
-              type="button"
-              variant="secondary"
-              size="lg"
-              className="flex-1 touch-manipulation select-none"
-              disabled={busy}
-              aria-pressed={holding === "left"}
-              onPointerDown={(e) => {
-                e.preventDefault();
-                void applyHold("left");
-              }}
-              onPointerUp={() => void applyHold(null)}
-              onPointerLeave={(e) => {
-                if (e.buttons === 0) void applyHold(null);
-              }}
-            >
-              <ChevronLeft aria-hidden />
-              Jog left
-            </Button>
-            <Button
-              type="button"
-              variant="secondary"
-              size="lg"
-              className="flex-1 touch-manipulation select-none"
-              disabled={busy}
-              aria-pressed={holding === "right"}
-              onPointerDown={(e) => {
-                e.preventDefault();
-                void applyHold("right");
-              }}
-              onPointerUp={() => void applyHold(null)}
-              onPointerLeave={(e) => {
-                if (e.buttons === 0) void applyHold(null);
-              }}
-            >
-              Jog right
-              <ChevronRight aria-hidden />
-            </Button>
+          <div className="flex flex-wrap gap-2">
+            {!connected ? (
+              <Button
+                type="button"
+                variant="default"
+                size="sm"
+                disabled={busy}
+                onClick={() => void onConnect()}
+              >
+                <Link2 aria-hidden className="mr-2 h-4 w-4" />
+                Connect motor
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={busy}
+                onClick={() => void onDisconnect()}
+              >
+                <Link2Off aria-hidden className="mr-2 h-4 w-4" />
+                Disconnect
+              </Button>
+            )}
           </div>
-
-          <Button
-            type="button"
-            variant="destructive"
-            size="lg"
-            className="min-w-[12rem]"
-            disabled={busy}
-            onClick={() => void applyHold(null)}
-          >
-            <OctagonAlert aria-hidden />
-            Stop
-          </Button>
+          {connect.data && !connect.data.ok && connect.data.error ? (
+            <p className="text-destructive text-xs">{connect.data.error}</p>
+          ) : null}
+          {connect.error ? (
+            <p className="text-destructive text-xs">{connect.error.message}</p>
+          ) : null}
         </section>
+
+        {status.data?.motor ? (
+          <section className="flex flex-col gap-3 rounded-xl border border-border bg-card p-6 shadow-sm">
+            <h2 className="text-muted-foreground text-sm font-medium">Motor (network report)</h2>
+            <p className="text-muted-foreground text-xs">
+              From Teknic <code className="text-foreground">IInfo</code> — same class of data as{" "}
+              <code className="text-foreground">SCNetworkReport.exe</code> (read-only scan; connect
+              required).
+            </p>
+            <dl className="grid grid-cols-[minmax(0,7rem)_1fr] gap-x-4 gap-y-2 text-sm">
+              <dt className="text-muted-foreground">Node</dt>
+              <dd className="font-mono">{status.data.motor.nodeIndex}</dd>
+              <dt className="text-muted-foreground">Type</dt>
+              <dd className="font-mono">
+                {status.data.motor.nodeTypeCode}{" "}
+                <span className="text-muted-foreground">
+                  ({status.data.motor.nodeTypeLabel || "—"})
+                </span>
+              </dd>
+              <dt className="text-muted-foreground">User ID</dt>
+              <dd className="break-all font-mono text-xs">{status.data.motor.userId || "—"}</dd>
+              <dt className="text-muted-foreground">Firmware</dt>
+              <dd className="font-mono text-xs">{status.data.motor.firmwareVersion || "—"}</dd>
+              <dt className="text-muted-foreground">Serial #</dt>
+              <dd className="font-mono">{status.data.motor.serialNumber || "—"}</dd>
+              <dt className="text-muted-foreground">Model</dt>
+              <dd className="break-all font-mono text-xs">{status.data.motor.model || "—"}</dd>
+            </dl>
+          </section>
+        ) : null}
+
+        <JogControls
+          busy={busy}
+          connected={connected}
+          holding={holding}
+          applyHold={applyHold}
+        />
       </div>
     </div>
   );

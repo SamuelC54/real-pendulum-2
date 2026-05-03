@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-test-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+        env:
+          CI: true
+
+  native-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - run: npm ci
+      - name: Resolve Teknic SDK
+        id: sdk
+        shell: pwsh
+        run: |
+          $root = "${{ vars.TEKNIC_SDK_ROOT }}"
+          if ([string]::IsNullOrWhiteSpace($root)) {
+            $root = 'C:\Program Files (x86)\Teknic\ClearView\sdk'
+          }
+          $lib = Join-Path $root "sFoundation Source\sFoundation\win\Release\x64\sFoundation20.lib"
+          $inc = Join-Path $root "inc"
+          if ((Test-Path -LiteralPath $lib) -and (Test-Path -LiteralPath $inc)) {
+            "found=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            "TEKNIC_SDK_ROOT=$root" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          } else {
+            "found=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          }
+      - name: Build teknic_motor.dll (CMake + MSBuild)
+        if: steps.sdk.outputs.found == 'true'
+        run: npm run build:native -w @real-pendulum/motor-grpc
+      - name: Upload DLL artifact
+        if: steps.sdk.outputs.found == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: teknic_motor-dll
+          path: apps/motor-grpc/native/build/Release/teknic_motor.dll
+      - name: Skip native build (no SDK on runner)
+        if: steps.sdk.outputs.found != 'true'
+        run: |
+          Write-Host "::notice::Teknic SDK not detected. Set repository variable TEKNIC_SDK_ROOT to your ClearView SDK root, or install the SDK under the default path and build sFoundation (Release x64) so sFoundation20.lib exists."

@@ -5,12 +5,17 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/server.ts",
+    "start:tsx": "tsx src/server.ts",
     "build": "tsc",
-    "start": "node dist/server.js"
+    "start": "node dist/server.js",
+    "build:native": "node scripts/build-native.mjs",
+    "check:dll": "tsx scripts/check-teknic-dll.ts"
   },
   "dependencies": {
+    "dotenv": "^16.5.0",
     "@grpc/grpc-js": "^1.12.6",
-    "@grpc/proto-loader": "^0.7.15"
+    "@grpc/proto-loader": "^0.7.15",
+    "koffi": "^2.12.1"
   },
   "devDependencies": {
     "@types/node": "^22.15.3",

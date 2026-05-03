@@ -63,9 +63,9 @@ Naming is illustrative; adjust to your tooling (pnpm/npm workspaces, Turborepo, 
 
 ### 4.1 Vendor SDK reference
 
-Installed examples (this machine):
+Installed examples (ClearView SDK default location):
 
-`C:\Program Files (x86)\Teknic\ClearView\sdk\beta-cpp-examples-windows\`
+`C:\Program Files (x86)\Teknic\ClearView\sdk\beta-cpp-examples-windows`
 
 | Example folder | Relevance |
 |----------------|-----------|
@@ -75,11 +75,12 @@ Installed examples (this machine):
 
 Typical startup sequence (from those examples):
 
-1. `SysManager::Instance()`, `SysManager::FindComHubPorts`, `ComHubPort`, `PortsOpen`.
-2. Select `INode` (e.g. first node on port 0).
-3. Set units/limits (`AccUnit`, `VelUnit`, `Motion.AccLimit`, `Motion.VelLimit` as needed).
-4. `NodeStopClear`, `AlertsClear`, `EnableReq(true)`, wait until `Motion.IsReady()`.
-5. Issue motion: **velocity** `Motion.MoveVelStart(rpm)` or **position** `Motion.MovePosnStart(...)`.
+1. `SysManager::Instance()`, then manual **`ComHubPort(0, comNum)`**, **`FindComHubPorts`** + per-hub **`ComHubPort`**, or (Windows, empty discovery) **COM index sweep** **`kComPortScanMin..Max`** until **`NodeCount() ≥ 1`**, then **`PortsOpen`**. Discovery filters **SC4‑HUB USB** only; motor diagnostic USB usually needs manual COM or the sweep.
+2. `PortsOpen`.
+3. Select `INode` (e.g. first node on port 0).
+4. Set units/limits (`AccUnit`, `VelUnit`, `Motion.AccLimit`, `Motion.VelLimit` as needed).
+5. `NodeStopClear`, `AlertsClear`, `EnableReq(true)`, wait until `Motion.IsReady()`.
+6. Issue motion: **velocity** `Motion.MoveVelStart(rpm)` or **position** `Motion.MovePosnStart(...)`.
 
 For **jog**, velocity mode matches “hold button → move; release → stop” better than queued position segments. Implement **stop** as `MoveVelStart(0)` or documented stop APIs per SDK (verify against current Teknic headers for your firmware).
 
@@ -172,8 +173,18 @@ Avoid committing secrets; use env files locally.
 
 ---
 
+## 11. Related documentation
+
+- **[Testing strategy](./testing-strategy.md)** — Vitest layers, Playwright E2E (`e2e/`, `scripts/e2e-stack.mjs`), CI jobs (Ubuntu + Windows native), and Teknic SDK notes for **`native-windows`**.
+- **[Hardware smoke checklist](./hardware-smoke-checklist.md)** — manual verification when motion or native code changes.
+
+---
+
 ## Document history
 
 | Date | Change |
 |------|--------|
 | 2026-05-02 | Initial architecture and Phase 1 jog scope. |
+| 2026-05-02 | Link to testing-strategy.md. |
+| 2026-05-02 | Link to hardware-smoke-checklist.md. |
+| 2026-05-03 | Related docs: Playwright E2E + native CI pointers. |

@@ -1,5 +1,13 @@
+import { config as loadRootEnv } from "dotenv";
 import http from "node:http";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { createHTTPHandler } from "@trpc/server/adapters/standalone";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = path.resolve(__dirname, "../../..");
+loadRootEnv({ path: path.join(REPO_ROOT, ".env") });
+loadRootEnv({ path: path.join(REPO_ROOT, ".env.local"), override: true });
 import cors from "cors";
 import { appRouter } from "./router.js";
 
