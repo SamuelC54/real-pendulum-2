@@ -53,7 +53,7 @@ describe("motorClient integration (fake gRPC MotorService)", () => {
     const st = await getMotorStatus();
     expect(st.connected).toBe(true);
     expect(st.commandedRpm).toBe(0);
-    expect(st.detail).toContain("fake motor-grpc");
+    expect(st.detail).toContain("fake motor service");
     expect(st.motor?.nodeIndex).toBe(1);
     expect(st.motor?.serialNumber).toBe("99");
   });

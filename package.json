@@ -11,11 +11,11 @@
     "test:e2e:real": "cross-env E2E_USE_REAL_MOTOR=1 playwright test",
     "test:e2e:real:ui": "cross-env E2E_USE_REAL_MOTOR=1 playwright test --ui",
     "build": "npm run build --workspaces --if-present",
-    "predev": "npm run build:native -w @real-pendulum/motor-grpc && npx --yes kill-port 4000 50051 5173 5174",
+    "predev": "npm run build:native -w @real-pendulum/motor-service && npx --yes kill-port 4000 50051 5173 5174",
     "dev": "node ./scripts/run-with-root-env.mjs npm run dev:stack",
-    "dev:stack": "concurrently -n motor,api,web -c blue,green,magenta \"npm run dev -w @real-pendulum/motor-grpc\" \"wait-on -t 120000 tcp:127.0.0.1:50051 && npm run dev -w @real-pendulum/control-api\" \"wait-on -t 120000 tcp:127.0.0.1:50051 && npm run dev -w web\"",
+    "dev:stack": "concurrently -n motor,api,web -c blue,green,magenta \"npm run dev -w @real-pendulum/motor-service\" \"wait-on -t 120000 tcp:127.0.0.1:50051 && npm run dev -w @real-pendulum/control-api\" \"wait-on -t 120000 tcp:127.0.0.1:50051 && npm run dev -w web\"",
     "dev:no-kill": "node ./scripts/run-with-root-env.mjs npm run dev:no-kill:stack",
-    "dev:no-kill:stack": "npm run build:native -w @real-pendulum/motor-grpc && concurrently -n motor,api,web -c blue,green,magenta \"npm run dev -w @real-pendulum/motor-grpc\" \"wait-on -t 120000 tcp:127.0.0.1:50051 && npm run dev -w @real-pendulum/control-api\" \"wait-on -t 120000 tcp:127.0.0.1:50051 && npm run dev -w web\""
+    "dev:no-kill:stack": "npm run build:native -w @real-pendulum/motor-service && concurrently -n motor,api,web -c blue,green,magenta \"npm run dev -w @real-pendulum/motor-service\" \"wait-on -t 120000 tcp:127.0.0.1:50051 && npm run dev -w @real-pendulum/control-api\" \"wait-on -t 120000 tcp:127.0.0.1:50051 && npm run dev -w web\""
   },
   "devDependencies": {
     "@playwright/test": "^1.52.0",

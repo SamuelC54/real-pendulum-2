@@ -1,5 +1,5 @@
 {
-  "name": "@real-pendulum/motor-grpc",
+  "name": "@real-pendulum/motor-service",
   "version": "0.0.1",
   "private": true,
   "type": "module",

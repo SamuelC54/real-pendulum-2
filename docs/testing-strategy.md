@@ -60,16 +60,16 @@ When **`motor.proto`** or **`mapMotorInfo`** changes, update the fixture and/or 
 
 | Area | Location |
 |------|-----------|
-| In-process fake **MotorService** (same `.proto` as `motor-grpc`) | `apps/control-api/src/test-support/fakeMotorGrpcServer.ts` |
+| In-process fake **MotorService** (same `.proto` as **motor service** (`apps/motor-service`)) | `apps/control-api/src/test-support/fakeMotorGrpcServer.ts` |
 | Real `motorClient` calls against fake server | `apps/control-api/src/motorClient.integration.test.ts` |
 
 Uses ephemeral TCP (`127.0.0.1:0`), sets **`MOTOR_GRPC_URL`**, and **`resetMotorGrpcClientForTests()`** so the gRPC client cache does not leak between runs.
 
-### 3.4 motor-grpc (Node + native DLL)
+### 3.4 Motor service — `apps/motor-service` (Node + native DLL)
 
 | Piece | Status |
 |-------|--------|
-| **DLL load smoke** (Windows; no `teknic_init`) | `npm run check:dll -w @real-pendulum/motor-grpc` → `scripts/check-teknic-dll.ts`. Exits **0** if no DLL or non-Windows (skip). |
+| **DLL load smoke** (Windows; no `teknic_init`) | `npm run check:dll -w @real-pendulum/motor-service` → `apps/motor-service/scripts/check-teknic-dll.mjs`. Exits **0** if no DLL or non-Windows (skip). |
 | **Native C++ build in CI** | Job **`native-windows`** on **`windows-latest`** when **`TEKNIC_SDK_ROOT`** (repository variable) or the default **`C:\Program Files (x86)\Teknic\ClearView\sdk`** contains **`inc`** and **`sFoundation Source\...\Release\x64\sFoundation20.lib`**. Otherwise the job prints a notice and skips the compile (green CI). Requires **Visual Studio 2022** / MSVC (runner provides this) and **sFoundation built Release x64**. |
 
 ### 3.5 Web (React)
@@ -86,9 +86,9 @@ Uses ephemeral TCP (`127.0.0.1:0`), sets **`MOTOR_GRPC_URL`**, and **`resetMotor
 | Mode | Command | Orchestrator | Ports (defaults) |
 |------|---------|--------------|------------------|
 | **Fake motor** (default, CI) | **`npm run test:e2e`** | **`scripts/e2e-stack.mjs`** — in-process fake **`MotorService`** → **`start:tsx`** control-api → **Vite dev** | **50552** / **14001** / **4174** — avoids clashing with **`npm run dev`** |
-| **Real motor** (local + hardware) | **`npm run test:e2e:real`** | **`scripts/e2e-stack-real.mjs`** — **`motor-grpc`** (Node **`tsx`** + **`teknic_motor.dll`**, **`npm run start`**) → control-api → Vite | **50051** / **4000** / **5173** (or **`.env`**: **`MOTOR_GRPC_PORT`**, **`CONTROL_API_PORT`**, **`VITE_DEV_PORT`** / **`E2E_WEB_PORT`**) |
+| **Real motor** (local + hardware) | **`npm run test:e2e:real`** | **`scripts/e2e-stack-real.mjs`** — **motor service** (Node **`tsx`** + **`teknic_motor.dll`**, **`npm run start`**) → control-api → Vite | **50051** / **4000** / **5173** (or **`.env`**: **`MOTOR_GRPC_PORT`**, **`CONTROL_API_PORT`**, **`VITE_DEV_PORT`** / **`E2E_WEB_PORT`**) |
 
-Set **`E2E_USE_REAL_MOTOR=1`** (or use **`cross-env`** via **`npm run test:e2e:real`**) so **`playwright.config.cjs`** selects **`e2e-stack-real.mjs`**. Loads repo **`.env`** / **`.env.local`**. Real runs need **`teknic_motor.dll`** (**`npm run build:native -w @real-pendulum/motor-grpc`**), hub power, and **ClearView** closed — same as **[hardware-smoke-checklist.md](./hardware-smoke-checklist.md)**.
+Set **`E2E_USE_REAL_MOTOR=1`** (or use **`cross-env`** via **`npm run test:e2e:real`**) so **`playwright.config.cjs`** selects **`e2e-stack-real.mjs`**. Loads repo **`.env`** / **`.env.local`**. Real runs need **`teknic_motor.dll`** (**`npm run build:native -w @real-pendulum/motor-service`**), hub power, and **ClearView** closed — same as **[hardware-smoke-checklist.md](./hardware-smoke-checklist.md)**.
 
 Run **`npm run build`** before E2E so workspace TypeScript builds; **Vite dev** picks up **`VITE_CONTROL_API_URL`** at stack start.
 
@@ -121,11 +121,11 @@ Set repository variable **`TEKNIC_SDK_ROOT`** if the SDK is not under the defaul
 |---------|---------|
 | `npm test` | All workspace Vitest suites (`control-api` + `web`). |
 | `npm run test:e2e` | Playwright (`e2e/`); fake motor stack via **`scripts/e2e-stack.mjs`**. **`npm run build`** first. |
-| `npm run test:e2e:real` | Playwright with **real** **`motor-grpc`** via **`scripts/e2e-stack-real.mjs`** (**`E2E_USE_REAL_MOTOR=1`**). Requires native DLL + hardware. |
+| `npm run test:e2e:real` | Playwright with the **real motor service** via **`scripts/e2e-stack-real.mjs`** (**`E2E_USE_REAL_MOTOR=1`**). Requires native DLL + hardware. |
 | `npm run test:e2e:ui` | Playwright UI mode (local debugging). |
 | `npm run test -w @real-pendulum/control-api` | API/router/integration only. |
 | `npm run test -w web` | Web unit/component tests only. |
-| `npm run check:dll -w @real-pendulum/motor-grpc` | Windows: **`teknic_motor.dll`** exists under **`native/build`** (optional smoke). |
+| `npm run check:dll -w @real-pendulum/motor-service` | Windows: **`teknic_motor.dll`** exists under **`native/build`** (optional smoke). |
 
 ---
 

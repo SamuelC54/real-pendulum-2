@@ -24,19 +24,21 @@ flowchart LR
   end
   subgraph node [Control machine]
     TS[TypeScript service\ncontrol logic + tRPC]
-    CPP[C++ motor service\ngRPC over Teknic SDK]
+    MS[Node gRPC MotorService\n@grpc/grpc-js + koffi]
+    DLL[teknic_motor.dll\nTeknic ClearView SDK]
   end
   HW[ClearPath-SC / SC4-HUB]
 
   UI <-->|HTTP / WebSocket\ntRPC| TS
-  TS <-->|gRPC| CPP
-  CPP <-->|USB SC4-HUB| HW
+  TS <-->|gRPC| MS
+  MS <-->|FFI| DLL
+  DLL <-->|USB SC4-HUB| HW
 ```
 
 **Rationale for three layers**
 
-- **C++ gRPC service**: Teknic’s ClearView SDK is C++ (`pubSysCls.h`, `SysManager`, `INode`). Keeping USB/hub access and real-time-friendly motion calls in one long-lived process avoids FFI complexity in Node.
-- **TypeScript service**: Application logic (future estimator/controller), configuration, and a **tRPC** API that maps cleanly onto React hooks and shared types.
+- **Motor service** (folder **`apps/motor-service`**, npm **`@real-pendulum/motor-service`**): **gRPC** exposes `motor.v1.MotorService`. **koffi** loads **`teknic_motor.dll`**, which links Teknic’s C++ SDK (`SysManager`, `INode`) for hub access and motion. One Node process holds the gRPC server and the DLL handle.
+- **TypeScript control API**: Application logic (future estimator/controller), configuration, and a **tRPC** API that maps cleanly onto React hooks and shared types.
 - **React frontend**: Operator UI; Phase 1 focuses on a **jogger** (velocity or step jog) with clear stop/emergency semantics.
 
 ---
@@ -46,8 +48,8 @@ flowchart LR
 ```
 real-pendulum-2/
   apps/
-    motor-grpc/          # C++ executable + .proto; links Teknic SDK + gRPC
-    control-api/         # Node/TypeScript: tRPC server + gRPC client to motor-grpc
+    motor-service/       # @real-pendulum/motor-service — Node gRPC + teknic_motor.dll + proto/
+    control-api/         # Node/TypeScript: tRPC server + gRPC client to motor service
     web/                 # React + Vite + TypeScript + Tailwind + shadcn/ui
   packages/
     shared-types/        # optional: Zod schemas / types shared control-api ↔ web
@@ -59,7 +61,9 @@ Naming is illustrative; adjust to your tooling (pnpm/npm workspaces, Turborepo, 
 
 ---
 
-## 4. Module A — C++ motor service (`motor-grpc`)
+## 4. Module A — Motor service (`apps/motor-service`, `@real-pendulum/motor-service`)
+
+The live implementation uses **Node** (`src/server.ts`) for gRPC and a **CMake-built DLL** (`native/teknic_motor/`) for Teknic I/O. The sections below still describe **vendor SDK behavior** used inside the DLL.
 
 ### 4.1 Vendor SDK reference
 
@@ -84,20 +88,14 @@ Typical startup sequence (from those examples):
 
 For **jog**, velocity mode matches “hold button → move; release → stop” better than queued position segments. Implement **stop** as `MoveVelStart(0)` or documented stop APIs per SDK (verify against current Teknic headers for your firmware).
 
-### 4.2 gRPC responsibilities
+### 4.2 gRPC surface (implemented)
 
-Expose a small, explicit surface (exact messages TBD during implementation):
+Defined by **`proto/motor.proto`** — **Connect**, **Disconnect**, **SetJogVelocity**, **Stop**, **GetStatus**. Node loads generated service definitions via **`@grpc/proto-loader`** (see **`src/loadMotorService.ts`**).
 
-- **Lifecycle**: connect/open hub, enable/disable axis, read nominal state (enabled, alerts, position feedback if needed).
-- **Jog**: `SetJogVelocity(signed)` or separate left/right with magnitude; **stop** must be idempotent and fast.
-- **Telemetry** (optional for Phase 1): streaming position/velocity status for UI display.
+### 4.3 Native build notes
 
-Use **one blocking-queue or strand** inside the service so Teknic API calls never run concurrently from multiple gRPC threads unless the SDK documents thread safety.
-
-### 4.3 Build notes
-
-- Link against Teknic libraries and include paths from the ClearView SDK installation.
-- Add gRPC / protobuf generated sources from `.proto` files; pin compiler/toolchain (MSVC) consistently with prebuilt SDK binaries.
+- Configure **`TEKNIC_SDK_ROOT`** (see **`apps/motor-service/native/README.md`**) so CMake finds Teknic headers and **`sFoundation20`** import libs / DLL copy rules.
+- **`npm run build:native -w @real-pendulum/motor-service`** runs **`scripts/build-native.mjs`** (CMake Visual Studio 2022 generator, Release). Output: **`native/build/Release/teknic_motor.dll`** next to copied **`sFoundation20.dll`**.
 
 ---
 
@@ -106,7 +104,7 @@ Use **one blocking-queue or strand** inside the service so Teknic API calls neve
 ### 5.1 Role
 
 - **tRPC router** for the frontend: typed procedures for jog start/stop, limits, and status.
-- **gRPC client** to `motor-grpc` for all hardware actions.
+- **gRPC client** to **motor service** (`MOTOR_GRPC_URL` / default port) for all hardware actions.
 - Future: pendulum state (IMU/encoder), PID or LQR, logging — **not** required for Phase 1.
 
 ### 5.2 Suggested boundaries
@@ -143,7 +141,7 @@ Use accessible buttons, debounce network chatter if needed, and assume latency �
 
 Centralize:
 
-- gRPC address/port for `motor-grpc` (default `127.0.0.1:<port>`).
+- gRPC address/port for **motor service** (default `127.0.0.1:<port>` from **`MOTOR_GRPC_PORT`** / **`MOTOR_GRPC_URL`**).
 - Hub/node selection if multiple devices exist (Phase 1 can fix node 0).
 
 Avoid committing secrets; use env files locally.
@@ -153,14 +151,14 @@ Avoid committing secrets; use env files locally.
 ## 8. Safety and operational notes
 
 - Treat the linear rail as **crush and pinch** hazards; software limits do not replace mechanical end stops where required.
-- Ensure **ClearView** or other hub-exclusive programs are closed when `motor-grpc` owns the port (Teknic examples mention port contention).
+- Ensure **ClearView** or other hub-exclusive programs are closed when the **motor service** owns the hub (Teknic examples mention port contention).
 - Log alerts/faults from the node and surface them in the UI.
 
 ---
 
 ## 9. Implementation order (recommended)
 
-1. **motor-grpc**: open hub, enable axis, gRPC `Stop` + `SetJogVelocity`, manual test with `grpcurl`.
+1. **Motor service**: build **`teknic_motor.dll`**, run **`npm run dev -w @real-pendulum/motor-service`**, connect hub, exercise **`Stop`** + **`SetJogVelocity`** (e.g. **`grpcurl`** or UI).
 2. **control-api**: tRPC wrappers + integration test against running motor service (mock optional).
 3. **web**: jogger wired to tRPC; test full loop with hardware on a cleared bench.
 
@@ -188,3 +186,4 @@ Avoid committing secrets; use env files locally.
 | 2026-05-02 | Link to testing-strategy.md. |
 | 2026-05-02 | Link to hardware-smoke-checklist.md. |
 | 2026-05-03 | Related docs: Playwright E2E + native CI pointers. |
+| 2026-05-03 | Motor service: Node gRPC + DLL architecture; package **`@real-pendulum/motor-service`**; folder **`apps/motor-service`**. |

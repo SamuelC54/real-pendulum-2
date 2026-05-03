@@ -4,7 +4,7 @@ import { assertMotorUiConnected } from "./wait-for-connect";
 
 /**
  * Exercises the live stack: **Connect** → **GetStatus** (polled UI) → **SetJogVelocity** / **Stop**
- * → **Disconnect**, which maps to **`motor-grpc`** RPCs and **`teknic_*`** in the DLL.
+ * → **Disconnect**, which maps to **motor service** gRPC RPCs and **`teknic_*`** in the DLL.
  *
  * When **`E2E_USE_REAL_MOTOR`** is unset, the suite is **`describe.skip`** so **`npm run test:e2e`**
  * stays fast and hardware-free. Use **`npm run test:e2e:real`** for real motion (supervise travel).

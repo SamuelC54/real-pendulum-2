@@ -5,6 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import koffi from "koffi";
 
+/** Loaded **`teknic_motor.dll`** surface used by the gRPC server. */
 export type TeknicNative = {
   init(): number;
   shutdown(): void;
@@ -34,7 +35,7 @@ function resolveDll(pkgRoot: string): string {
     if (fs.existsSync(p)) return p;
   }
   throw new Error(
-    `teknic_motor.dll not found under ${pkgRoot}/native/build/{Release,Debug}. Run: npm run build:native -w @real-pendulum/motor-grpc`,
+    `teknic_motor.dll not found under ${pkgRoot}/native/build/{Release,Debug}. Run: npm run build:native -w @real-pendulum/motor-service`,
   );
 }
 

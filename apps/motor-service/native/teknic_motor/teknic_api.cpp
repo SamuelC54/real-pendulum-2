@@ -1,5 +1,5 @@
 /*
- * Teknic ClearPath-SC — DLL exports for Node motor-grpc.
+ * Teknic ClearPath-SC — DLL exports for Node `@real-pendulum/motor-service`.
  * Hub discovery/open: hub_connect.cpp. Optional axis enable: node_prepare.cpp. Motor JSON: motor_info.cpp.
  */
 

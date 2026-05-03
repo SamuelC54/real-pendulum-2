@@ -8,7 +8,7 @@ export function friendlyMotorGrpcError(grpcTarget: string, err: unknown): string
       "code" in err &&
       (err as { code?: number }).code === 14)
   ) {
-    return `Motor gRPC not reachable at ${grpcTarget}. Start motor-grpc (same machine as control-api) or set MOTOR_GRPC_URL. (${raw})`;
+    return `Motor gRPC not reachable at ${grpcTarget}. Start @real-pendulum/motor-service (same machine as control-api) or set MOTOR_GRPC_URL. (${raw})`;
   }
   return raw;
 }

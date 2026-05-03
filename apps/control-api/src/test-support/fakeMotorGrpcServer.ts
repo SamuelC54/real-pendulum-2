@@ -53,7 +53,7 @@ export function createFakeMotorGrpcModel(
     connectReply: { ok: true, error_message: "" },
     connected: false,
     commandedRpm: 0,
-    detail: "fake motor-grpc",
+    detail: "fake motor service",
     ...partial,
   };
 }
@@ -64,7 +64,7 @@ export type StartFakeMotorGrpcOptions = {
 };
 
 /**
- * In-process `MotorService` for integration tests (same `.proto` as `motor-grpc`).
+ * In-process `MotorService` for integration tests (same `.proto` as **motor service** / `apps/motor-service`).
  * Binds to **`127.0.0.1:0`** (ephemeral) unless **`options.port`** is a positive port number.
  */
 export function startFakeMotorGrpcServer(

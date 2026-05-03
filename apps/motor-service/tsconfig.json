@@ -6,7 +6,7 @@
     "strict": true,
     "skipLibCheck": true,
     "noEmit": true,
-    "rootDir": ".",
+    "rootDir": "src",
     "resolveJsonModule": true
   },
   "include": ["src/**/*.ts"]

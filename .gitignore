@@ -5,7 +5,8 @@ dist/
 .env
 .env.local
 tools/protoc/
-apps/motor-grpc/native/build/
+# Native CMake output (may include old vcpkg_installed/ from past experiments)
+apps/motor-service/native/build/
 /test-results/
 /playwright-report/
 /blob-report/

@@ -12,7 +12,7 @@ Use this after changes to **`teknic_motor`**, **`motor.proto`**, motion limits i
 
 | Step | Action | Pass criteria |
 |------|--------|----------------|
-| 1 | Start stack (`npm run dev`) | `motor-grpc` listens; no immediate crash. |
+| 1 | Start stack (`npm run dev`) | Motor service listens on **`MOTOR_GRPC_PORT`**; no immediate crash. |
 | 2 | **Connect motor** in UI | Status shows connected or a clear error (not a silent hang). |
 | 3 | **GetStatus / motor info** | Node index, model/serial look plausible; no bogus zeros everywhere if the hub reports data. |
 | 4 | **Bounded jog** | Small commanded RPM; cart moves in correct direction; **release** / **Stop** zeroes command. |
@@ -21,7 +21,7 @@ Use this after changes to **`teknic_motor`**, **`motor.proto`**, motion limits i
 
 ## grpcurl (optional)
 
-With `motor-grpc` listening on `127.0.0.1:50051` and `.proto` on disk:
+With the motor service listening on `127.0.0.1:50051` (default) and `.proto` on disk:
 
 ```bash
 grpcurl -plaintext -import-path proto -proto motor.proto localhost:50051 motor.v1.MotorService/GetStatus
