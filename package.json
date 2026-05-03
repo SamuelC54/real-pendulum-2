@@ -2,7 +2,8 @@
   "name": "real-pendulum-2",
   "private": true,
   "workspaces": [
-    "apps/*"
+    "apps/*",
+    "packages/*"
   ],
   "scripts": {
     "test": "npm run test --workspaces --if-present",
@@ -11,6 +12,7 @@
     "test:e2e:real": "cross-env E2E_USE_REAL_MOTOR=1 playwright test",
     "test:e2e:real:ui": "cross-env E2E_USE_REAL_MOTOR=1 playwright test --ui",
     "build": "npm run build --workspaces --if-present",
+    "proto:generate": "buf generate",
     "predev": "npm run build:native -w @real-pendulum/motor-service && npx --yes kill-port 4000 50051 5173 5174",
     "dev": "node ./scripts/run-with-root-env.mjs npm run dev:stack",
     "dev:stack": "concurrently -n motor,api,web -c blue,green,magenta \"npm run dev -w @real-pendulum/motor-service\" \"wait-on -t 120000 tcp:127.0.0.1:50051 && npm run dev -w @real-pendulum/control-api\" \"wait-on -t 120000 tcp:127.0.0.1:50051 && npm run dev -w web\"",
@@ -18,9 +20,11 @@
     "dev:no-kill:stack": "npm run build:native -w @real-pendulum/motor-service && concurrently -n motor,api,web -c blue,green,magenta \"npm run dev -w @real-pendulum/motor-service\" \"wait-on -t 120000 tcp:127.0.0.1:50051 && npm run dev -w @real-pendulum/control-api\" \"wait-on -t 120000 tcp:127.0.0.1:50051 && npm run dev -w web\""
   },
   "devDependencies": {
+    "@bufbuild/buf": "^1.69.0",
+    "@bufbuild/protoc-gen-es": "^1.10.1",
     "@playwright/test": "^1.52.0",
-    "cross-env": "^7.0.3",
     "concurrently": "^9.1.2",
+    "cross-env": "^7.0.3",
     "dotenv": "^16.5.0",
     "tree-kill": "^1.2.2",
     "wait-on": "^8.0.3"

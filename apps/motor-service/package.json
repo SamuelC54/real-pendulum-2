@@ -10,8 +10,10 @@
     "check:dll": "node scripts/check-teknic-dll.mjs"
   },
   "dependencies": {
-    "@grpc/grpc-js": "^1.12.6",
-    "@grpc/proto-loader": "^0.7.15",
+    "@bufbuild/protobuf": "^2.10.0",
+    "@connectrpc/connect": "^2.1.0",
+    "@connectrpc/connect-node": "^2.1.0",
+    "@real-pendulum/motor-proto": "*",
     "koffi": "^2.10.1"
   },
   "devDependencies": {

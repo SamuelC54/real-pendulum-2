@@ -1,17 +1,27 @@
 /**
- * gRPC **`motor.v1.MotorService`** — loads **`teknic_motor.dll`** via koffi (no C++ gRPC binary).
+ * Connect **`motor.v1.MotorService`** — loads **`teknic_motor.dll`** via koffi.
  */
-import * as grpc from "@grpc/grpc-js";
+import * as http from "node:http";
+import { create } from "@bufbuild/protobuf";
+import type { ConnectRouter } from "@connectrpc/connect";
+import { connectNodeAdapter } from "@connectrpc/connect-node";
+import {
+  ConnectReplySchema,
+  DisconnectReplySchema,
+  GetStatusReplySchema,
+  MotorInfoSchema,
+  MotorService,
+  StopReplySchema,
+  SetJogVelocityReplySchema,
+} from "@real-pendulum/motor-proto/gen/motor_pb.js";
+import type { SetJogVelocityRequest } from "@real-pendulum/motor-proto/gen/motor_pb.js";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { loadMotorServiceCtor } from "./loadMotorService.js";
 import { motorInfoFromTeknicJson } from "./teknic/motorInfoFromJson.js";
 import { loadTeknic, type TeknicNative } from "./teknic/dll.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const pkgRoot = path.resolve(__dirname, "..");
-
-type SimpleResult = { ok: boolean; error_message: string };
 
 let teknic: TeknicNative;
 try {
@@ -21,114 +31,78 @@ try {
   process.exit(1);
 }
 
-function sendOk(cb: grpc.sendUnaryData<SimpleResult>): void {
-  cb(null, { ok: true, error_message: "" });
-}
-
-function sendFail(
-  cb: grpc.sendUnaryData<SimpleResult>,
-  label: string,
-  code: number,
-): void {
-  cb(null, {
-    ok: false,
-    error_message: `${label} failed (${code}): ${teknic.getDetail()}`,
-  });
-}
-
-function impl(): grpc.UntypedServiceImplementation {
-  return {
-    Connect: (
-      _call: grpc.ServerUnaryCall<object, SimpleResult>,
-      cb: grpc.sendUnaryData<SimpleResult>,
-    ) => {
+function routes(router: ConnectRouter): void {
+  router.service(MotorService, {
+    async connect() {
       const code = teknic.init();
       if (code !== 0) {
-        sendFail(cb, "teknic_init", code);
-        return;
+        return create(ConnectReplySchema, {
+          ok: false,
+          errorMessage: `teknic_init failed (${code}): ${teknic.getDetail()}`,
+        });
       }
-      sendOk(cb);
+      return create(ConnectReplySchema, { ok: true, errorMessage: "" });
     },
-    Disconnect: (
-      _call: grpc.ServerUnaryCall<object, SimpleResult>,
-      cb: grpc.sendUnaryData<SimpleResult>,
-    ) => {
+    async disconnect() {
       teknic.shutdown();
-      sendOk(cb);
+      return create(DisconnectReplySchema, { ok: true, errorMessage: "" });
     },
-    SetJogVelocity: (
-      call: grpc.ServerUnaryCall<{ rpm?: number }, SimpleResult>,
-      cb: grpc.sendUnaryData<SimpleResult>,
-    ) => {
-      const rpm = call.request?.rpm ?? 0;
+    async setJogVelocity(req: SetJogVelocityRequest) {
+      const rpm = req.rpm ?? 0;
       const code = teknic.setVelocityRpm(rpm);
       if (code !== 0) {
-        sendFail(cb, "teknic_set_velocity_rpm", code);
-        return;
+        return create(SetJogVelocityReplySchema, {
+          ok: false,
+          errorMessage: `teknic_set_velocity_rpm failed (${code}): ${teknic.getDetail()}`,
+        });
       }
-      sendOk(cb);
+      return create(SetJogVelocityReplySchema, { ok: true, errorMessage: "" });
     },
-    Stop: (
-      _call: grpc.ServerUnaryCall<object, SimpleResult>,
-      cb: grpc.sendUnaryData<SimpleResult>,
-    ) => {
+    async stop() {
       const code = teknic.stop();
       if (code !== 0) {
-        sendFail(cb, "teknic_stop", code);
-        return;
+        return create(StopReplySchema, {
+          ok: false,
+          errorMessage: `teknic_stop failed (${code}): ${teknic.getDetail()}`,
+        });
       }
-      sendOk(cb);
+      return create(StopReplySchema, { ok: true, errorMessage: "" });
     },
-    GetStatus: (
-      _call: grpc.ServerUnaryCall<object, Record<string, unknown>>,
-      cb: grpc.sendUnaryData<Record<string, unknown>>,
-    ) => {
+    async getStatus() {
       const connected = teknic.isConnected();
       const detail = teknic.getDetail().trim() || "Teknic ClearPath";
-      const reply: {
-        connected: boolean;
-        commanded_rpm: number;
-        detail: string;
-        motor?: ReturnType<typeof motorInfoFromTeknicJson>;
-      } = {
+      const reply = create(GetStatusReplySchema, {
         connected,
-        commanded_rpm: teknic.getCommandedRpm(),
+        commandedRpm: teknic.getCommandedRpm(),
         detail,
-      };
+      });
       if (connected) {
         const json = teknic.getMotorInfoJson();
         if (json) {
           const mi = motorInfoFromTeknicJson(json);
           if (mi) {
-            reply.motor = mi;
+            reply.motor = create(MotorInfoSchema, mi);
           }
         }
       }
-      cb(null, reply);
+      return reply;
     },
-  };
+  });
 }
 
-const MotorCtor = loadMotorServiceCtor(pkgRoot);
-const server = new grpc.Server();
-server.addService(MotorCtor.service, impl());
-
 const port = Number(process.env.MOTOR_GRPC_PORT ?? "50051");
-const bindAddr = `0.0.0.0:${port}`;
-server.bindAsync(
-  bindAddr,
-  grpc.ServerCredentials.createInsecure(),
-  (err, boundPort) => {
-    if (err) {
-      console.error("[motor-service]", err);
-      process.exit(1);
-    }
-    server.start();
-    console.log(
-      `[motor-service] MotorService (Node + teknic_motor.dll) listening on ${bindAddr} (port ${boundPort})`,
-    );
-  },
+const bindHost = "0.0.0.0";
+const server = http.createServer(
+  connectNodeAdapter({
+    routes,
+  }),
 );
+
+server.listen(port, bindHost, () => {
+  console.log(
+    `[motor-service] MotorService (Connect + teknic_motor.dll) http://${bindHost}:${port}`,
+  );
+});
 
 function shutdown(): void {
   try {
@@ -136,7 +110,7 @@ function shutdown(): void {
   } catch {
     /* ignore */
   }
-  server.tryShutdown(() => process.exit(0));
+  server.close(() => process.exit(0));
 }
 
 process.on("SIGINT", shutdown);

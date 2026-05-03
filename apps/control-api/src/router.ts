@@ -5,7 +5,7 @@ import { friendlyMotorGrpcError } from "./motorErrors.js";
 import * as motor from "./motorClient.js";
 
 function friendlyMotorError(err: unknown): string {
-  return friendlyMotorGrpcError(motor.motorGrpcTarget(), err);
+  return friendlyMotorGrpcError(motor.motorConnectBaseUrl(), err);
 }
 
 const t = initTRPC.context<{ motorUnavailable?: boolean }>().create({

@@ -1,45 +1,33 @@
-import * as grpc from "@grpc/grpc-js";
-import * as protoLoader from "@grpc/proto-loader";
-import * as path from "node:path";
-import { fileURLToPath } from "node:url";
+import * as http from "node:http";
+import { create } from "@bufbuild/protobuf";
+import type { ConnectRouter } from "@connectrpc/connect";
+import { connectNodeAdapter } from "@connectrpc/connect-node";
+import {
+  ConnectReplySchema,
+  DisconnectReplySchema,
+  GetStatusReplySchema,
+  MotorInfoSchema,
+  MotorService,
+  SetJogVelocityReplySchema,
+  StopReplySchema,
+} from "@real-pendulum/motor-proto/gen/motor_pb.js";
+import type { ConnectReply, SetJogVelocityRequest } from "@real-pendulum/motor-proto/gen/motor_pb.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PROTO_ROOT = path.resolve(__dirname, "../../../../proto");
-const MOTOR_PROTO = path.join(PROTO_ROOT, "motor.proto");
-
-function loadMotorServiceCtor(): grpc.ServiceClientConstructor {
-  const packageDefinition = protoLoader.loadSync(MOTOR_PROTO, {
-    keepCase: true,
-    longs: String,
-    enums: String,
-    defaults: true,
-    oneofs: true,
-    includeDirs: [PROTO_ROOT],
-  });
-  const loaded = grpc.loadPackageDefinition(packageDefinition) as Record<
-    string,
-    grpc.GrpcObject | grpc.ServiceClientConstructor
-  >;
-  const motorNs = loaded.motor as grpc.GrpcObject;
-  const v1 = motorNs.v1 as grpc.GrpcObject;
-  return v1.MotorService as grpc.ServiceClientConstructor;
-}
-
-/** Wire shape for embedded motor info (matches `motor.proto` / gRPC JSON-style keys). */
+/** Motor info fields aligned with **`motor.v1.MotorInfo`** (camelCase). */
 export type MotorInfoWire = {
-  node_index: number;
-  node_type_code: number;
-  node_type_label: string;
-  user_id: string;
-  firmware_version: string;
-  serial_number: number;
+  nodeIndex: number;
+  nodeTypeCode: number;
+  nodeTypeLabel: string;
+  userId: string;
+  firmwareVersion: string;
+  serialNumber: bigint;
   model: string;
 };
 
 /** Mutable in-memory motor service used by the fake server (no DLL / hardware). */
 export type FakeMotorGrpcModel = {
-  /** Reply sent by `Connect` (and whether `Connect` marks `connected`). */
-  connectReply: { ok: boolean; error_message: string };
+  /** Reply sent by **`connect`** (and whether **`connect`** marks **`connected`**). */
+  connectReply: ConnectReply;
   connected: boolean;
   commandedRpm: number;
   detail: string;
@@ -50,7 +38,7 @@ export function createFakeMotorGrpcModel(
   partial?: Partial<FakeMotorGrpcModel>,
 ): FakeMotorGrpcModel {
   return {
-    connectReply: { ok: true, error_message: "" },
+    connectReply: create(ConnectReplySchema, { ok: true, errorMessage: "" }),
     connected: false,
     commandedRpm: 0,
     detail: "fake motor service",
@@ -64,7 +52,7 @@ export type StartFakeMotorGrpcOptions = {
 };
 
 /**
- * In-process `MotorService` for integration tests (same `.proto` as **motor service** / `apps/motor-service`).
+ * In-process **`MotorService`** for integration tests (same **`.proto`** as **`apps/motor-service`**).
  * Binds to **`127.0.0.1:0`** (ephemeral) unless **`options.port`** is a positive port number.
  */
 export function startFakeMotorGrpcServer(
@@ -72,72 +60,63 @@ export function startFakeMotorGrpcServer(
   options?: StartFakeMotorGrpcOptions,
 ): Promise<{ url: string; close: () => Promise<void> }> {
   const explicit = options?.port;
-  const bindAddr =
-    explicit != null && explicit > 0 ? `127.0.0.1:${explicit}` : "127.0.0.1:0";
+  const listenPort = explicit != null && explicit > 0 ? explicit : 0;
 
-  const MotorCtor = loadMotorServiceCtor();
-  const server = new grpc.Server();
+  function routes(router: ConnectRouter): void {
+    router.service(MotorService, {
+      async connect() {
+        if (model.connectReply.ok) {
+          model.connected = true;
+        }
+        return model.connectReply;
+      },
+      async disconnect() {
+        model.connected = false;
+        return create(DisconnectReplySchema, { ok: true, errorMessage: "" });
+      },
+      async setJogVelocity(req: SetJogVelocityRequest) {
+        model.commandedRpm = req.rpm ?? 0;
+        return create(SetJogVelocityReplySchema, { ok: true, errorMessage: "" });
+      },
+      async stop() {
+        model.commandedRpm = 0;
+        return create(StopReplySchema, { ok: true, errorMessage: "" });
+      },
+      async getStatus() {
+        const reply = create(GetStatusReplySchema, {
+          connected: model.connected,
+          commandedRpm: model.commandedRpm,
+          detail: model.detail,
+        });
+        if (model.motor) {
+          reply.motor = create(MotorInfoSchema, model.motor);
+        }
+        return reply;
+      },
+    });
+  }
 
-  const impl: grpc.UntypedServiceImplementation = {
-    Connect: (_call, cb: grpc.sendUnaryData<{ ok: boolean; error_message: string }>) => {
-      if (model.connectReply.ok) model.connected = true;
-      cb(null, model.connectReply);
-    },
-    Disconnect: (_call, cb: grpc.sendUnaryData<{ ok: boolean; error_message: string }>) => {
-      model.connected = false;
-      cb(null, { ok: true, error_message: "" });
-    },
-    SetJogVelocity: (
-      call: grpc.ServerUnaryCall<{ rpm: number }, unknown>,
-      cb: grpc.sendUnaryData<{ ok: boolean; error_message: string }>,
-    ) => {
-      model.commandedRpm = call.request.rpm ?? 0;
-      cb(null, { ok: true, error_message: "" });
-    },
-    Stop: (_call, cb: grpc.sendUnaryData<{ ok: boolean; error_message: string }>) => {
-      model.commandedRpm = 0;
-      cb(null, { ok: true, error_message: "" });
-    },
-    GetStatus: (
-      _call,
-      cb: grpc.sendUnaryData<{
-        connected: boolean;
-        commanded_rpm: number;
-        detail: string;
-        motor?: MotorInfoWire;
-      }>,
-    ) => {
-      cb(null, {
-        connected: model.connected,
-        commanded_rpm: model.commandedRpm,
-        detail: model.detail,
-        motor: model.motor,
-      });
-    },
-  };
-
-  server.addService(MotorCtor.service, impl);
+  const handler = connectNodeAdapter({ routes });
 
   return new Promise((resolve, reject) => {
-    server.bindAsync(
-      bindAddr,
-      grpc.ServerCredentials.createInsecure(),
-      (err, port) => {
-        if (err) {
-          reject(err);
-          return;
-        }
-        resolve({
-          url: `127.0.0.1:${port}`,
-          close: () =>
-            new Promise<void>((res, rej) => {
-              server.tryShutdown((e) => {
-                if (e) rej(e);
-                else res();
-              });
-            }),
-        });
-      },
-    );
+    const server = http.createServer(handler);
+    server.listen(listenPort, "127.0.0.1", () => {
+      const addr = server.address();
+      if (!addr || typeof addr === "string") {
+        reject(new Error("fake motor: no listen address"));
+        return;
+      }
+      resolve({
+        url: `http://127.0.0.1:${addr.port}`,
+        close: () =>
+          new Promise<void>((res, rej) => {
+            server.close((e) => {
+              if (e) rej(e);
+              else res();
+            });
+          }),
+      });
+    });
+    server.on("error", reject);
   });
 }

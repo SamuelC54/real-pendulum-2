@@ -63,7 +63,7 @@ When **`motor.proto`** or **`mapMotorInfo`** changes, update the fixture and/or 
 | In-process fake **MotorService** (same `.proto` as **motor service** (`apps/motor-service`)) | `apps/control-api/src/test-support/fakeMotorGrpcServer.ts` |
 | Real `motorClient` calls against fake server | `apps/control-api/src/motorClient.integration.test.ts` |
 
-Uses ephemeral TCP (`127.0.0.1:0`), sets **`MOTOR_GRPC_URL`**, and **`resetMotorGrpcClientForTests()`** so the gRPC client cache does not leak between runs.
+Uses ephemeral HTTP (`http://127.0.0.1:<port>` from **`127.0.0.1:0`** bind), sets **`MOTOR_GRPC_URL`**, and **`resetMotorGrpcClientForTests()`** so the Connect client cache does not leak between runs.
 
 ### 3.4 Motor service — `apps/motor-service` (Node + native DLL)
 

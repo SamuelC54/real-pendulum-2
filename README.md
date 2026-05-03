@@ -59,20 +59,22 @@ Copy **`.env.example`** to **`.env`** in the **repository root** (same directory
 
 ---
 
-## Motor service (gRPC) — `apps/motor-service`
+## Motor service (Connect RPC) — `apps/motor-service`
 
-Workspace npm package: **`@real-pendulum/motor-service`** (folder **`apps/motor-service`**).
+Workspace npm package: **`@real-pendulum/motor-service`** (folder **`apps/motor-service`**). Shared protobuf types live in **`packages/motor-proto`** (**`npm run proto:generate`** after **`proto/motor.proto`** changes).
 
 Layout:
 
 | Path | Purpose |
 |------|---------|
 | **`native/teknic_motor/`** | CMake → **`teknic_motor.dll`** (Teknic ClearPath / SC4-HUB). |
-| **`src/server.ts`** | Node **`motor.v1.MotorService`** (**`@grpc/grpc-js`**) — entry point. |
+| **`src/server.ts`** | Node **`motor.v1.MotorService`** via [**Connect**](https://connectrpc.com/) (**`@connectrpc/connect-node`**, HTTP on **`MOTOR_GRPC_PORT`**). |
 | **`src/teknic/`** | **koffi** bindings (**`dll.ts`**) and motor-info JSON parsing (**`motorInfoFromJson.ts`**). |
 | **`scripts/`** | **`build-native.mjs`** configures and builds **`teknic_motor.dll`**. |
 
-**`npm run dev`** runs the **Node** gRPC server (**`tsx`**); **`predev`** only builds **`teknic_motor.dll`** (**`npm run build:native`**).
+**`npm run dev`** runs the motor **Connect** server (**`tsx`**); **`predev`** only builds **`teknic_motor.dll`** (**`npm run build:native`**).
+
+**Control API** talks to the motor over Connect using **`MOTOR_GRPC_URL`** (default **`http://127.0.0.1:50051`** if you only set host/port, see **`motorConnectBaseUrl()`** in **`control-api`**).
 
 **Build the DLL** (from **`apps/motor-service`** or repo root **`-w @real-pendulum/motor-service`**):
 

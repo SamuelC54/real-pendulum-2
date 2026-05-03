@@ -24,13 +24,13 @@ flowchart LR
   end
   subgraph node [Control machine]
     TS[TypeScript service\ncontrol logic + tRPC]
-    MS[Node gRPC MotorService\n@grpc/grpc-js + koffi]
+    MS[Node Connect MotorService\n@connectrpc/connect-node + koffi]
     DLL[teknic_motor.dll\nTeknic ClearView SDK]
   end
   HW[ClearPath-SC / SC4-HUB]
 
   UI <-->|HTTP / WebSocket\ntRPC| TS
-  TS <-->|gRPC| MS
+  TS <-->|Connect RPC / HTTP| MS
   MS <-->|FFI| DLL
   DLL <-->|USB SC4-HUB| HW
 ```
@@ -104,7 +104,7 @@ Defined by **`proto/motor.proto`** — **Connect**, **Disconnect**, **SetJogVelo
 ### 5.1 Role
 
 - **tRPC router** for the frontend: typed procedures for jog start/stop, limits, and status.
-- **gRPC client** to **motor service** (`MOTOR_GRPC_URL` / default port) for all hardware actions.
+- **Connect client** to **motor service** (`MOTOR_GRPC_URL` / default port) for all hardware actions.
 - Future: pendulum state (IMU/encoder), PID or LQR, logging — **not** required for Phase 1.
 
 ### 5.2 Suggested boundaries
@@ -141,7 +141,7 @@ Use accessible buttons, debounce network chatter if needed, and assume latency �
 
 Centralize:
 
-- gRPC address/port for **motor service** (default `127.0.0.1:<port>` from **`MOTOR_GRPC_PORT`** / **`MOTOR_GRPC_URL`**).
+- Connect **base URL** for **motor service** (e.g. `http://127.0.0.1:<port>`; host-only values are normalized in **`control-api`** / **`MOTOR_GRPC_URL`**).
 - Hub/node selection if multiple devices exist (Phase 1 can fix node 0).
 
 Avoid committing secrets; use env files locally.

@@ -40,7 +40,7 @@ launch(
   ["run", "start:tsx", "-w", "@real-pendulum/control-api"],
   {
     env: {
-      MOTOR_GRPC_URL: `127.0.0.1:${motorPort}`,
+      MOTOR_GRPC_URL: `http://127.0.0.1:${motorPort}`,
       CONTROL_API_PORT: controlPort,
     },
   },

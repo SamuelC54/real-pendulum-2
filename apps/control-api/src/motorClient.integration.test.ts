@@ -1,4 +1,6 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { create } from "@bufbuild/protobuf";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { ConnectReplySchema } from "@real-pendulum/motor-proto/gen/motor_pb.js";
 import {
   connectMotor,
   disconnectMotor,
@@ -13,7 +15,7 @@ import {
   type FakeMotorGrpcModel,
 } from "./test-support/fakeMotorGrpcServer.js";
 
-describe("motorClient integration (fake gRPC MotorService)", () => {
+describe("motorClient integration (fake Connect MotorService)", () => {
   let prevUrl: string | undefined;
   let model: FakeMotorGrpcModel;
   let close: () => Promise<void>;
@@ -22,12 +24,12 @@ describe("motorClient integration (fake gRPC MotorService)", () => {
     prevUrl = process.env.MOTOR_GRPC_URL;
     model = createFakeMotorGrpcModel({
       motor: {
-        node_index: 1,
-        node_type_code: 2,
-        node_type_label: "TestNode",
-        user_id: "u",
-        firmware_version: "1",
-        serial_number: 99,
+        nodeIndex: 1,
+        nodeTypeCode: 2,
+        nodeTypeLabel: "TestNode",
+        userId: "u",
+        firmwareVersion: "1",
+        serialNumber: BigInt(99),
         model: "M",
       },
     });
@@ -76,12 +78,15 @@ describe("motorClient integration (fake gRPC MotorService)", () => {
   });
 
   it("connect failure does not mark model connected", async () => {
-    model.connectReply = { ok: false, error_message: "hub missing" };
+    model.connectReply = create(ConnectReplySchema, {
+      ok: false,
+      errorMessage: "hub missing",
+    });
     model.connected = false;
     const r = await connectMotor();
     expect(r.ok).toBe(false);
     expect(r.error).toBe("hub missing");
     expect(model.connected).toBe(false);
-    model.connectReply = { ok: true, error_message: "" };
+    model.connectReply = create(ConnectReplySchema, { ok: true, errorMessage: "" });
   });
 });

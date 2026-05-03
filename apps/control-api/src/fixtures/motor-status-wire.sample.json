@@ -1,14 +1,14 @@
 {
   "connected": true,
-  "commanded_rpm": 12.5,
+  "commandedRpm": 12.5,
   "detail": "Teknic ClearPath",
   "motor": {
-    "node_index": 0,
-    "node_type_code": 47,
-    "node_type_label": "ClearPath-SC",
-    "user_id": "axis1",
-    "firmware_version": "2.3.0",
-    "serial_number": 123456789,
+    "nodeIndex": 0,
+    "nodeTypeCode": 47,
+    "nodeTypeLabel": "ClearPath-SC",
+    "userId": "axis1",
+    "firmwareVersion": "2.3.0",
+    "serialNumber": "123456789",
     "model": "CPM-SCSX"
   }
 }

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 vi.mock("./motorClient.js", () => ({
-  motorGrpcTarget: vi.fn(() => "127.0.0.1:50051"),
+  motorConnectBaseUrl: vi.fn(() => "http://127.0.0.1:50051"),
   connectMotor: vi.fn(),
   disconnectMotor: vi.fn(),
   setJogVelocityRpm: vi.fn(),
@@ -29,7 +29,7 @@ describe("appRouter (motor mocked)", () => {
     const res = await caller.status.get();
     expect(res.connected).toBe(false);
     expect(res.commandedRpm).toBe(0);
-    expect(res.detail).toContain("Motor gRPC not reachable at 127.0.0.1:50051");
+    expect(res.detail).toContain("Motor service not reachable at http://127.0.0.1:50051");
   });
 
   it("status.get returns live status when client succeeds", async () => {
@@ -50,7 +50,7 @@ describe("appRouter (motor mocked)", () => {
   it("connection.connect wraps motor errors", async () => {
     vi.mocked(motor.connectMotor).mockRejectedValue(new Error("ECONNREFUSED"));
     const caller = appRouter.createCaller({});
-    await expect(caller.connection.connect()).rejects.toThrow(/Motor gRPC not reachable/);
+    await expect(caller.connection.connect()).rejects.toThrow(/Motor service not reachable/);
   });
 
   it("connection.connect returns motor result on success", async () => {
