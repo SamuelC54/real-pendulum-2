@@ -82,7 +82,7 @@ Typical startup sequence (from those examples):
 1. `SysManager::Instance()`, then manual **`ComHubPort(0, comNum)`**, **`FindComHubPorts`** + per-hub **`ComHubPort`**, or (Windows, empty discovery) **COM index sweep** **`kComPortScanMin..Max`** until **`NodeCount() ≥ 1`**, then **`PortsOpen`**. Discovery filters **SC4‑HUB USB** only; motor diagnostic USB usually needs manual COM or the sweep.
 2. `PortsOpen`.
 3. Select `INode` (e.g. first node on port 0).
-4. Set units/limits (`AccUnit`, `VelUnit`, `Motion.AccLimit`, `Motion.VelLimit` as needed).
+4. Set units/limits in the same order as **`MotionVelocity.cpp`**: **`AccUnit`**, **`Motion.AccLimit`**, **`VelUnit`** (then optional **`Motion.VelLimit`** etc. as in **`SingleThreaded`/Axis** examples).
 5. `NodeStopClear`, `AlertsClear`, `EnableReq(true)`, wait until `Motion.IsReady()`.
 6. Issue motion: **velocity** `Motion.MoveVelStart(rpm)` or **position** `Motion.MovePosnStart(...)`.
 
@@ -95,7 +95,7 @@ Defined by **`proto/motor.proto`** — **Connect**, **Disconnect**, **SetJogVelo
 ### 4.3 Native build notes
 
 - Configure **`TEKNIC_SDK_ROOT`** (see **`apps/motor-service/native/README.md`**) so CMake finds Teknic headers and **`sFoundation20`** import libs / DLL copy rules.
-- **`npm run build:native -w @real-pendulum/motor-service`** runs **`scripts/build-native.mjs`** (CMake Visual Studio 2022 generator, Release). Output: **`native/build/Release/teknic_motor.dll`** next to copied **`sFoundation20.dll`**.
+- **`npm run build:native -w @real-pendulum/motor-service`** runs **`scripts/build-native.mjs`** (CMake: Visual Studio 2022 then 2026 generator fallback on Windows, Release; **`CMAKE_GENERATOR`** override in **`.env.local`**). Output: **`native/build/Release/teknic_motor.dll`** next to copied **`sFoundation20.dll`**.
 
 ---
 

@@ -22,17 +22,25 @@ constexpr int kComPortScanFailGapMs = 50;
 constexpr int kPostOpenDelayMs = 100;
 constexpr int kWaitOnlineMs = 10000;  // 0 = skip IPort::WaitForOnline
 
-// MotionVelocity.cpp: AccLimit in RPM/s before EnableReq (only if kHostVelocityParamsBeforeEnable).
+// 1 = teknic_init fails (-7) if INode::Setup.AccessLevelIsFull() is false (LoadingConfigFile.cpp).
+// 0 = skip that check. Teknic exposes no API to *grant* full access — only this query. Use 0 when
+// you connect only via the motor diagnostic USB (sole client) but AccessLevelIsFull still reads
+// false, or after power-cycling the motor with ClearView fully quit.
+constexpr int kRequireAccessLevelFull = 1;
+
+// Used when kHostVelocityParamsBeforeEnable == 2 (host Motion.AccLimit before EnableReq).
 constexpr int kAccLimitRpmPerSec = 1000;
 
-// 0 = do not set VelUnit / AccUnit / AccLimit before EnableReq (avoids Parameter(50) etc. when MSP
-// owns motion limits). 1 = apply MotionVelocity-style host limits before enable.
-constexpr int kHostVelocityParamsBeforeEnable = 0;
+// MotionVelocity.cpp order before EnableReq: AccUnit → AccLimit → VelUnit (see Teknic SDK examples).
+// 0 = set none (MSP owns everything).
+// 1 = AccUnit + VelUnit only (skips host AccLimit — avoids Parameter(62) if MSP locks AccLimit).
+// 2 = AccUnit + AccLimit + VelUnit (matches MotionVelocity.cpp lines 78–83; may hit Parameter(62)).
+constexpr int kHostVelocityParamsBeforeEnable = 1;
 
 // 0 = SCNetworkReport-style: open port(s) and read node IInfo only — no EnableReq, no NodeStopClear,
-// no AlertsClear, no motion. UI shows motor data; jog returns an error until this is 1.
-// 1 = full connect (enable axis for MoveVelStart / jog).
-constexpr int kEnableReqOnConnect = 0;
+// no AlertsClear, no motion. UI shows motor data; jog returns an error.
+// 1 = full connect (enable axis for MoveVelStart / jog). Default: allow rail jog from the web UI.
+constexpr int kEnableReqOnConnect = 1;
 
 // 1 = call EnableReq(false), gap, then EnableReq(true). MotionVelocity uses 0.
 constexpr int kPreEnableDisable = 0;

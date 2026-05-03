@@ -1,46 +1,31 @@
 import { Link2, Link2Off } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { JogControls } from "@/components/JogControls";
-import { JOG_RPM, jogRpmForDirection } from "@/lib/jogMath";
-import { trpc } from "@/trpc";
+import { JOG_RPM } from "@/lib/jogMath";
+import { useMotorSession } from "@/services/motorSession";
 
 export default function App() {
-  const status = trpc.status.get.useQuery(undefined, { refetchInterval: 1000 });
-  const connect = trpc.connection.connect.useMutation();
-  const disconnect = trpc.connection.disconnect.useMutation();
-  const setVelocity = trpc.jog.setVelocity.useMutation();
-  const stop = trpc.jog.stop.useMutation();
-
-  const [holding, setHolding] = useState<"left" | "right" | null>(null);
-
-  const refetchStatus = status.refetch;
-
-  const connected = status.data?.connected ?? false;
-
-  const applyHold = useCallback(
-    async (dir: "left" | "right" | null) => {
-      if (!connected && dir) return;
-      setHolding(dir);
-      if (!dir) {
-        await stop.mutateAsync();
-        await refetchStatus();
-        return;
-      }
-      const rpm = jogRpmForDirection(dir);
-      await setVelocity.mutateAsync({ rpm });
-      await refetchStatus();
-    },
-    [connected, setVelocity, stop, refetchStatus],
-  );
+  const {
+    status,
+    connect,
+    connected,
+    busy,
+    connectMotor,
+    disconnectMotor,
+    applyHold,
+    stop,
+  } = useMotorSession();
+  const applyHoldRef = useRef(applyHold);
+  applyHoldRef.current = applyHold;
 
   useEffect(() => {
     const onBlur = () => {
-      void applyHold(null);
+      void applyHoldRef.current(null);
     };
     window.addEventListener("blur", onBlur);
     return () => window.removeEventListener("blur", onBlur);
-  }, [applyHold]);
+  }, []);
 
   const stopMutateRef = useRef(stop.mutate);
   stopMutateRef.current = stop.mutate;
@@ -49,24 +34,6 @@ export default function App() {
       void stopMutateRef.current();
     };
   }, []);
-
-  const busy =
-    connect.isPending || disconnect.isPending || setVelocity.isPending || stop.isPending;
-
-  const onConnect = useCallback(async () => {
-    connect.reset();
-    const r = await connect.mutateAsync();
-    await refetchStatus();
-    if (!r.ok && r.error) {
-      console.warn("[jog] connect failed:", r.error);
-    }
-  }, [connect, refetchStatus]);
-
-  const onDisconnect = useCallback(async () => {
-    setHolding(null);
-    await disconnect.mutateAsync();
-    await refetchStatus();
-  }, [disconnect, refetchStatus]);
 
   return (
     <div className="min-h-dvh bg-background text-foreground">
@@ -106,7 +73,7 @@ export default function App() {
                 variant="default"
                 size="sm"
                 disabled={busy}
-                onClick={() => void onConnect()}
+                onClick={() => void connectMotor()}
               >
                 <Link2 aria-hidden className="mr-2 h-4 w-4" />
                 Connect motor
@@ -117,7 +84,7 @@ export default function App() {
                 variant="outline"
                 size="sm"
                 disabled={busy}
-                onClick={() => void onDisconnect()}
+                onClick={() => void disconnectMotor()}
               >
                 <Link2Off aria-hidden className="mr-2 h-4 w-4" />
                 Disconnect
@@ -125,10 +92,10 @@ export default function App() {
             )}
           </div>
           {connect.data && !connect.data.ok && connect.data.error ? (
-            <p className="text-destructive text-xs">{connect.data.error}</p>
+            <p className="text-destructive wrap-break-word whitespace-pre-wrap text-xs">{connect.data.error}</p>
           ) : null}
           {connect.error ? (
-            <p className="text-destructive text-xs">{connect.error.message}</p>
+            <p className="text-destructive wrap-break-word whitespace-pre-wrap text-xs">{connect.error.message}</p>
           ) : null}
         </section>
 
@@ -162,12 +129,7 @@ export default function App() {
           </section>
         ) : null}
 
-        <JogControls
-          busy={busy}
-          connected={connected}
-          holding={holding}
-          applyHold={applyHold}
-        />
+        <JogControls />
       </div>
     </div>
   );

@@ -35,9 +35,11 @@ function routes(router: ConnectRouter): void {
     async connect() {
       const code = teknic.init();
       if (code !== 0) {
+        const detail = teknic.getDetail();
+        console.error("[motor-service] teknic_init failed", { code, detail });
         return create(ConnectReplySchema, {
           ok: false,
-          errorMessage: `teknic_init failed (${code}): ${teknic.getDetail()}`,
+          errorMessage: `teknic_init failed (${code}): ${detail}`,
         });
       }
       return create(ConnectReplySchema, { ok: true, errorMessage: "" });

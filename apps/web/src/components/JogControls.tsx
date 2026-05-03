@@ -1,23 +1,31 @@
 import { ChevronLeft, ChevronRight, OctagonAlert } from "lucide-react";
+import { useAtomValue } from "jotai";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { useMotorSession } from "@/services/motorSession";
+import { holdingAtom } from "@/stores/jog";
 
-export type JogControlsProps = {
-  busy: boolean;
-  connected: boolean;
-  holding: "left" | "right" | null;
-  applyHold: (dir: "left" | "right" | null) => void | Promise<void>;
-};
+const jogHeldVisual =
+  "z-10 shadow-lg ring-2 ring-primary ring-offset-2 ring-offset-background motion-safe:scale-[1.02]";
 
-export function JogControls({ busy, connected, holding, applyHold }: JogControlsProps) {
+export function JogControls() {
+  const { connected, busy, applyHold } = useMotorSession();
+  const holding = useAtomValue(holdingAtom);
+
+  const disabled = busy || !connected;
+
   return (
     <section className="flex flex-col items-center gap-6">
       <div className="flex w-full max-w-md gap-4">
         <Button
           type="button"
-          variant="secondary"
+          variant={holding === "left" ? "default" : "secondary"}
           size="lg"
-          className="flex-1 touch-manipulation select-none"
-          disabled={busy || !connected}
+          className={cn(
+            "flex-1 touch-manipulation select-none transition-[color,box-shadow,transform,ring] duration-200",
+            holding === "left" && jogHeldVisual,
+          )}
+          disabled={disabled}
           aria-pressed={holding === "left"}
           onPointerDown={(e) => {
             e.preventDefault();
@@ -33,10 +41,13 @@ export function JogControls({ busy, connected, holding, applyHold }: JogControls
         </Button>
         <Button
           type="button"
-          variant="secondary"
+          variant={holding === "right" ? "default" : "secondary"}
           size="lg"
-          className="flex-1 touch-manipulation select-none"
-          disabled={busy || !connected}
+          className={cn(
+            "flex-1 touch-manipulation select-none transition-[color,box-shadow,transform,ring] duration-200",
+            holding === "right" && jogHeldVisual,
+          )}
+          disabled={disabled}
           aria-pressed={holding === "right"}
           onPointerDown={(e) => {
             e.preventDefault();
@@ -56,8 +67,8 @@ export function JogControls({ busy, connected, holding, applyHold }: JogControls
         type="button"
         variant="destructive"
         size="lg"
-        className="min-w-[12rem]"
-        disabled={busy || !connected}
+        className="min-w-48"
+        disabled={disabled}
         onClick={() => void applyHold(null)}
       >
         <OctagonAlert aria-hidden />

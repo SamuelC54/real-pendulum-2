@@ -5,7 +5,9 @@
 
 #include <cstdio>
 #include <cstring>
+#include <iomanip>
 #include <mutex>
+#include <sstream>
 #include <string>
 
 #include "pubSysCls.h"
@@ -66,6 +68,25 @@ __declspec(dllexport) int __cdecl teknic_init(void) {
 
     INode& my_node = my_port.Nodes(0);
 
+    /*
+     * Same idea as Teknic LoadingConfigFile.cpp: when ClearView holds full access on the motor
+     * diagnostic USB, the SC4-HUB application channel can be monitor-only. sFoundation has no
+     * function to *acquire* full access — only Setup.AccessLevelIsFull() (see pubSysCls.h).
+     * Optional skip: TeknicCfg::kRequireAccessLevelFull=0 (e.g. sole client on diagnostic USB).
+     */
+    if (TeknicCfg::kRequireAccessLevelFull != 0 && !my_node.Setup.AccessLevelIsFull()) {
+      g_teknic_detail =
+          "INode::Setup.AccessLevelIsFull() is false. The SDK does not expose a call to force full "
+          "access — only this check. If ClearView uses the motor diagnostic USB with Full Access, "
+          "close it or set Access to Monitor Mode so the hub/app channel can be full. If ClearView "
+          "is closed and you only use diagnostic USB for this app but still see this, power-cycle "
+          "the motor or set TeknicCfg::kRequireAccessLevelFull=0 in teknic_cfg.h and rebuild "
+          "teknic_motor.dll (you accept the risk of monitor-only / parameter failures later).";
+      g_teknic_mgr->PortsClose();
+      g_teknic_mgr = nullptr;
+      return -7;
+    }
+
     const int prep_rc = teknic_node_prepare_motion(g_teknic_mgr, my_node);
     if (prep_rc != 0) {
       return prep_rc;
@@ -80,9 +101,11 @@ __declspec(dllexport) int __cdecl teknic_init(void) {
     g_teknic_initialized = true;
     return 0;
   } catch (mnErr& theErr) {
-    char buf[384];
-    snprintf(buf, sizeof(buf), "Teknic mnErr 0x%08x: %s", theErr.ErrorCode, theErr.ErrorMsg);
-    g_teknic_detail = buf;
+    std::ostringstream os;
+    os << "Teknic mnErr 0x" << std::hex << std::uppercase
+       << static_cast<unsigned>(theErr.ErrorCode) << std::nouppercase << std::dec << ": "
+       << (theErr.ErrorMsg ? theErr.ErrorMsg : "");
+    g_teknic_detail = os.str();
     if (g_teknic_mgr) {
       try {
         g_teknic_mgr->PortsClose();
@@ -152,9 +175,11 @@ __declspec(dllexport) int __cdecl teknic_set_velocity_rpm(double rpm) {
 
     return 0;
   } catch (mnErr& theErr) {
-    char buf[384];
-    snprintf(buf, sizeof(buf), "Move mnErr 0x%08x: %s", theErr.ErrorCode, theErr.ErrorMsg);
-    g_teknic_detail = buf;
+    std::ostringstream os;
+    os << "Move mnErr 0x" << std::hex << std::uppercase
+       << static_cast<unsigned>(theErr.ErrorCode) << std::nouppercase << std::dec << ": "
+       << (theErr.ErrorMsg ? theErr.ErrorMsg : "");
+    g_teknic_detail = os.str();
     return -100;
   }
 }
