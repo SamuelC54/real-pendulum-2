@@ -2,13 +2,14 @@
  * Connect **`motor.v1.MotorService`** — loads **`teknic_motor.dll`** via koffi.
  */
 import * as http from "node:http";
-import { create } from "@bufbuild/protobuf";
+import { create, fromJsonString } from "@bufbuild/protobuf";
 import type { ConnectRouter } from "@connectrpc/connect";
 import { connectNodeAdapter } from "@connectrpc/connect-node";
 import {
   ConnectReplySchema,
   DisconnectReplySchema,
   GetStatusReplySchema,
+  MotorInfoSchema,
   MotorService,
   StopReplySchema,
   SetJogVelocityReplySchema,
@@ -16,7 +17,6 @@ import {
 import type { SetJogVelocityRequest } from "@real-pendulum/motor-proto/gen/motor_pb.js";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { motorInfoFromTeknicJson } from "./teknic/motorInfoFromJson.js";
 import { loadTeknic, type TeknicNative } from "./teknic/dll.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -78,9 +78,10 @@ function routes(router: ConnectRouter): void {
       if (connected) {
         const json = teknic.getMotorInfoJson();
         if (json) {
-          const mi = motorInfoFromTeknicJson(json);
-          if (mi) {
-            reply.motor = mi;
+          try {
+            reply.motor = fromJsonString(MotorInfoSchema, json);
+          } catch {
+            /* invalid MotorInfo JSON from native */
           }
         }
       }
