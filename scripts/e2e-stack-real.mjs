@@ -1,7 +1,7 @@
 /**
  * Starts **motor-grpc** (Teknic DLL) → **control-api** → **Vite dev** for Playwright against real hardware.
  *
- * Prerequisites: **`teknic_motor.dll`** built, hub powered, ClearView closed — same as `npm run dev`.
+ * Prerequisites: **`teknic_motor.dll`** (**`build:native`**) + Node motor-grpc, hub powered, ClearView closed — same as **`npm run dev`**.
  *
  * Environment (inherits repo `.env` via child processes): **`MOTOR_GRPC_PORT`**, **`CONTROL_API_PORT`**,
  * **`E2E_WEB_PORT`** / **`VITE_DEV_PORT`** for the web dev server port.
@@ -31,7 +31,7 @@ function launch(command, args, options) {
   return child;
 }
 
-launch("npm", ["run", "start:tsx", "-w", "@real-pendulum/motor-grpc"], {
+launch("npm", ["run", "start", "-w", "@real-pendulum/motor-grpc"], {
   env: { MOTOR_GRPC_PORT: motorPort },
 });
 

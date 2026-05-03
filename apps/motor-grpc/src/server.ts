@@ -1,57 +1,50 @@
-import { config as loadRootEnv } from "dotenv";
-import * as path from "node:path";
-import { fileURLToPath } from "node:url";
+/**
+ * gRPC **`motor.v1.MotorService`** — loads **`teknic_motor.dll`** via koffi (no C++ gRPC binary).
+ */
 import * as grpc from "@grpc/grpc-js";
 import * as protoLoader from "@grpc/proto-loader";
-import { loadTeknic, resolveTeknicDll, type TeknicNative } from "./teknicNative.js";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { motorInfoFromTeknicJson } from "./teknic/motorInfoFromJson.js";
+import { loadTeknic } from "./teknic/dll.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const REPO_ROOT = path.resolve(__dirname, "../../..");
-loadRootEnv({ path: path.join(REPO_ROOT, ".env") });
-loadRootEnv({ path: path.join(REPO_ROOT, ".env.local"), override: true });
+const pkgRoot = path.resolve(__dirname, "..");
+const repoProto = path.resolve(pkgRoot, "..", "..", "proto");
+const PROTO_PATH = path.join(repoProto, "motor.proto");
 
-const PROTO_ROOT = path.resolve(__dirname, "../../../proto");
-const MOTOR_PROTO = path.join(PROTO_ROOT, "motor.proto");
+function loadMotorServiceCtor(): grpc.ServiceClientConstructor {
+  const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
+    keepCase: true,
+    longs: String,
+    enums: String,
+    defaults: true,
+    oneofs: true,
+    includeDirs: [repoProto],
+  });
+  const loaded = grpc.loadPackageDefinition(packageDefinition) as Record<
+    string,
+    grpc.GrpcObject | grpc.ServiceClientConstructor
+  >;
+  const motorNs = loaded.motor as grpc.GrpcObject;
+  const v1 = motorNs.v1 as grpc.GrpcObject;
+  return v1.MotorService as grpc.ServiceClientConstructor;
+}
 
-const packageDefinition = protoLoader.loadSync(MOTOR_PROTO, {
-  keepCase: true,
-  longs: String,
-  enums: String,
-  defaults: true,
-  oneofs: true,
-  includeDirs: [PROTO_ROOT],
-});
+let teknic: ReturnType<typeof loadTeknic>;
+try {
+  teknic = loadTeknic(pkgRoot);
+} catch (e) {
+  console.error("[motor-grpc]", e);
+  process.exit(1);
+}
 
-const loaded = grpc.loadPackageDefinition(packageDefinition) as Record<
-  string,
-  grpc.GrpcObject | grpc.ServiceClientConstructor
->;
-const motorNs = loaded.motor as grpc.GrpcObject;
-const v1 = motorNs.v1 as grpc.GrpcObject;
-const MotorCtor = v1.MotorService as grpc.ServiceClientConstructor;
-
-type OkReply = { ok: boolean; error_message: string };
-
-type MotorInfoWire = {
-  node_index: number;
-  node_type_code: number;
-  node_type_label: string;
-  user_id: string;
-  firmware_version: string;
-  serial_number: number;
-  model: string;
-};
-
-type StatusReply = {
-  connected: boolean;
-  commanded_rpm: number;
-  detail: string;
-  motor?: MotorInfoWire;
-};
-
-function buildImplementation(teknic: TeknicNative): grpc.UntypedServiceImplementation {
+function impl(): grpc.UntypedServiceImplementation {
   return {
-    Connect: (_call: grpc.ServerUnaryCall<object, unknown>, cb: grpc.sendUnaryData<OkReply>) => {
+    Connect: (
+      _call: grpc.ServerUnaryCall<object, { ok: boolean; error_message: string }>,
+      cb: grpc.sendUnaryData<{ ok: boolean; error_message: string }>,
+    ) => {
       const code = teknic.init();
       if (code !== 0) {
         cb(null, {
@@ -62,15 +55,18 @@ function buildImplementation(teknic: TeknicNative): grpc.UntypedServiceImplement
       }
       cb(null, { ok: true, error_message: "" });
     },
-    Disconnect: (_call: grpc.ServerUnaryCall<object, unknown>, cb: grpc.sendUnaryData<OkReply>) => {
+    Disconnect: (
+      _call: grpc.ServerUnaryCall<object, { ok: boolean; error_message: string }>,
+      cb: grpc.sendUnaryData<{ ok: boolean; error_message: string }>,
+    ) => {
       teknic.shutdown();
       cb(null, { ok: true, error_message: "" });
     },
     SetJogVelocity: (
-      call: grpc.ServerUnaryCall<{ rpm: number }, unknown>,
-      cb: grpc.sendUnaryData<OkReply>,
+      call: grpc.ServerUnaryCall<{ rpm?: number }, { ok: boolean; error_message: string }>,
+      cb: grpc.sendUnaryData<{ ok: boolean; error_message: string }>,
     ) => {
-      const rpm = call.request.rpm ?? 0;
+      const rpm = call.request?.rpm ?? 0;
       const code = teknic.setVelocityRpm(rpm);
       if (code !== 0) {
         cb(null, {
@@ -81,7 +77,10 @@ function buildImplementation(teknic: TeknicNative): grpc.UntypedServiceImplement
       }
       cb(null, { ok: true, error_message: "" });
     },
-    Stop: (_call: grpc.ServerUnaryCall<object, unknown>, cb: grpc.sendUnaryData<OkReply>) => {
+    Stop: (
+      _call: grpc.ServerUnaryCall<object, { ok: boolean; error_message: string }>,
+      cb: grpc.sendUnaryData<{ ok: boolean; error_message: string }>,
+    ) => {
       const code = teknic.stop();
       if (code !== 0) {
         cb(null, {
@@ -92,97 +91,65 @@ function buildImplementation(teknic: TeknicNative): grpc.UntypedServiceImplement
       }
       cb(null, { ok: true, error_message: "" });
     },
-    GetStatus: (_call: grpc.ServerUnaryCall<object, unknown>, cb: grpc.sendUnaryData<StatusReply>) => {
+    GetStatus: (
+      _call: grpc.ServerUnaryCall<object, Record<string, unknown>>,
+      cb: grpc.sendUnaryData<Record<string, unknown>>,
+    ) => {
       const connected = teknic.isConnected();
-      let motor: MotorInfoWire | undefined;
+      const detail =
+        teknic.getDetail().trim() || "Teknic ClearPath";
+      const reply: {
+        connected: boolean;
+        commanded_rpm: number;
+        detail: string;
+        motor?: ReturnType<typeof motorInfoFromTeknicJson>;
+      } = {
+        connected,
+        commanded_rpm: teknic.getCommandedRpm(),
+        detail,
+      };
       if (connected) {
-        const raw = teknic.getMotorInfoJson();
-        if (raw) {
-          try {
-            const o = JSON.parse(raw) as Partial<MotorInfoWire>;
-            motor = {
-              node_index: Number(o.node_index ?? 0),
-              node_type_code: Number(o.node_type_code ?? 0),
-              node_type_label: String(o.node_type_label ?? ""),
-              user_id: String(o.user_id ?? ""),
-              firmware_version: String(o.firmware_version ?? ""),
-              serial_number: Number(o.serial_number ?? 0),
-              model: String(o.model ?? ""),
-            };
-          } catch {
-            motor = undefined;
+        const json = teknic.getMotorInfoJson();
+        if (json) {
+          const mi = motorInfoFromTeknicJson(json);
+          if (mi) {
+            reply.motor = mi;
           }
         }
       }
-      cb(null, {
-        connected,
-        commanded_rpm: teknic.getCommandedRpm(),
-        detail: teknic.getDetail() || "Teknic ClearPath",
-        motor,
-      });
+      cb(null, reply);
     },
   };
 }
 
-function startGrpc(teknic: TeknicNative) {
-  const server = new grpc.Server();
-  server.addService(MotorCtor.service, buildImplementation(teknic));
+const MotorCtor = loadMotorServiceCtor();
+const server = new grpc.Server();
+server.addService(MotorCtor.service, impl());
 
-  const port = process.env.MOTOR_GRPC_PORT ?? "50051";
-  const bindAddr = `0.0.0.0:${port}`;
-  server.bindAsync(
-    bindAddr,
-    grpc.ServerCredentials.createInsecure(),
-    (err, portNum) => {
-      if (err) {
-        const ne = err as NodeJS.ErrnoException;
-        if (ne.code === "EADDRINUSE") {
-          console.error(
-            `[motor-grpc] Port ${port} is already in use (another motor-grpc or leftover "npm run dev"). Stop that process or set MOTOR_GRPC_PORT.`,
-          );
-        }
-        console.error(err);
-        process.exit(1);
-      }
-      console.log(`motor-grpc listening on ${bindAddr} (port ${portNum})`);
-    },
-  );
+const port = Number(process.env.MOTOR_GRPC_PORT ?? "50051");
 
-  const shutdown = () => {
-    try {
-      server.forceShutdown();
-    } finally {
-      teknic.shutdown();
+const bindAddr = `0.0.0.0:${port}`;
+server.bindAsync(
+  bindAddr,
+  grpc.ServerCredentials.createInsecure(),
+  (err, boundPort) => {
+    if (err) {
+      console.error("[motor-grpc]", err);
+      process.exit(1);
     }
-  };
+    server.start();
+    console.log(`[motor-grpc] MotorService (Node + teknic_motor.dll) listening on ${bindAddr} (port ${boundPort})`);
+  },
+);
 
-  process.on("SIGINT", shutdown);
-  process.on("SIGTERM", shutdown);
-}
-
-function main() {
-  const dllPath = resolveTeknicDll(__dirname);
-  if (!dllPath) {
-    console.error(
-      [
-        "[motor-grpc] teknic_motor.dll not found.",
-        "Build: cmake -S native/teknic_motor -B native/build -G \"Visual Studio 17 2022\" -A x64 && cmake --build native/build --config Release",
-        "Or set TEKNIC_DLL to the DLL path.",
-      ].join("\n"),
-    );
-    process.exit(1);
-  }
-
-  let teknic: TeknicNative;
+function shutdown(): void {
   try {
-    teknic = loadTeknic(dllPath);
-  } catch (e) {
-    console.error("[motor-grpc] Failed to load Teknic DLL:", dllPath, e);
-    process.exit(1);
+    teknic.shutdown();
+  } catch {
+    /* ignore */
   }
-
-  console.log("[motor-grpc] Teknic DLL loaded; hardware connects on Connect RPC / UI — not at startup.");
-  startGrpc(teknic);
+  server.tryShutdown(() => process.exit(0));
 }
 
-main();
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);

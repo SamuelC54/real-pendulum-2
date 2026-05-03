@@ -86,9 +86,9 @@ Uses ephemeral TCP (`127.0.0.1:0`), sets **`MOTOR_GRPC_URL`**, and **`resetMotor
 | Mode | Command | Orchestrator | Ports (defaults) |
 |------|---------|--------------|------------------|
 | **Fake motor** (default, CI) | **`npm run test:e2e`** | **`scripts/e2e-stack.mjs`** — in-process fake **`MotorService`** → **`start:tsx`** control-api → **Vite dev** | **50552** / **14001** / **4174** — avoids clashing with **`npm run dev`** |
-| **Real motor** (local + hardware) | **`npm run test:e2e:real`** | **`scripts/e2e-stack-real.mjs`** — **`motor-grpc`** (**`start:tsx`**, loads **`teknic_motor.dll`**) → control-api → Vite | **50051** / **4000** / **5173** (or **`.env`**: **`MOTOR_GRPC_PORT`**, **`CONTROL_API_PORT`**, **`VITE_DEV_PORT`** / **`E2E_WEB_PORT`**) |
+| **Real motor** (local + hardware) | **`npm run test:e2e:real`** | **`scripts/e2e-stack-real.mjs`** — **`motor-grpc`** (Node **`tsx`** + **`teknic_motor.dll`**, **`npm run start`**) → control-api → Vite | **50051** / **4000** / **5173** (or **`.env`**: **`MOTOR_GRPC_PORT`**, **`CONTROL_API_PORT`**, **`VITE_DEV_PORT`** / **`E2E_WEB_PORT`**) |
 
-Set **`E2E_USE_REAL_MOTOR=1`** (or use **`cross-env`** via **`npm run test:e2e:real`**) so **`playwright.config.cjs`** selects **`e2e-stack-real.mjs`**. Loads repo **`.env`** / **`.env.local`** so **`TEKNIC_DLL`** etc. apply. Real runs need **`npm run build:native`** first, hub power, and **ClearView** closed — same as **[hardware-smoke-checklist.md](./hardware-smoke-checklist.md)**.
+Set **`E2E_USE_REAL_MOTOR=1`** (or use **`cross-env`** via **`npm run test:e2e:real`**) so **`playwright.config.cjs`** selects **`e2e-stack-real.mjs`**. Loads repo **`.env`** / **`.env.local`**. Real runs need **`teknic_motor.dll`** (**`npm run build:native -w @real-pendulum/motor-grpc`**), hub power, and **ClearView** closed — same as **[hardware-smoke-checklist.md](./hardware-smoke-checklist.md)**.
 
 Run **`npm run build`** before E2E so workspace TypeScript builds; **Vite dev** picks up **`VITE_CONTROL_API_URL`** at stack start.
 
@@ -125,7 +125,7 @@ Set repository variable **`TEKNIC_SDK_ROOT`** if the SDK is not under the defaul
 | `npm run test:e2e:ui` | Playwright UI mode (local debugging). |
 | `npm run test -w @real-pendulum/control-api` | API/router/integration only. |
 | `npm run test -w web` | Web unit/component tests only. |
-| `npm run check:dll -w @real-pendulum/motor-grpc` | Windows: load DLL with koffi if present (optional local smoke). |
+| `npm run check:dll -w @real-pendulum/motor-grpc` | Windows: **`teknic_motor.dll`** exists under **`native/build`** (optional smoke). |
 
 ---
 

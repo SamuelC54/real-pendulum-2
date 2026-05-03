@@ -53,45 +53,35 @@ Optional env: **`E2E_USE_REAL_MOTOR=1`** selects the real stack (same as **`test
 
 ### Environment variables (repository root)
 
-Copy **`.env.example`** to **`.env`** in the **repository root** (same directory as the root `package.json`). Put ports (**`MOTOR_GRPC_PORT`**, **`CONTROL_API_PORT`**, **`VITE_DEV_PORT`**), optional **`TEKNIC_DLL`** (custom DLL path), and optional **`VITE_*`** there. **Teknic motion limits are not env-driven** — edit **`TeknicCfg`** in `apps/motor-grpc/native/teknic_motor/teknic_motor.cpp` and rebuild the DLL. **`FindComHubPorts`** only sees the **SC4-HUB** USB adapter; **motor diagnostic USB** uses a different COM — set **`TeknicCfg::kManualComWhenDiscoveryEmpty`** ≥ 1 to **`ComHubPort(0, n)`** and skip discovery (Windows), same pattern as **`SCNetworkReport.exe`** with a COM number.
+Copy **`.env.example`** to **`.env`** in the **repository root** (same directory as the root `package.json`). Put ports (**`MOTOR_GRPC_PORT`**, **`CONTROL_API_PORT`**, **`VITE_DEV_PORT`**), optional **`TEKNIC_DLL`** (custom **`teknic_motor.dll`** path), and optional **`VITE_*`** there. **Teknic motion limits are not env-driven** — edit **`TeknicCfg`** in `apps/motor-grpc/native/teknic_motor/teknic_cfg.h` and rebuild the DLL. **`FindComHubPorts`** only sees the **SC4-HUB** USB adapter; **motor diagnostic USB** uses a different COM — set **`TeknicCfg::kManualComWhenDiscoveryEmpty`** ≥ 1 to **`ComHubPort(0, n)`** and skip discovery (Windows), same pattern as **`SCNetworkReport.exe`** with a COM number.
 
 **`npm run dev`** and **`npm run dev:no-kill`** load **`.env`** then **`.env.local`** (override) via **`scripts/run-with-root-env.mjs`**. The motor, API, and web apps also read those files when started from a workspace so a single file covers the monorepo. **`.env`** and **`.env.local`** are gitignored.
 
 ---
 
-## Teknic native DLL (`teknic_motor.dll`)
+## Motor gRPC (`apps/motor-grpc`)
 
-The motor service loads `teknic_motor.dll`, built from `apps/motor-grpc/native/teknic_motor`.
+Layout:
 
-**`npm run dev` runs this build automatically** (`predev` calls `build:native` for `@real-pendulum/motor-grpc`, then frees default ports). You can also build only the DLL:
+| Path | Purpose |
+|------|---------|
+| **`native/teknic_motor/`** | CMake → **`teknic_motor.dll`** (Teknic ClearPath / SC4-HUB). |
+| **`src/server.ts`** | Node **`motor.v1.MotorService`** (**`@grpc/grpc-js`**) — entry point. |
+| **`src/teknic/`** | **koffi** bindings (**`dll.ts`**) and motor-info JSON parsing (**`motorInfoFromJson.ts`**). |
+| **`scripts/`** | **`build-native.mjs`** configures and builds **`teknic_motor.dll`**. |
 
-From **`apps/motor-grpc`**:
+**`npm run dev`** runs the **Node** gRPC server (**`tsx`**); **`predev`** only builds **`teknic_motor.dll`** (**`npm run build:native`**).
+
+**Build the DLL** (from **`apps/motor-grpc`** or repo root **`-w @real-pendulum/motor-grpc`**):
 
 ```bash
 npm run build:native
 ```
 
-Or from the repo root:
-
-```bash
-npm run build:native -w @real-pendulum/motor-grpc
-```
-
-This runs CMake with the Visual Studio 2022 **x64** generator and builds **Release**. The output DLL is expected at:
-
-`apps/motor-grpc/native/build/Release/teknic_motor.dll`
-
-If ClearView is installed elsewhere, pass the SDK root when configuring CMake:
-
-```bash
-cmake -S native/teknic_motor -B native/build -G "Visual Studio 17 2022" -A x64 -DTEKNIC_SDK_ROOT="C:/Program Files (x86)/Teknic/ClearView/sdk"
-cmake --build native/build --config Release
-```
-
-You can point the running server at a specific DLL with **`TEKNIC_DLL`** (absolute path to `teknic_motor.dll`).
+Output: **`native/build/Release/teknic_motor.dll`**.
 
 **Native configuration (no `TEKNIC_*` environment variables for hub motion):** Edit the **`TeknicCfg`** namespace at the top of  
-`apps/motor-grpc/native/teknic_motor/teknic_motor.cpp` — **`WaitForOnline`** timeout, accel limit (**`kAccLimitRpmPerSec`**), jog clamp (**`kJogVelLimitRpm`**), enable retries, optional **`kManualComWhenDiscoveryEmpty`** (Windows: if ≥1, **`ComHubPort(0, n)`** and **skip** **`FindComHubPorts`**). If discovery is empty and manual is 0, **`kComPortScanMin`** / **`kComPortScanMax`** (default **1..25**) **probe each COM** until a port reports a ClearPath node (same as **`SCNetworkReport`** manual COM per index). Set **`kComPortScanMin = 0`** and **`kComPortScanMax = 0`** to disable COM scanning. Jog uses **`Ports(0)`** only. Rebuild **`teknic_motor.dll`** after any change.
+`apps/motor-grpc/native/teknic_motor/teknic_cfg.h` (and related `.cpp` modules under that folder) — **`WaitForOnline`** timeout, accel limit (**`kAccLimitRpmPerSec`**), jog clamp (**`kJogVelLimitRpm`**), enable retries, optional **`kManualComWhenDiscoveryEmpty`** (Windows: if ≥1, **`ComHubPort(0, n)`** and **skip** **`FindComHubPorts`**). If discovery is empty and manual is 0, **`kComPortScanMin`** / **`kComPortScanMax`** (default **1..25**) **probe each COM** until a port reports a ClearPath node (same as **`SCNetworkReport`** manual COM per index). Set **`kComPortScanMin = 0`** and **`kComPortScanMax = 0`** to disable COM scanning. Jog uses **`Ports(0)`** only. Rebuild **`teknic_motor.dll`** after any change.
 
 **ClearView and this app cannot share the hub.** Quit ClearView completely before starting **`motor-grpc`**. Only one process may open the SC4-HUB serial port.
 
@@ -111,7 +101,7 @@ This runs three processes:
 
 | Service | Role | Default URL / port |
 |---------|------|---------------------|
-| **motor** | gRPC motor (`teknic_motor.dll` + Teknic) | `0.0.0.0:50051` |
+| **motor** | Node gRPC + **`teknic_motor.dll`** (koffi) | `0.0.0.0:50051` |
 | **api** | tRPC HTTP API | `http://localhost:4000` (tRPC base path `/trpc/`) |
 | **web** | Vite + React UI | `http://localhost:5173` |
 
@@ -119,7 +109,7 @@ Open **`http://localhost:5173`** in the browser. The dev server proxies **`/trpc
 
 The **api** and **web** processes wait until **TCP port 50051** accepts connections (motor-grpc is listening) before starting, so you avoid transient **ECONNREFUSED** errors during startup. If you change **`MOTOR_GRPC_PORT`** on the motor service, update the **`wait-on tcp:127.0.0.1:50051`** lines in the root **`package.json`** scripts to use the same port.
 
-Before the concurrent processes start, **`predev`** (1) builds **`teknic_motor.dll`** and (2) frees ports **4000**, **50051**, **5173**, and **5174** so leftover listeners do not block startup. If killing those ports is undesirable (another app uses them), use **`npm run dev:no-kill`**, which still builds the DLL but skips **`kill-port`**.
+Before the concurrent processes start, **`predev`** builds **`teknic_motor.dll`** (**`npm run build:native -w @real-pendulum/motor-grpc`**) then frees ports **4000**, **50051**, **5173**, and **5174**. If killing those ports is undesirable, use **`npm run dev:no-kill`** (same **`build:native`**, no **`kill-port`**).
 
 Other useful ports:
 
@@ -149,5 +139,5 @@ Run compiled services individually if needed (motor-grpc: `npm run start -w @rea
 - **`cmake.exe not found` after installing CMake**: Close and reopen the terminal (PATH is only refreshed in new sessions). If you installed “for current user only”, CMake is often under `%LOCALAPPDATA%\Programs\CMake\bin\cmake.exe` — the build script checks there; you can also set `CMAKE_BIN` to that full path. In PowerShell, do not use `where /R` (that is a **cmd** command); use `where.exe cmake` or search with `Get-ChildItem ... -Filter cmake.exe -Recurse`.
 - **`Parameter(50)` / `mnErr 0x80040105` on `EnableReq`**: Usually **MSP/ClearView** vs host-applied motion parameters. This DLL uses the **MotionVelocity** sequence from **`TeknicCfg`**; adjust **`kAccLimitRpmPerSec`** (or MSP toward **factory defaults** / host-velocity-capable mode), rebuild **`teknic_motor.dll`**, reconnect.
 - **`teknic_init failed (-2)`**: **`FindComHubPorts`** only detects the **SC4‑HUB** USB adapter, not **USB plugged into the motor’s diagnostic port** — both show up as COM ports, but only the hub is auto‑listed. Note the COM number in Device Manager, set **`TeknicCfg::kManualComWhenDiscoveryEmpty`** to that index, rebuild **`teknic_motor.dll`**. Confirm with **`SCNetworkReport.exe`** plus that COM index (same manual path as Teknic). **Exit ClearView** if it holds the port.
-- **motor-grpc exits immediately**: Ensure `teknic_motor.dll` exists (`native/build/Release`, or `TEKNIC_DLL`), hub power, and nothing else (especially ClearView) has the COM port open.
+- **motor-grpc exits immediately**: Run **`npm run build:native -w @real-pendulum/motor-grpc`** so **`teknic_motor.dll`** exists; optional **`TEKNIC_DLL`** if the DLL is not under **`native/build/Release`**. Hub power, ClearView closed, COM not in use.
 - **Port already in use**: Stop other dev servers or use `dev:no-kill` and free ports manually.

@@ -10,7 +10,13 @@ endif()
 
 set(SF_ROOT "${TEKNIC_SDK_ROOT}/sFoundation Source/sFoundation/win")
 
-add_library(teknic_motor SHARED teknic_motor.cpp)
+add_library(teknic_motor SHARED
+  teknic_session.cpp
+  motor_info.cpp
+  hub_connect.cpp
+  node_prepare.cpp
+  teknic_api.cpp
+)
 
 target_compile_definitions(teknic_motor PRIVATE UNICODE _UNICODE)
 
@@ -48,3 +54,6 @@ else()
 endif()
 
 set_target_properties(teknic_motor PROPERTIES PREFIX "" OUTPUT_NAME "teknic_motor")
+
+# Parent project is motor_native (umbrella). Emit DLL to …/native/build/<Config>/ not …/build/teknic_motor/<Config>/.
+set_target_properties(teknic_motor PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/$<CONFIG>")
