@@ -68,9 +68,9 @@ std::string teknic_motor_info_json(INode& n) {
   }
 
   std::ostringstream o;
-  o << "{\"node_index\":" << node_index << ",\"node_type_code\":" << node_type_code
-    << ",\"node_type_label\":\"" << json_escape(type_label) << "\",\"user_id\":\"" << json_escape(uid)
-    << "\",\"firmware_version\":\"" << json_escape(fw) << "\",\"serial_number\":" << serial
-    << ",\"model\":\"" << json_escape(model) << "\"}";
+  o << "{\"nodeIndex\":" << node_index << ",\"nodeTypeCode\":" << node_type_code
+    << ",\"nodeTypeLabel\":\"" << json_escape(type_label) << "\",\"userId\":\"" << json_escape(uid)
+    << "\",\"firmwareVersion\":\"" << json_escape(fw) << "\",\"serialNumber\":\"" << serial
+    << "\",\"model\":\"" << json_escape(model) << "\"}";
   return o.str();
 }

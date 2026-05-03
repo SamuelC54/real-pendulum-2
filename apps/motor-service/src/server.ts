@@ -9,7 +9,6 @@ import {
   ConnectReplySchema,
   DisconnectReplySchema,
   GetStatusReplySchema,
-  MotorInfoSchema,
   MotorService,
   StopReplySchema,
   SetJogVelocityReplySchema,
@@ -81,7 +80,7 @@ function routes(router: ConnectRouter): void {
         if (json) {
           const mi = motorInfoFromTeknicJson(json);
           if (mi) {
-            reply.motor = create(MotorInfoSchema, mi);
+            reply.motor = mi;
           }
         }
       }

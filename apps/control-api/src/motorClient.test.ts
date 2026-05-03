@@ -14,15 +14,15 @@ describe("mapMotorInfo", () => {
     });
   });
 
-  it("maps wire fields and serial number types", () => {
+  it("maps protobuf JSON (camelCase) wire fields and serial number types", () => {
     expect(
       mapMotorInfo({
-        node_index: 2,
-        node_type_code: 42,
-        node_type_label: "ClearPath",
-        user_id: "u1",
-        firmware_version: "1.0",
-        serial_number: 999888,
+        nodeIndex: 2,
+        nodeTypeCode: 42,
+        nodeTypeLabel: "ClearPath",
+        userId: "u1",
+        firmwareVersion: "1.0",
+        serialNumber: 999888,
         model: "SC",
       }),
     ).toEqual({
@@ -36,7 +36,22 @@ describe("mapMotorInfo", () => {
     });
   });
 
+  it("still accepts legacy snake_case keys from older payloads", () => {
+    expect(
+      mapMotorInfo({
+        node_index: 2,
+        node_type_code: 42,
+      }),
+    ).toEqual(
+      expect.objectContaining({
+        nodeIndex: 2,
+        nodeTypeCode: 42,
+      }),
+    );
+  });
+
   it("stringifies numeric serial from JSON-style input", () => {
+    expect(mapMotorInfo({ serialNumber: "ABC123" }).serialNumber).toBe("ABC123");
     expect(mapMotorInfo({ serial_number: "ABC123" }).serialNumber).toBe("ABC123");
   });
 });
