@@ -1,39 +1,29 @@
 import { Link2, Link2Off } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { JogControls } from "@/components/JogControls";
 import { JOG_RPM } from "@/lib/jogMath";
 import { useMotorSession } from "@/services/motorSession";
+import { useMotorStatusQuery } from "@/services/useMotorStatusQuery";
 
 export default function App() {
-  const {
-    status,
-    connect,
-    connected,
-    busy,
-    connectMotor,
-    disconnectMotor,
-    applyHold,
-    stop,
-  } = useMotorSession();
-  const applyHoldRef = useRef(applyHold);
-  applyHoldRef.current = applyHold;
+  const status = useMotorStatusQuery();
+  const { connect, connected, busy, connectMotor, disconnectMotor, applyHold, stop } =
+    useMotorSession();
 
   useEffect(() => {
     const onBlur = () => {
-      void applyHoldRef.current(null);
+      void applyHold(null);
     };
     window.addEventListener("blur", onBlur);
     return () => window.removeEventListener("blur", onBlur);
-  }, []);
+  }, [applyHold]);
 
-  const stopMutateRef = useRef(stop.mutate);
-  stopMutateRef.current = stop.mutate;
   useEffect(() => {
     return () => {
-      void stopMutateRef.current();
+      void stop.mutate();
     };
-  }, []);
+  }, [stop.mutate]);
 
   return (
     <div className="min-h-dvh bg-background text-foreground">

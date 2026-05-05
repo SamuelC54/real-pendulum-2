@@ -1,66 +1,88 @@
+import { memo } from "react";
 import { ChevronLeft, ChevronRight, OctagonAlert } from "lucide-react";
 import { useAtomValue } from "jotai";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useMotorSession } from "@/services/motorSession";
-import { holdingAtom } from "@/stores/jog";
+import { holdingAtom, type JogHold } from "@/stores/jog";
 
-const jogHeldVisual =
-  "z-10 shadow-lg ring-2 ring-primary ring-offset-2 ring-offset-background motion-safe:scale-[1.02]";
+/** Held look via aria-pressed — keeps variant="secondary" so CVA does not swap presets (avoids transition-colors flicker). */
+const jogDirectionClasses =
+  "flex-1 touch-manipulation select-none transition-none aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:bg-primary/90 aria-pressed:z-10 aria-pressed:shadow-lg aria-pressed:ring-2 aria-pressed:ring-primary aria-pressed:ring-offset-2 aria-pressed:ring-offset-background";
+
+type JogDirection = "left" | "right";
+
+const JogDirectionButton = memo(function JogDirectionButton({
+  direction,
+  held,
+  disabled,
+  applyHold,
+}: {
+  direction: JogDirection;
+  held: boolean;
+  disabled: boolean;
+  applyHold: (dir: JogHold) => void | Promise<void>;
+}) {
+  return (
+    <Button
+      type="button"
+      variant="secondary"
+      size="lg"
+      className={cn(jogDirectionClasses)}
+      disabled={disabled}
+      aria-pressed={held}
+      onPointerDown={(e) => {
+        e.preventDefault();
+        void applyHold(direction);
+      }}
+      onPointerUp={() => void applyHold(null)}
+      onPointerLeave={(e) => {
+        if (e.buttons === 0) void applyHold(null);
+      }}
+    >
+      {direction === "left" ? (
+        <>
+          <ChevronLeft aria-hidden />
+          Jog left
+        </>
+      ) : (
+        <>
+          Jog right
+          <ChevronRight aria-hidden />
+        </>
+      )}
+    </Button>
+  );
+});
 
 export function JogControls() {
-  const { connected, busy, applyHold } = useMotorSession();
+  const { connected, applyHold, connect, disconnect, setVelocity, stop } = useMotorSession();
   const holding = useAtomValue(holdingAtom);
 
-  const disabled = busy || !connected;
+  const connectionBusy = connect.isPending || disconnect.isPending;
+  const jogMutating = setVelocity.isPending || stop.isPending;
+  // Do not disable jog/stop while a direction is held: setVelocity/stop pending would set
+  // `busy` and briefly disable both arrows (pointer still down), which looks like the other
+  // button "rerendering" / flashing. Still block when connect/disconnect runs or when idle and a
+  // jog RPC is in flight (avoids double-starts).
+  const disabled =
+    !connected || connectionBusy || (jogMutating && holding === null);
 
   return (
     <section className="flex flex-col items-center gap-6">
       <div className="flex w-full max-w-md gap-4">
-        <Button
-          type="button"
-          variant={holding === "left" ? "default" : "secondary"}
-          size="lg"
-          className={cn(
-            "flex-1 touch-manipulation select-none transition-[color,box-shadow,transform,ring] duration-200",
-            holding === "left" && jogHeldVisual,
-          )}
+        <JogDirectionButton
+          direction="left"
+          held={holding === "left"}
           disabled={disabled}
-          aria-pressed={holding === "left"}
-          onPointerDown={(e) => {
-            e.preventDefault();
-            void applyHold("left");
-          }}
-          onPointerUp={() => void applyHold(null)}
-          onPointerLeave={(e) => {
-            if (e.buttons === 0) void applyHold(null);
-          }}
-        >
-          <ChevronLeft aria-hidden />
-          Jog left
-        </Button>
-        <Button
-          type="button"
-          variant={holding === "right" ? "default" : "secondary"}
-          size="lg"
-          className={cn(
-            "flex-1 touch-manipulation select-none transition-[color,box-shadow,transform,ring] duration-200",
-            holding === "right" && jogHeldVisual,
-          )}
+          applyHold={applyHold}
+        />
+        <JogDirectionButton
+          direction="right"
+          held={holding === "right"}
           disabled={disabled}
-          aria-pressed={holding === "right"}
-          onPointerDown={(e) => {
-            e.preventDefault();
-            void applyHold("right");
-          }}
-          onPointerUp={() => void applyHold(null)}
-          onPointerLeave={(e) => {
-            if (e.buttons === 0) void applyHold(null);
-          }}
-        >
-          Jog right
-          <ChevronRight aria-hidden />
-        </Button>
+          applyHold={applyHold}
+        />
       </div>
 
       <Button
