@@ -7,7 +7,7 @@ import { useConnectMotorMutation } from "./useConnectMotorMutation";
 import { useDisconnectMotorMutation } from "./useDisconnectMotorMutation";
 import { useJogSetVelocityMutation } from "./useJogSetVelocityMutation";
 import { useJogStopMutation } from "./useJogStopMutation";
-import { useMotorStatusQuery } from "./useMotorStatusQuery";
+import { useMotorStatusConnected } from "./useMotorStatusQuery";
 
 export type MotorSessionValue = {
   connect: ReturnType<typeof useConnectMotorMutation>;
@@ -24,15 +24,13 @@ export type MotorSessionValue = {
 export const MotorSessionContext = createContext<MotorSessionValue | null>(null);
 
 export function MotorSessionProvider({ children }: { children: ReactNode }) {
-  const status = useMotorStatusQuery();
+  const { data: connected = false } = useMotorStatusConnected();
   const utils = trpc.useUtils();
   const connect = useConnectMotorMutation();
   const disconnect = useDisconnectMotorMutation();
   const setVelocity = useJogSetVelocityMutation();
   const stop = useJogStopMutation();
   const setHolding = useSetAtom(holdingAtom);
-
-  const connected = status.data?.connected ?? false;
 
   const busy =
     connect.isPending || disconnect.isPending || setVelocity.isPending || stop.isPending;

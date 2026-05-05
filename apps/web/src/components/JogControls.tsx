@@ -55,7 +55,7 @@ const JogDirectionButton = memo(function JogDirectionButton({
   );
 });
 
-export function JogControls() {
+export const JogControls = memo(function JogControls() {
   const { connected, applyHold, connect, disconnect, setVelocity, stop } = useMotorSession();
   const holding = useAtomValue(holdingAtom);
 
@@ -98,4 +98,4 @@ export function JogControls() {
       </Button>
     </section>
   );
-}
+});
