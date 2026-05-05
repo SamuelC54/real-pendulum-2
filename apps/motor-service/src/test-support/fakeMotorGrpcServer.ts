@@ -52,7 +52,7 @@ export type StartFakeMotorGrpcOptions = {
 };
 
 /**
- * In-process **`MotorService`** for integration tests (same **`.proto`** as **`apps/motor-service`**).
+ * In-process **`MotorService`** for integration tests (same **`.proto`** as the real server).
  * Binds to **`127.0.0.1:0`** (ephemeral) unless **`options.port`** is a positive port number.
  */
 export function startFakeMotorGrpcServer(

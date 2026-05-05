@@ -1,3 +1,7 @@
+/**
+ * Connect RPC client for **`motor.v1.MotorService`** (same API the motor-service HTTP server exposes).
+ * Use from **`@real-pendulum/motor-service/sdk`**.
+ */
 import { createClient, type Client } from "@connectrpc/connect";
 import { createConnectTransport } from "@connectrpc/connect-node";
 import type { MotorInfo as ProtoMotorInfo } from "@real-pendulum/motor-proto/gen/motor_pb.js";

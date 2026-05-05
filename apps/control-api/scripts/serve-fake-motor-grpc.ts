@@ -1,7 +1,7 @@
 import {
   createFakeMotorGrpcModel,
   startFakeMotorGrpcServer,
-} from "../src/test-support/fakeMotorGrpcServer.js";
+} from "@real-pendulum/motor-service/test-support/fake-motor-server";
 
 const port = Number(process.env.MOTOR_GRPC_PORT ?? "50051");
 const model = createFakeMotorGrpcModel();

@@ -74,7 +74,7 @@ Layout:
 
 **`npm run dev`** runs the motor **Connect** server (**`tsx`**); **`predev`** only builds **`teknic_motor.dll`** (**`npm run build:native`**).
 
-**Control API** talks to the motor over Connect using **`MOTOR_GRPC_URL`** (default **`http://127.0.0.1:50051`** if you only set host/port, see **`motorConnectBaseUrl()`** in **`control-api`**).
+**Control API** talks to the motor over Connect using **`MOTOR_GRPC_URL`** (default **`http://127.0.0.1:50051`** if you only set host/port, see **`motorConnectBaseUrl()`** in **`@real-pendulum/motor-service/sdk`**).
 
 **Build the DLL** (from **`apps/motor-service`** or repo root **`-w @real-pendulum/motor-service`**):
 

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-vi.mock("./motorClient.js", () => ({
+vi.mock("@real-pendulum/motor-service/sdk", () => ({
   motorConnectBaseUrl: vi.fn(() => "http://127.0.0.1:50051"),
   connectMotor: vi.fn(),
   disconnectMotor: vi.fn(),
@@ -9,7 +9,7 @@ vi.mock("./motorClient.js", () => ({
   getMotorStatus: vi.fn(),
 }));
 
-import * as motor from "./motorClient.js";
+import * as motor from "@real-pendulum/motor-service/sdk";
 import { appRouter } from "./router.js";
 
 describe("appRouter (motor mocked)", () => {

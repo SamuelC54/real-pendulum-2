@@ -8,14 +8,14 @@ import {
   resetMotorGrpcClientForTests,
   setJogVelocityRpm,
   stopMotor,
-} from "./motorClient.js";
+} from "./index.js";
 import {
   createFakeMotorGrpcModel,
   startFakeMotorGrpcServer,
   type FakeMotorGrpcModel,
-} from "./test-support/fakeMotorGrpcServer.js";
+} from "../test-support/fakeMotorGrpcServer.js";
 
-describe("motorClient integration (fake Connect MotorService)", () => {
+describe("MotorService SDK (fake Connect server)", () => {
   let prevUrl: string | undefined;
   let model: FakeMotorGrpcModel;
   let close: () => Promise<void>;

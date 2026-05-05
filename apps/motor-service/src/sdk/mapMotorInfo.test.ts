@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mapMotorInfo } from "./motorClient.js";
+import { mapMotorInfo } from "./index.js";
 
 describe("mapMotorInfo", () => {
   it("fills defaults for empty payload", () => {

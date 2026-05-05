@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { mapMotorInfo } from "./motorClient.js";
+import { mapMotorInfo } from "./index.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -10,7 +10,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 describe("motor wire contract (fixtures)", () => {
   it("maps fixture motor block to MotorInfo", () => {
     const raw = readFileSync(
-      path.join(__dirname, "fixtures/motor-status-wire.sample.json"),
+      path.join(__dirname, "../fixtures/motor-status-wire.sample.json"),
       "utf8",
     );
     const body = JSON.parse(raw) as {

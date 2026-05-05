@@ -2,7 +2,7 @@ import { initTRPC } from "@trpc/server";
 import superjson from "superjson";
 import { z } from "zod";
 import { friendlyMotorGrpcError } from "./motorErrors.js";
-import * as motor from "./motorClient.js";
+import * as motor from "@real-pendulum/motor-service/sdk";
 
 function friendlyMotorError(err: unknown): string {
   return friendlyMotorGrpcError(motor.motorConnectBaseUrl(), err);

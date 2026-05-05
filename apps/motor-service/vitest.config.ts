@@ -7,7 +7,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export default defineConfig({
   resolve: {
     alias: {
-      "@real-pendulum/motor-service/sdk": path.resolve(__dirname, "../motor-service/src/sdk/index.ts"),
+      "@real-pendulum/motor-service/sdk": path.resolve(__dirname, "src/sdk/index.ts"),
     },
   },
   test: {
