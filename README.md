@@ -76,6 +76,8 @@ Layout:
 
 **Control API** talks to the motor over Connect using **`MOTOR_GRPC_URL`** (default **`http://127.0.0.1:50051`** if you only set host/port, see **`motorConnectBaseUrl()`** in **`@real-pendulum/motor-service/sdk`**).
 
+The **sensor service** (**`@real-pendulum/sensor-service`**, Connect on **`SENSOR_GRPC_PORT`** default **50052**) talks to an Arduino over USB serial ( **`sensorConnectBaseUrl()`** / **`SENSOR_GRPC_URL`**). The web UI lists serial ports (via **`ListSerialPorts`**) so you can pick the board before **Connect**; optionally set **`SENSOR_SERIAL_PORT`** as a fallback when nothing is selected. Baud: **`SENSOR_SERIAL_BAUD`** (**115200**). Firmware sketch: **`apps/sensor-service/firmware/led_toggle`**. Flash from the repo root with **`npm run flash:sensor-led -- COM3`** after installing [**Arduino CLI**](https://arduino.github.io/arduino-cli/) and **`arduino-cli core install arduino:avr`** (see script header in **`scripts/flash-led-toggle.mjs`**).
+
 **Build the DLL** (from **`apps/motor-service`** or repo root **`-w @real-pendulum/motor-service`**):
 
 ```bash
@@ -101,11 +103,12 @@ From the **repository root**:
 npm run dev
 ```
 
-This runs three processes:
+This runs four processes:
 
 | Service | Role | Default URL / port |
 |---------|------|---------------------|
-| **motor** | `@real-pendulum/motor-service` — Node gRPC + **`teknic_motor.dll`** (koffi) | `0.0.0.0:50051` |
+| **motor** | `@real-pendulum/motor-service` — Node Connect + **`teknic_motor.dll`** (koffi) | `0.0.0.0:50051` |
+| **sensor** | `@real-pendulum/sensor-service` — Arduino USB serial + Connect | `0.0.0.0:50052` |
 | **api** | tRPC HTTP API | `http://localhost:4000` (tRPC base path `/trpc/`) |
 | **web** | Vite + React UI | `http://localhost:5173` |
 
@@ -113,13 +116,15 @@ Open **`http://localhost:5173`** in the browser. The dev server proxies **`/trpc
 
 The **api** and **web** processes wait until **TCP port 50051** accepts connections (motor service is listening) before starting, so you avoid transient **ECONNREFUSED** errors during startup. If you change **`MOTOR_GRPC_PORT`** on the motor service, update the **`wait-on tcp:127.0.0.1:50051`** lines in the root **`package.json`** scripts to use the same port.
 
-Before the concurrent processes start, **`predev`** builds **`teknic_motor.dll`** (**`npm run build:native -w @real-pendulum/motor-service`**) then frees ports **4000**, **50051**, **5173**, and **5174**. If killing those ports is undesirable, use **`npm run dev:no-kill`** (same **`build:native`**, no **`kill-port`**).
+Before the concurrent processes start, **`predev`** builds **`teknic_motor.dll`** (**`npm run build:native -w @real-pendulum/motor-service`**) then frees ports **4000**, **50051**, **50052**, **5173**, and **5174**. If killing those ports is undesirable, use **`npm run dev:no-kill`** (same **`build:native`**, no **`kill-port`**).
 
 Other useful ports:
 
 | Variable | Service |
 |----------|---------|
-| `MOTOR_GRPC_PORT` | gRPC listen port (default `50051`). |
+| `MOTOR_GRPC_PORT` | Motor Connect listen port (default `50051`). |
+| `SENSOR_GRPC_PORT` | Sensor Connect listen port (default `50052`). |
+| `SENSOR_SERIAL_PORT` | Arduino COM/device path (required to connect serial, e.g. `COM3`). |
 | `CONTROL_API_PORT` | tRPC server (default `4000`). |
 | `VITE_DEV_PORT` | Vite dev port (default `5173`; Vite uses `strictPort`). |
 | `VITE_CONTROL_API_URL` | Full tRPC URL for production builds (optional; dev uses the proxy). |

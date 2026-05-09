@@ -2,10 +2,16 @@ import { initTRPC } from "@trpc/server";
 import superjson from "superjson";
 import { z } from "zod";
 import { friendlyMotorGrpcError } from "./motorErrors.js";
+import { friendlySensorGrpcError } from "./sensorErrors.js";
 import * as motor from "@real-pendulum/motor-service/sdk";
+import * as sensor from "@real-pendulum/sensor-service/sdk";
 
 function friendlyMotorError(err: unknown): string {
   return friendlyMotorGrpcError(motor.motorConnectBaseUrl(), err);
+}
+
+function friendlySensorError(err: unknown): string {
+  return friendlySensorGrpcError(sensor.sensorConnectBaseUrl(), err);
 }
 
 const t = initTRPC.context<{ motorUnavailable?: boolean }>().create({
@@ -35,10 +41,10 @@ export const appRouter = t.router({
       .mutation(async ({ input }) => {
         try {
           return await motor.setJogVelocityRpm(input.rpm);
-      } catch (e) {
-        throw new Error(`motor: ${friendlyMotorError(e)}`);
-      }
-    }),
+        } catch (e) {
+          throw new Error(`motor: ${friendlyMotorError(e)}`);
+        }
+      }),
     stop: t.procedure.mutation(async () => {
       try {
         return await motor.stopMotor();
@@ -58,6 +64,58 @@ export const appRouter = t.router({
           detail: friendlyMotorError(e),
         };
       }
+    }),
+  }),
+  sensor: t.router({
+    serial: t.router({
+      list: t.procedure.query(async () => {
+        try {
+          return await sensor.listSerialPorts();
+        } catch (e) {
+          throw new Error(`sensor: ${friendlySensorError(e)}`);
+        }
+      }),
+    }),
+    connection: t.router({
+      connect: t.procedure
+        .input(z.object({ serialPort: z.string().optional() }))
+        .mutation(async ({ input }) => {
+          try {
+            return await sensor.connectSensor(input.serialPort);
+          } catch (e) {
+            throw new Error(`sensor: ${friendlySensorError(e)}`);
+          }
+        }),
+      disconnect: t.procedure.mutation(async () => {
+        try {
+          return await sensor.disconnectSensor();
+        } catch (e) {
+          throw new Error(`sensor: ${friendlySensorError(e)}`);
+        }
+      }),
+    }),
+    led: t.router({
+      toggle: t.procedure.mutation(async () => {
+        try {
+          return await sensor.toggleLed();
+        } catch (e) {
+          throw new Error(`sensor: ${friendlySensorError(e)}`);
+        }
+      }),
+    }),
+    status: t.router({
+      get: t.procedure.query(async () => {
+        try {
+          return await sensor.getSensorStatus();
+        } catch (e) {
+          return {
+            connected: false,
+            ledOn: false,
+            detail: friendlySensorError(e),
+            serialPort: "",
+          };
+        }
+      }),
     }),
   }),
 });

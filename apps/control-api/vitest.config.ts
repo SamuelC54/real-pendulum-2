@@ -8,6 +8,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@real-pendulum/motor-service/sdk": path.resolve(__dirname, "../motor-service/src/sdk/index.ts"),
+      "@real-pendulum/sensor-service/sdk": path.resolve(__dirname, "../sensor-service/src/sdk/index.ts"),
     },
   },
   test: {

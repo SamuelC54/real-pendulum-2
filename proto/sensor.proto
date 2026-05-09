@@ -1,0 +1,59 @@
+syntax = "proto3";
+
+package sensor.v1;
+
+// Arduino / USB-serial test hardware (LED toggle, etc.).
+service SensorService {
+  rpc Connect(ConnectRequest) returns (ConnectReply);
+  rpc Disconnect(DisconnectRequest) returns (DisconnectReply);
+  rpc ToggleLed(ToggleLedRequest) returns (ToggleLedReply);
+  rpc GetStatus(GetStatusRequest) returns (GetStatusReply);
+  rpc ListSerialPorts(ListSerialPortsRequest) returns (ListSerialPortsReply);
+}
+
+// If serial_port is empty, sensor-service falls back to SENSOR_SERIAL_PORT.
+message ConnectRequest {
+  string serial_port = 1;
+}
+
+message ConnectReply {
+  bool ok = 1;
+  string error_message = 2;
+}
+
+message DisconnectRequest {}
+
+message DisconnectReply {
+  bool ok = 1;
+  string error_message = 2;
+}
+
+message ToggleLedRequest {}
+
+message ToggleLedReply {
+  bool ok = 1;
+  string error_message = 2;
+  bool led_on = 3;
+}
+
+message GetStatusRequest {}
+
+message ListSerialPortsRequest {}
+
+message SerialPortInfo {
+  string path = 1;
+  string manufacturer = 2;
+  string serial_number = 3;
+  string friendly_name = 4;
+}
+
+message ListSerialPortsReply {
+  repeated SerialPortInfo ports = 1;
+}
+
+message GetStatusReply {
+  bool connected = 1;
+  bool led_on = 2;
+  string detail = 3;
+  string serial_port = 4;
+}

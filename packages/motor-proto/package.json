@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./gen/motor_pb.js": "./src/gen/motor_pb.ts"
+    "./gen/motor_pb.js": "./src/gen/motor_pb.ts",
+    "./gen/sensor_pb.js": "./src/gen/sensor_pb.ts"
   },
   "dependencies": {
     "@bufbuild/protobuf": "^2.10.0",

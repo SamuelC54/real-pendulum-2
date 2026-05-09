@@ -1,5 +1,6 @@
 import { JogControls } from "@/components/JogControls";
 import { MotorStatusBlocks } from "@/components/MotorStatusBlocks";
+import { SensorLedCard } from "@/components/SensorLedCard";
 import { JOG_RPM } from "@/lib/jogMath";
 
 export default function App() {
@@ -14,6 +15,8 @@ export default function App() {
         </header>
 
         <MotorStatusBlocks />
+
+        <SensorLedCard />
 
         <JogControls />
       </div>
