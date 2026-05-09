@@ -1,5 +1,13 @@
-import { Lightbulb, LightbulbOff, RefreshCw, Unplug, Usb } from "lucide-react";
+import {
+  Lightbulb,
+  LightbulbOff,
+  RefreshCw,
+  Unplug,
+  Upload,
+  Usb,
+} from "lucide-react";
 import { useState } from "react";
+import { EncoderDial } from "@/components/EncoderDial";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/trpc";
 
@@ -22,7 +30,8 @@ export function SensorLedCard() {
   });
 
   const status = trpc.sensor.status.get.useQuery(undefined, {
-    refetchInterval: 1500,
+    refetchInterval: (query) =>
+      query.state.data?.connected ? 80 : 1500,
   });
   const connect = trpc.sensor.connection.connect.useMutation({
     onSuccess: () => void utils.sensor.status.get.invalidate(),
@@ -33,10 +42,19 @@ export function SensorLedCard() {
   const toggleLed = trpc.sensor.led.toggle.useMutation({
     onSuccess: () => void utils.sensor.status.get.invalidate(),
   });
+  const flashFirmware = trpc.sensor.firmware.flash.useMutation({
+    onSuccess: async () => {
+      await utils.sensor.status.get.invalidate();
+      await utils.sensor.serial.list.invalidate();
+    },
+  });
 
   const ports = portsQuery.data ?? [];
   const busy =
-    connect.isPending || disconnect.isPending || toggleLed.isPending;
+    connect.isPending ||
+    disconnect.isPending ||
+    toggleLed.isPending ||
+    flashFirmware.isPending;
   const connected = status.data?.connected ?? false;
 
   /** When exactly one device is present, use it; otherwise the user must choose. */
@@ -50,6 +68,10 @@ export function SensorLedCard() {
     (connect.isSuccess && connect.data && !connect.data.ok
       ? connect.data.error
       : undefined);
+
+  const flashPort =
+    portToConnect.trim() || status.data?.serialPort?.trim() || "";
+  const flashBlocked = !flashPort;
 
   return (
     <section className="flex flex-col gap-4 rounded-xl border border-border bg-card p-6 shadow-sm">
@@ -66,12 +88,13 @@ export function SensorLedCard() {
         </span>
       </div>
       <p className="text-muted-foreground text-xs leading-relaxed">
-        Flash firmware with{" "}
+        Pick the Arduino&apos;s COM port, then use{" "}
+        <strong className="text-foreground font-medium">Flash firmware</strong> or{" "}
         <code className="text-foreground">npm run flash:sensor-led -- COM3</code>{" "}
-        (Arduino CLI). Then choose your board&apos;s serial port and connect.
-        If the list is empty, you can still connect when{" "}
-        <code className="text-foreground">SENSOR_SERIAL_PORT</code> is set on the
-        machine running sensor-service.
+        (Arduino CLI must be on the machine running the control API). If the list is
+        empty, you can still connect when{" "}
+        <code className="text-foreground">SENSOR_SERIAL_PORT</code> is set on the host
+        running sensor-service.
       </p>
       {!connected ? (
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
@@ -117,6 +140,27 @@ export function SensorLedCard() {
           </label>
         </div>
       ) : null}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="h-9 w-fit"
+        disabled={busy || flashBlocked}
+        title={
+          flashBlocked
+            ? "Select a serial port (or connect so the active port is known)"
+            : "Compile and upload sketch via Arduino CLI on the API server (disconnects serial first)"
+        }
+        onClick={() => void flashFirmware.mutateAsync({ serialPort: flashPort })}
+      >
+        <Upload
+          aria-hidden
+          className={
+            flashFirmware.isPending ? "mr-2 h-4 w-4 animate-pulse" : "mr-2 h-4 w-4"
+          }
+        />
+        Flash firmware
+      </Button>
       {portsQuery.isError ? (
         <p className="text-destructive text-xs">
           Could not list serial ports: {portsQuery.error.message}
@@ -146,6 +190,25 @@ export function SensorLedCard() {
       ) : null}
       {connectError ? (
         <p className="text-destructive text-xs">{connectError}</p>
+      ) : null}
+      {flashFirmware.error ? (
+        <p className="text-destructive text-xs">{flashFirmware.error.message}</p>
+      ) : null}
+      {flashFirmware.isSuccess && flashFirmware.data ? (
+        <div
+          className={
+            flashFirmware.data.ok
+              ? "text-muted-foreground"
+              : "text-destructive"
+          }
+        >
+          <p className="mb-1 text-xs font-medium">
+            {flashFirmware.data.ok ? "Flash completed" : "Flash failed"}
+          </p>
+          <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border bg-muted/40 p-2 font-mono text-[10px] leading-relaxed">
+            {flashFirmware.data.log}
+          </pre>
+        </div>
       ) : null}
       <div className="flex flex-wrap gap-2">
         {!connected ? (
@@ -187,6 +250,10 @@ export function SensorLedCard() {
           </>
         )}
       </div>
+      <EncoderDial
+        connected={connected}
+        ticks={status.data?.encoderTicks ?? 0}
+      />
     </section>
   );
 }

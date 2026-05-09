@@ -40,6 +40,7 @@ function routes(router: ConnectRouter): void {
     },
     async disconnect() {
       await session.close();
+      await new Promise((r) => setTimeout(r, 400));
       return create(DisconnectReplySchema, { ok: true, errorMessage: "" });
     },
     async toggleLed() {
@@ -63,6 +64,7 @@ function routes(router: ConnectRouter): void {
         ledOn: session.getLastLedOn(),
         detail,
         serialPort: portPath,
+        encoderTicks: session.getEncoderTicks(),
       });
     },
     async listSerialPorts() {

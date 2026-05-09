@@ -3,6 +3,7 @@ import superjson from "superjson";
 import { z } from "zod";
 import { friendlyMotorGrpcError } from "./motorErrors.js";
 import { friendlySensorGrpcError } from "./sensorErrors.js";
+import { runLedToggleFlash } from "./runFlashScript.js";
 import * as motor from "@real-pendulum/motor-service/sdk";
 import * as sensor from "@real-pendulum/sensor-service/sdk";
 
@@ -12,6 +13,10 @@ function friendlyMotorError(err: unknown): string {
 
 function friendlySensorError(err: unknown): string {
   return friendlySensorGrpcError(sensor.sensorConnectBaseUrl(), err);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 const t = initTRPC.context<{ motorUnavailable?: boolean }>().create({
@@ -103,6 +108,26 @@ export const appRouter = t.router({
         }
       }),
     }),
+    firmware: t.router({
+      flash: t.procedure
+        .input(z.object({ serialPort: z.string().min(1) }))
+        .mutation(async ({ input }) => {
+          try {
+            await sensor.disconnectSensor().catch(() => {
+              /* ignore if sensor service is down or already disconnected */
+            });
+            const pauseMs = Number(process.env.FLASH_AFTER_DISCONNECT_MS ?? "2000");
+            if (Number.isFinite(pauseMs) && pauseMs > 0) {
+              await sleep(pauseMs);
+            }
+            return await runLedToggleFlash(input.serialPort.trim());
+          } catch (e) {
+            throw new Error(
+              `sensor: flash failed: ${e instanceof Error ? e.message : String(e)}`,
+            );
+          }
+        }),
+    }),
     status: t.router({
       get: t.procedure.query(async () => {
         try {
@@ -113,6 +138,7 @@ export const appRouter = t.router({
             ledOn: false,
             detail: friendlySensorError(e),
             serialPort: "",
+            encoderTicks: 0,
           };
         }
       }),

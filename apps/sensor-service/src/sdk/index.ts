@@ -85,6 +85,7 @@ export async function getSensorStatus(): Promise<{
   ledOn: boolean;
   detail: string;
   serialPort: string;
+  encoderTicks: number;
 }> {
   const r = await getClient().getStatus({});
   return {
@@ -92,5 +93,6 @@ export async function getSensorStatus(): Promise<{
     ledOn: r.ledOn,
     detail: r.detail ?? "",
     serialPort: r.serialPort ?? "",
+    encoderTicks: r.encoderTicks ?? 0,
   };
 }

@@ -4,18 +4,25 @@ import { SerialPort } from "serialport";
 type PendingToggle = ((r: { ok: boolean; error: string; ledOn: boolean }) => void) | null;
 
 /**
- * USB-serial session for the LED-toggle Arduino sketch (`firmware/led_toggle`).
- * Wire protocol: PC sends **`TOGGLE\\n`**, board replies **`LED:0`** or **`LED:1`** per line.
+ * USB-serial session for the LED / encoder Arduino sketch (`firmware/led_toggle`).
+ * Wire protocol: PC sends **`TOGGLE\\n`**, board replies **`LED:0`** or **`LED:1`** per line;
+ * board may push **`ENC:&lt;ticks&gt;\\n`** when the quadrature encoder moves.
  */
 export class ArduinoSerialSession {
   private port: SerialPort | null = null;
   private parser: ReadlineParser | null = null;
   private ledOn = false;
+  private encoderTicks = 0;
   private pendingToggle: PendingToggle = null;
   private openedPath: string | null = null;
 
   getLastLedOn(): boolean {
     return this.ledOn;
+  }
+
+  /** Latest signed quadrature tick count from **`ENC:`** lines (falls back to 0 before first line). */
+  getEncoderTicks(): number {
+    return this.encoderTicks;
   }
 
   getSerialPath(): string {
@@ -49,6 +56,14 @@ export class ArduinoSerialSession {
 
   private onLine(line: string): void {
     const trimmed = line.replace(/\r/g, "").trim();
+    const enc = /^ENC:(-?\d+)$/i.exec(trimmed);
+    if (enc) {
+      const v = Number(enc[1]);
+      if (Number.isSafeInteger(v)) {
+        this.encoderTicks = v;
+      }
+      return;
+    }
     const m = /^LED:([01])$/i.exec(trimmed);
     if (!m) return;
     this.ledOn = m[1] === "1";
@@ -86,13 +101,39 @@ export class ArduinoSerialSession {
 
   async close(): Promise<void> {
     this.pendingToggle = null;
+    this.encoderTicks = 0;
     const p = this.port;
+    const parser = this.parser;
     this.port = null;
     this.parser = null;
     this.openedPath = null;
     if (!p) return;
-    await new Promise<void>((res) => {
-      p.close(() => res());
+
+    await new Promise<void>((resolve) => {
+      try {
+        if (parser) {
+          parser.removeAllListeners();
+          try {
+            p.unpipe(parser as NodeJS.WritableStream);
+          } catch {
+            /* ignore */
+          }
+          if (typeof (parser as { destroy?: () => void }).destroy === "function") {
+            (parser as { destroy: () => void }).destroy();
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+
+      if (!p.isOpen) {
+        resolve();
+        return;
+      }
+
+      p.drain(() => {
+        p.close(() => resolve());
+      });
     });
   }
 }

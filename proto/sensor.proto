@@ -56,4 +56,6 @@ message GetStatusReply {
   bool led_on = 2;
   string detail = 3;
   string serial_port = 4;
+  // Quadrature tick counter from the Arduino (e.g. Gray-code ISR on pins 2 & 3).
+  sint32 encoder_ticks = 5;
 }
