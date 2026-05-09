@@ -9,6 +9,11 @@ import {
   resetRailDisplayBounds,
   syncRailDisplayBoundsFromMotorStatus,
 } from "./railDisplayBounds.js";
+import {
+  getTravelLimitDisplays,
+  recordTravelLimitFromTeknicMeasured,
+  syncTravelLimitsFromMotorConnection,
+} from "./railTravelLimits.js";
 import { runLedToggleFlash } from "./runFlashScript.js";
 import * as motor from "@real-pendulum/motor-service/sdk";
 import * as sensor from "@real-pendulum/sensor-service/sdk";
@@ -82,6 +87,28 @@ export const appRouter = t.router({
           return { ok: true as const };
         }),
     }),
+    /**
+     * Record which side is at the current measured position (call on limit-switch rising edge).
+     * Server snapshots motor `PosnMeasured` so the value matches status strip / homing.
+     */
+    limits: t.router({
+      record: t.procedure
+        .input(z.object({ side: z.enum(["left", "right"]) }))
+        .mutation(async ({ input }) => {
+          const st = await motor.getMotorStatus();
+          if (!st.connected) {
+            throw new Error("Motor is not connected.");
+          }
+          const p = st.measuredPosition;
+          if (p === undefined || !Number.isFinite(p)) {
+            throw new Error(
+              "Motor measured position unavailable — rebuild motor DLL / motor-service for PosnMeasured.",
+            );
+          }
+          recordTravelLimitFromTeknicMeasured(p, input.side);
+          return { ok: true as const };
+        }),
+    }),
     /** Teknic `MovePosnStart` absolute move — target is UI display counts (negated to Teknic counts). */
     moveAbsolute: t.procedure
       .input(
@@ -110,18 +137,22 @@ export const appRouter = t.router({
       try {
         const st = await motor.getMotorStatus();
         syncRailDisplayBoundsFromMotorStatus(st.connected, st.measuredPosition);
+        syncTravelLimitsFromMotorConnection(st.connected);
         return {
           ...st,
           railDisplayBounds: getRailDisplayBounds(),
+          travelLimits: getTravelLimitDisplays(),
         };
       } catch (e) {
         syncRailDisplayBoundsFromMotorStatus(false, undefined);
+        syncTravelLimitsFromMotorConnection(false);
         return {
           connected: false,
           commandedRpm: 0,
           detail: friendlyMotorError(e),
           measuredPosition: undefined,
           railDisplayBounds: null,
+          travelLimits: { left: null, right: null },
         };
       }
     }),

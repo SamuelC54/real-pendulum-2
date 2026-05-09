@@ -9,7 +9,10 @@ import {
   POSITION_TARGET_SLIDER_MAX,
   POSITION_TARGET_SLIDER_MIN,
 } from "@/lib/jogMath";
-import { motorCountsForDisplay } from "@/lib/motorPositionDisplay";
+import {
+  boundsFromTravelSwitchDisplays,
+  motorCountsForDisplay,
+} from "@/lib/motorPositionDisplay";
 import { trpc } from "@/trpc";
 import { useMotorStatusQuery } from "@/services/useMotorStatusQuery";
 
@@ -75,18 +78,19 @@ export const PositionMoveControls = memo(function PositionMoveControls() {
   const limitLeft = sensor.data?.limitLeftPressed ?? false;
   const limitRight = sensor.data?.limitRightPressed ?? false;
 
-  /** Rising-edge capture: position when each switch first closes. */
+  /** Rising-edge → server snapshots motor position (`rail.limits.record`). */
   const prevLimits = useRef({ L: false, R: false });
   const prevSensorConnected = useRef(false);
-
-  const [leftStopCounts, setLeftStopCounts] = useState<number | null>(null);
-  const [rightStopCounts, setRightStopCounts] = useState<number | null>(null);
 
   const [maxVelRpm, setMaxVelRpm] = useState(JOG_RPM);
   const [maxAccelRpmPerSec, setMaxAccelRpmPerSec] = useState(DEFAULT_PROFILE_ACC_RPM_PER_SEC);
   const [targetCounts, setTargetCounts] = useState(0);
 
   const moveAbsolute = trpc.rail.moveAbsolute.useMutation({
+    onSuccess: () => void utils.status.get.invalidate(),
+  });
+
+  const recordTravelLimit = trpc.rail.limits.record.useMutation({
     onSuccess: () => void utils.status.get.invalidate(),
   });
 
@@ -107,19 +111,19 @@ export const PositionMoveControls = memo(function PositionMoveControls() {
     if (pos === undefined || !Number.isFinite(pos)) return;
 
     if (limitLeft && !prevLimits.current.L) {
-      setLeftStopCounts(pos);
+      void recordTravelLimit.mutateAsync({ side: "left" }).catch(() => {});
     }
     if (limitRight && !prevLimits.current.R) {
-      setRightStopCounts(pos);
+      void recordTravelLimit.mutateAsync({ side: "right" }).catch(() => {});
     }
     prevLimits.current = { L: limitLeft, R: limitRight };
-  }, [
-    connected,
-    sensorConnected,
-    limitLeft,
-    limitRight,
-    status.data?.measuredPosition,
-  ]);
+    // recordTravelLimit.mutateAsync is stable (tRPC / React Query).
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- see above
+  }, [connected, sensorConnected, limitLeft, limitRight, status.data?.measuredPosition]);
+
+  const travelLimits = status.data?.travelLimits;
+  const leftStopCounts = travelLimits?.left ?? null;
+  const rightStopCounts = travelLimits?.right ?? null;
 
   const {
     targetSliderMin,
@@ -127,16 +131,15 @@ export const PositionMoveControls = memo(function PositionMoveControls() {
     targetStep,
     limitsReady,
   } = useMemo(() => {
-    if (leftStopCounts != null && rightStopCounts != null) {
-      const a = Math.min(leftStopCounts, rightStopCounts);
-      const b = Math.max(leftStopCounts, rightStopCounts);
-      const min = a;
-      const max = b <= a ? a + 1 : b;
+    const spanBounds = boundsFromTravelSwitchDisplays(leftStopCounts, rightStopCounts);
+    if (spanBounds) {
+      const min = spanBounds.min;
+      const max = spanBounds.max;
       const span = max - min;
       const step = Math.max(1, Math.min(100, Math.floor(span / 200)));
       return {
         targetSliderMin: min,
-        targetSliderMax: max,
+        targetSliderMax: max <= min ? min + 1 : max,
         targetStep: step,
         limitsReady: true,
       };
@@ -148,10 +151,6 @@ export const PositionMoveControls = memo(function PositionMoveControls() {
       limitsReady: false,
     };
   }, [leftStopCounts, rightStopCounts]);
-
-  useEffect(() => {
-    setTargetCounts((t) => clamp(t, targetSliderMin, targetSliderMax));
-  }, [targetSliderMin, targetSliderMax]);
 
   const runMoveToDisplayCounts = useCallback(
     (displayCounts: number) => {
@@ -176,7 +175,7 @@ export const PositionMoveControls = memo(function PositionMoveControls() {
         uses <strong className="text-foreground font-medium">display</strong> counts. When the Sensor
         Board is connected,{" "}
         <strong className="text-foreground font-medium">jog to each travel limit once</strong> — the
-        moment each switch closes, this panel records that position and sets the target slider ends.
+        moment each switch closes, the control API records that position (same values as the rail card).
         Until both are captured, the target slider spans{" "}
         <span className="font-mono text-foreground">{POSITION_TARGET_SLIDER_MIN}</span> …{" "}
         <span className="font-mono text-foreground">{POSITION_TARGET_SLIDER_MAX}</span>.

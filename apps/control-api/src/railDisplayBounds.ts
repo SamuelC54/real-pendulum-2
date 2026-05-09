@@ -7,7 +7,7 @@
 let bounds: { min: number; max: number } | null = null;
 
 /** Display counts: negated Teknic measured position (see web `motorCountsForDisplay`). */
-function teknicToDisplayCounts(teknicMeasured: number): number {
+export function teknicMeasuredToDisplayCounts(teknicMeasured: number): number {
   return -teknicMeasured;
 }
 
@@ -27,7 +27,7 @@ export function syncRailDisplayBoundsFromMotorStatus(
   if (teknicMeasured === undefined || !Number.isFinite(teknicMeasured)) {
     return;
   }
-  const display = teknicToDisplayCounts(teknicMeasured);
+  const display = teknicMeasuredToDisplayCounts(teknicMeasured);
   if (!bounds) {
     bounds = { min: display, max: display };
     return;

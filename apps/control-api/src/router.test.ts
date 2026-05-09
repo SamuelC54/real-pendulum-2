@@ -16,6 +16,7 @@ vi.mock("./homing.js", () => ({
 import * as motor from "@real-pendulum/motor-service/sdk";
 import { runRailHoming } from "./homing.js";
 import { resetRailDisplayBoundsStateForTests } from "./railDisplayBounds.js";
+import { resetTravelLimitsStateForTests } from "./railTravelLimits.js";
 import { appRouter } from "./router.js";
 
 describe("appRouter (motor mocked)", () => {
@@ -26,6 +27,7 @@ describe("appRouter (motor mocked)", () => {
     vi.mocked(motor.stopMotor).mockReset();
     vi.mocked(motor.getMotorStatus).mockReset();
     resetRailDisplayBoundsStateForTests();
+    resetTravelLimitsStateForTests();
   });
 
   it("status.get returns friendly detail when motor is unreachable", async () => {
@@ -37,6 +39,7 @@ describe("appRouter (motor mocked)", () => {
     expect(res.connected).toBe(false);
     expect(res.commandedRpm).toBe(0);
     expect(res.railDisplayBounds).toBeNull();
+    expect(res.travelLimits).toEqual({ left: null, right: null });
     expect(res.detail).toContain("Motor service not reachable at http://127.0.0.1:50051");
   });
 
@@ -55,6 +58,7 @@ describe("appRouter (motor mocked)", () => {
       detail: "ok",
       measuredPosition: 7,
       railDisplayBounds: { min: -7, max: -7 },
+      travelLimits: { left: null, right: null },
     });
   });
 
@@ -75,6 +79,19 @@ describe("appRouter (motor mocked)", () => {
     const caller = appRouter.createCaller({});
     await caller.jog.setVelocity({ rpm: 100 });
     expect(motor.setJogVelocityRpm).toHaveBeenCalledWith(100);
+  });
+
+  it("rail.limits.record stores display count from motor measured position", async () => {
+    vi.mocked(motor.getMotorStatus).mockResolvedValue({
+      connected: true,
+      commandedRpm: 0,
+      detail: "ok",
+      measuredPosition: 42,
+    });
+    const caller = appRouter.createCaller({});
+    await caller.rail.limits.record({ side: "left" });
+    const st = await caller.status.get();
+    expect(st.travelLimits?.left).toBe(-42);
   });
 });
 

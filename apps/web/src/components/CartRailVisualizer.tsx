@@ -2,14 +2,17 @@ import { memo, useCallback } from "react";
 import { RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/trpc";
-import { motorCountsForDisplay } from "@/lib/motorPositionDisplay";
+import {
+  boundsFromTravelSwitchDisplays,
+  motorCountsForDisplay,
+} from "@/lib/motorPositionDisplay";
 import { useMotorStatusQuery } from "@/services/useMotorStatusQuery";
 import { cn } from "@/lib/utils";
 
 /**
- * Horizontal rail view: motor position (**display** counts: left negative / right positive) mapped
- * into a running min/max range maintained by **control-api** (updates each `status.get`). Sensor Board
- * limits tint the left/right stops when the sensor is connected.
+ * Horizontal rail view: motor position (**display** counts: left negative / right positive). Range ends
+ * prefer **travel limits** from control-api (homing or limit-switch capture); otherwise the session
+ * min/max from `status.get`. Sensor Board limits tint the left/right stops when the sensor is connected.
  */
 export const CartRailVisualizer = memo(function CartRailVisualizer() {
   const utils = trpc.useUtils();
@@ -23,7 +26,9 @@ export const CartRailVisualizer = memo(function CartRailVisualizer() {
 
   const motorConnected = motor.data?.connected ?? false;
   const pos = motorCountsForDisplay(motor.data?.measuredPosition);
-  const bounds = motor.data?.railDisplayBounds ?? null;
+  const tl = motor.data?.travelLimits;
+  const boundsFromTravel = boundsFromTravelSwitchDisplays(tl?.left, tl?.right);
+  const bounds = boundsFromTravel ?? motor.data?.railDisplayBounds ?? null;
   const sensorConnected = sensor.data?.connected ?? false;
   const limitLeft = sensor.data?.limitLeftPressed ?? false;
   const limitRight = sensor.data?.limitRightPressed ?? false;
@@ -153,10 +158,10 @@ export const CartRailVisualizer = memo(function CartRailVisualizer() {
       </div>
 
       <p className="text-muted-foreground text-[10px] leading-snug">
-        Numbers match the status strip: left along the rail is negative, right is positive. End zones
-        show min/max display counts recorded by the control API; center is current. Range grows as the
-        cart moves (jogging included). Connect the Sensor Board to light limit zones when a switch
-        closes.
+        Numbers match the status strip: left along the rail is negative, right is positive. When
+        travel limits are set (homing or jog-to-each-limit capture), end zones use those server-stored
+        counts; otherwise min/max grows as the cart moves this session. Connect the Sensor Board to
+        light limit zones when a switch closes.
       </p>
     </div>
   );

@@ -10,3 +10,17 @@ export function motorCountsForDisplay(
   }
   return -teknicMeasured;
 }
+
+/** Slider / rail span when both switch-side travel limits are known (control-api `travelLimits`). */
+export function boundsFromTravelSwitchDisplays(
+  left: number | null | undefined,
+  right: number | null | undefined,
+): { min: number; max: number } | null {
+  if (left == null || right == null || !Number.isFinite(left) || !Number.isFinite(right)) {
+    return null;
+  }
+  return {
+    min: Math.min(left, right),
+    max: Math.max(left, right),
+  };
+}

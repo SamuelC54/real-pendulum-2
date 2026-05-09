@@ -1,5 +1,6 @@
 import * as motor from "@real-pendulum/motor-service/sdk";
 import * as sensor from "@real-pendulum/sensor-service/sdk";
+import { setTravelLimitsFromHoming } from "./railTravelLimits.js";
 
 /** Matches web jog convention: “left” on the rail = positive commanded rpm. */
 function rpmTowardLeft(homingRpm: number): number {
@@ -98,6 +99,11 @@ export async function runRailHoming(): Promise<RailHomingResult> {
     Math.max(8, envNumber("HOMING_APPROACH_RPM", 22)),
   );
   const zeroMotorAtMid = envBool("HOMING_ZERO_MOTOR_POSITION_AT_MID", true);
+  /** Ignore limit switches until measured position has moved this far from the phase start (noise / stale reads). */
+  const minTravelForLimit = Math.max(
+    0,
+    envNumber("HOMING_MIN_TRAVEL_FOR_LIMIT_COUNTS", 48),
+  );
 
   let motorAbsRevolutions = 0;
   let lastClock = Date.now();
@@ -119,6 +125,13 @@ export async function runRailHoming(): Promise<RailHomingResult> {
     await motor.stopMotor().catch(() => {});
   }
 
+  async function jogAssert(rpm: number): Promise<void> {
+    const r = await motor.setJogVelocityRpm(rpm);
+    if (!r.ok) {
+      throw new Error(`Motor jog failed (${rpm} rpm): ${r.error}`);
+    }
+  }
+
   try {
     const motorSt = await motor.getMotorStatus();
     if (!motorSt.connected) {
@@ -131,7 +144,7 @@ export async function runRailHoming(): Promise<RailHomingResult> {
     }
 
     log.push(
-      `Homing uses Teknic measured position (counts). Limits only from Arduino. Start: homing rpm=${homingRpm}, poll=${pollMs}ms, phase timeout=${phaseTimeoutMs}ms.`,
+      `Homing uses Teknic measured position (counts). Limits only from Arduino. Start: homing rpm=${homingRpm}, poll=${pollMs}ms, phase timeout=${phaseTimeoutMs}ms, min travel for limit=${minTravelForLimit} counts.`,
     );
 
     /** Phase 0: move off any active limit. */
@@ -157,9 +170,9 @@ export async function runRailHoming(): Promise<RailHomingResult> {
         };
       }
       if (s.limitLeftPressed) {
-        await motor.setJogVelocityRpm(rpmTowardRight(homingRpm));
+        await jogAssert(rpmTowardRight(homingRpm));
       } else {
-        await motor.setJogVelocityRpm(rpmTowardLeft(homingRpm));
+        await jogAssert(rpmTowardLeft(homingRpm));
       }
       await sleep(pollMs);
     }
@@ -175,8 +188,9 @@ export async function runRailHoming(): Promise<RailHomingResult> {
     lastClock = Date.now();
     const leftDeadline = Date.now() + phaseTimeoutMs;
     let posAtLeft: number | undefined;
-    await motor.setJogVelocityRpm(rpmTowardLeft(homingRpm));
+    const posAtLeftSeekStart = await requireMotorMeasuredPosition();
     while (Date.now() < leftDeadline) {
+      await jogAssert(rpmTowardLeft(homingRpm));
       await integrateMotorMotion();
       const s = await sensor.getSensorStatus();
       if (!s.connected) {
@@ -192,9 +206,11 @@ export async function runRailHoming(): Promise<RailHomingResult> {
           log,
         };
       }
-      if (s.limitLeftPressed) {
+      const pos = await requireMotorMeasuredPosition();
+      const movedFromStart = Math.abs(pos - posAtLeftSeekStart);
+      if (s.limitLeftPressed && movedFromStart >= minTravelForLimit) {
         await stopSafe();
-        posAtLeft = await requireMotorMeasuredPosition();
+        posAtLeft = pos;
         log.push(`Left limit at motor measured position=${posAtLeft}.`);
         break;
       }
@@ -211,8 +227,9 @@ export async function runRailHoming(): Promise<RailHomingResult> {
     const rightDeadline = Date.now() + phaseTimeoutMs;
     let posAtRight: number | undefined;
     let clearedLeftLimitWhileSeekingRight = false;
-    await motor.setJogVelocityRpm(rpmTowardRight(homingRpm));
+    const posAtRightSeekStart = await requireMotorMeasuredPosition();
     while (Date.now() < rightDeadline) {
+      await jogAssert(rpmTowardRight(homingRpm));
       await integrateMotorMotion();
       const s = await sensor.getSensorStatus();
       if (!s.connected) {
@@ -235,9 +252,11 @@ export async function runRailHoming(): Promise<RailHomingResult> {
           log,
         };
       }
-      if (s.limitRightPressed) {
+      const pos = await requireMotorMeasuredPosition();
+      const movedFromStart = Math.abs(pos - posAtRightSeekStart);
+      if (s.limitRightPressed && movedFromStart >= minTravelForLimit) {
         await stopSafe();
-        posAtRight = await requireMotorMeasuredPosition();
+        posAtRight = pos;
         log.push(`Right limit at motor measured position=${posAtRight}.`);
         break;
       }
@@ -298,6 +317,12 @@ export async function runRailHoming(): Promise<RailHomingResult> {
           }
         }
 
+        setTravelLimitsFromHoming(
+          posAtLeft,
+          posAtRight,
+          motorPositionZeroedAtMid === true,
+        );
+
         return {
           ok: true,
           motorPositionAtLeftLimit: posAtLeft,
@@ -309,7 +334,7 @@ export async function runRailHoming(): Promise<RailHomingResult> {
           log,
         };
       }
-      await motor.setJogVelocityRpm(rpmTowardMotorMid(err));
+      await jogAssert(rpmTowardMotorMid(err));
       await sleep(pollMs);
     }
     await stopSafe();
