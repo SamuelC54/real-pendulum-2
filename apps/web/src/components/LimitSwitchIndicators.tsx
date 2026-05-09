@@ -10,9 +10,26 @@ export function LimitSwitchIndicators({
   leftPressed,
   rightPressed,
 }: LimitSwitchIndicatorsProps) {
+  const activeStop =
+    leftPressed && rightPressed
+      ? "Both limits"
+      : leftPressed
+        ? "Left rail stop"
+        : rightPressed
+          ? "Right rail stop"
+          : "Neither (between stops)";
+
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2.5">
-      <span className="text-muted-foreground text-xs font-medium">Limit switches</span>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <span className="text-muted-foreground text-xs font-medium">Travel limit switches</span>
+        <span
+          className="text-foreground max-w-56 text-right text-xs font-medium leading-snug"
+          title={activeStop}
+        >
+          {activeStop}
+        </span>
+      </div>
       <div className="grid grid-cols-2 gap-4 sm:gap-8">
         <LimitColumn
           label="Left"
@@ -49,7 +66,7 @@ function LimitColumn({
         />
         <span className="text-foreground text-sm font-medium">{label}</span>
       </div>
-      <code className="text-muted-foreground inline-block min-w-[2rem] rounded border border-border bg-background px-2 py-0.5 text-center font-mono text-[11px] leading-none">
+      <code className="text-muted-foreground inline-block min-w-8 rounded border border-border bg-background px-2 py-0.5 text-center font-mono text-[11px] leading-none">
         {pin}
       </code>
       <span

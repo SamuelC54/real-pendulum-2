@@ -1,0 +1,144 @@
+import { memo, useCallback, useEffect, useState } from "react";
+import { RotateCcw } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { trpc } from "@/trpc";
+import { useMotorStatusQuery } from "@/services/useMotorStatusQuery";
+import { cn } from "@/lib/utils";
+
+/**
+ * Horizontal rail view: Teknic **measuredPosition** mapped into a running min/max range for this
+ * browser session (expands as the cart moves — including while jogging). Arduino limits tint the
+ * left/right stops when the sensor is connected.
+ */
+export const CartRailVisualizer = memo(function CartRailVisualizer() {
+  const motor = useMotorStatusQuery();
+  const sensor = trpc.sensor.status.get.useQuery(undefined, {
+    refetchInterval: (q) => (q.state.data?.connected ? 80 : 1500),
+  });
+
+  const motorConnected = motor.data?.connected ?? false;
+  const pos = motor.data?.measuredPosition;
+  const sensorConnected = sensor.data?.connected ?? false;
+  const limitLeft = sensor.data?.limitLeftPressed ?? false;
+  const limitRight = sensor.data?.limitRightPressed ?? false;
+
+  const [bounds, setBounds] = useState<{ min: number; max: number } | null>(null);
+
+  useEffect(() => {
+    if (!motorConnected) {
+      setBounds(null);
+      return;
+    }
+    if (pos === undefined || !Number.isFinite(pos)) {
+      return;
+    }
+    setBounds((b) => {
+      if (!b) {
+        return { min: pos, max: pos };
+      }
+      return { min: Math.min(b.min, pos), max: Math.max(b.max, pos) };
+    });
+  }, [motorConnected, pos]);
+
+  const resetScale = useCallback(() => {
+    if (pos !== undefined && Number.isFinite(pos)) {
+      setBounds({ min: pos, max: pos });
+    }
+  }, [pos]);
+
+  const hasPosition = pos !== undefined && Number.isFinite(pos);
+  /** Horizontal marker position (% from left). Inverted so motion matches jog labels (same Teknic vs rail convention as **jogMath**). */
+  let pct = 50;
+  if (bounds && hasPosition) {
+    const span = bounds.max - bounds.min;
+    const t = span > 1e-9 ? (pos - bounds.min) / span : 0.5;
+    const raw = Math.max(3, Math.min(97, t * 100));
+    pct = 100 - raw;
+  }
+
+  const rangeLabel =
+    bounds && hasPosition
+      ? `${bounds.min.toFixed(0)} → ${bounds.max.toFixed(0)} counts`
+      : null;
+
+  if (!motorConnected) {
+    return null;
+  }
+
+  return (
+    <div className="flex flex-col gap-2 border-t border-border pt-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-muted-foreground text-xs font-medium">Cart on rail</span>
+        <div className="flex items-center gap-2">
+          {rangeLabel ? (
+            <span className="text-muted-foreground font-mono text-[10px] tabular-nums">
+              {rangeLabel}
+            </span>
+          ) : null}
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 gap-1 px-2 text-xs"
+            disabled={!hasPosition}
+            onClick={resetScale}
+            title="Set min/max to the current position (center the marker)"
+          >
+            <RotateCcw aria-hidden className="h-3.5 w-3.5" />
+            Reset scale
+          </Button>
+        </div>
+      </div>
+
+      <div
+        className="relative h-12 w-full overflow-hidden rounded-lg border border-border bg-muted/40"
+        role="img"
+        aria-label={
+          hasPosition && bounds
+            ? `Cart about ${pct.toFixed(0)} percent along the visible session range`
+            : "Rail cart position"
+        }
+      >
+        {/* Left / right stop zones — stronger when limit active */}
+        <div
+          className={cn(
+            "absolute top-0 bottom-0 left-0 w-[10%] rounded-l-lg transition-colors",
+            limitLeft && sensorConnected
+              ? "bg-amber-500/35 shadow-[inset_0_0_12px_rgba(245,158,11,0.35)]"
+              : "bg-muted/50",
+          )}
+        />
+        <div
+          className={cn(
+            "absolute top-0 right-0 bottom-0 w-[10%] rounded-r-lg transition-colors",
+            limitRight && sensorConnected
+              ? "bg-amber-500/35 shadow-[inset_0_0_12px_rgba(245,158,11,0.35)]"
+              : "bg-muted/50",
+          )}
+        />
+        <div className="absolute inset-y-0 left-[10%] right-[10%] flex items-center justify-between px-1">
+          <span className="text-muted-foreground select-none font-mono text-[10px]">L</span>
+          <span className="text-muted-foreground select-none font-mono text-[10px]">R</span>
+        </div>
+
+        {hasPosition && bounds ? (
+          <div
+            className="absolute top-1/2 z-10 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background bg-primary shadow-md transition-[left] duration-150 ease-out"
+            style={{ left: `${pct}%` }}
+          >
+            <span className="sr-only">cart marker</span>
+          </div>
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center px-4 text-center text-muted-foreground text-xs">
+            Measured position unavailable — rebuild motor DLL / motor-service for PosnMeasured.
+          </div>
+        )}
+      </div>
+
+      <p className="text-muted-foreground text-[10px] leading-snug">
+        Marker uses the Teknic position count. Range grows as the cart moves (jogging included).
+        Connect the Arduino to light limit zones when a switch closes.
+      </p>
+    </div>
+  );
+});

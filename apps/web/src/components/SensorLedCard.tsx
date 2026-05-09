@@ -102,6 +102,17 @@ export function SensorLedCard() {
         <code className="text-foreground">npm run flash:sensor-firmware -- COM3</code> runs
         Arduino CLI wherever you execute npm (repo root, board attached there).
       </p>
+      {connected ? (
+        <LimitSwitchIndicators
+          leftPressed={status.data?.limitLeftPressed ?? false}
+          rightPressed={status.data?.limitRightPressed ?? false}
+        />
+      ) : (
+        <div className="rounded-lg border border-dashed border-border bg-muted/20 px-3 py-2.5 text-muted-foreground text-xs">
+          <span className="font-medium text-foreground">Travel limits</span> (Arduino D4 left,
+          D5 right): connect to see switch state and where the cart is against the stops.
+        </div>
+      )}
       {!connected ? (
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
           <label className="flex min-w-[200px] flex-1 flex-col gap-1 text-xs">
@@ -191,12 +202,6 @@ export function SensorLedCard() {
           )}
         </span>
       </div>
-      {connected ? (
-        <LimitSwitchIndicators
-          leftPressed={status.data?.limitLeftPressed ?? false}
-          rightPressed={status.data?.limitRightPressed ?? false}
-        />
-      ) : null}
       {status.data?.detail ? (
         <p className="text-muted-foreground text-xs">{status.data.detail}</p>
       ) : null}

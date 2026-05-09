@@ -1,32 +1,60 @@
 import { Link2, Link2Off } from "lucide-react";
+import { CartRailVisualizer } from "@/components/CartRailVisualizer";
 import { Button } from "@/components/ui/button";
 import { useMotorSession } from "@/services/motorSession";
 import { useMotorStatusQuery } from "@/services/useMotorStatusQuery";
 
 /** Owns the polling status query so parent `App` does not re-render every refetch tick. */
+function formatMeasuredCounts(value: number | undefined): string {
+  if (value === undefined || !Number.isFinite(value)) {
+    return "—";
+  }
+  const rounded = Math.round(value * 10) / 10;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+}
+
 export function MotorStatusBlocks() {
   const status = useMotorStatusQuery();
   const { connect, connected, busy, connectMotor, disconnectMotor } = useMotorSession();
 
+  const measured = status.data?.measuredPosition;
+
   return (
     <>
       <section className="flex flex-col gap-4 rounded-xl border border-border bg-card p-6 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <span className="text-muted-foreground text-sm font-medium">Status</span>
-          <span className="font-mono text-sm">
+          <div className="flex flex-col items-end gap-1 text-right">
+            <span className="font-mono text-sm">
+              {status.data?.connected ? (
+                <>
+                  commanded{" "}
+                  <span className="text-foreground font-semibold">
+                    {status.data.commandedRpm.toFixed(1)}
+                  </span>{" "}
+                  rpm
+                </>
+              ) : (
+                <span className="text-destructive">not connected</span>
+              )}
+            </span>
             {status.data?.connected ? (
-              <>
-                commanded{" "}
-                <span className="text-foreground font-semibold">
-                  {status.data.commandedRpm.toFixed(1)}
+              <span className="text-muted-foreground font-mono text-xs leading-tight">
+                position{" "}
+                <span className="text-foreground font-semibold tabular-nums">
+                  {formatMeasuredCounts(measured)}
                 </span>{" "}
-                rpm
-              </>
-            ) : (
-              <span className="text-destructive">not connected</span>
-            )}
-          </span>
+                <span className="font-sans font-normal">counts</span>
+                {measured === undefined || !Number.isFinite(measured) ? (
+                  <span className="ml-1 font-sans text-[10px] font-normal opacity-80">
+                    (update motor-service / DLL)
+                  </span>
+                ) : null}
+              </span>
+            ) : null}
+          </div>
         </div>
+        {status.data?.connected ? <CartRailVisualizer /> : null}
         {status.data?.detail ? (
           <p className="text-muted-foreground text-xs leading-relaxed">{status.data.detail}</p>
         ) : null}

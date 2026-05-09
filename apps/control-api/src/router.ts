@@ -79,6 +79,7 @@ export const appRouter = t.router({
           connected: false,
           commandedRpm: 0,
           detail: friendlyMotorError(e),
+          measuredPosition: undefined,
         };
       }
     }),
