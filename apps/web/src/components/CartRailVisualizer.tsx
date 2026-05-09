@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useState } from "react";
+import { memo, useCallback } from "react";
 import { RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/trpc";
@@ -8,44 +8,31 @@ import { cn } from "@/lib/utils";
 
 /**
  * Horizontal rail view: motor position (**display** counts: left negative / right positive) mapped
- * into a running min/max range for this browser session. Sensor Board limits tint the left/right stops
- * when the sensor is connected.
+ * into a running min/max range maintained by **control-api** (updates each `status.get`). Sensor Board
+ * limits tint the left/right stops when the sensor is connected.
  */
 export const CartRailVisualizer = memo(function CartRailVisualizer() {
+  const utils = trpc.useUtils();
   const motor = useMotorStatusQuery();
   const sensor = trpc.sensor.status.get.useQuery(undefined, {
     refetchInterval: (q) => (q.state.data?.connected ? 80 : 1500),
   });
+  const resetBoundsMutation = trpc.rail.bounds.reset.useMutation({
+    onSuccess: () => void utils.status.get.invalidate(),
+  });
 
   const motorConnected = motor.data?.connected ?? false;
   const pos = motorCountsForDisplay(motor.data?.measuredPosition);
+  const bounds = motor.data?.railDisplayBounds ?? null;
   const sensorConnected = sensor.data?.connected ?? false;
   const limitLeft = sensor.data?.limitLeftPressed ?? false;
   const limitRight = sensor.data?.limitRightPressed ?? false;
 
-  const [bounds, setBounds] = useState<{ min: number; max: number } | null>(null);
-
-  useEffect(() => {
-    if (!motorConnected) {
-      setBounds(null);
-      return;
-    }
-    if (pos === undefined || !Number.isFinite(pos)) {
-      return;
-    }
-    setBounds((b) => {
-      if (!b) {
-        return { min: pos, max: pos };
-      }
-      return { min: Math.min(b.min, pos), max: Math.max(b.max, pos) };
-    });
-  }, [motorConnected, pos]);
-
   const resetScale = useCallback(() => {
     if (pos !== undefined && Number.isFinite(pos)) {
-      setBounds({ min: pos, max: pos });
+      void resetBoundsMutation.mutateAsync({ displayCounts: pos });
     }
-  }, [pos]);
+  }, [pos, resetBoundsMutation]);
 
   const hasPosition = pos !== undefined && Number.isFinite(pos);
   /** Horizontal marker position (% from left). Uses display counts so increasing toward + matches **right** on screen. */
@@ -80,7 +67,7 @@ export const CartRailVisualizer = memo(function CartRailVisualizer() {
             variant="ghost"
             size="sm"
             className="h-7 gap-1 px-2 text-xs"
-            disabled={!hasPosition}
+            disabled={!hasPosition || resetBoundsMutation.isPending}
             onClick={resetScale}
             title="Set min/max to the current position (center the marker)"
           >
@@ -167,8 +154,9 @@ export const CartRailVisualizer = memo(function CartRailVisualizer() {
 
       <p className="text-muted-foreground text-[10px] leading-snug">
         Numbers match the status strip: left along the rail is negative, right is positive. End zones
-        show this session’s min/max counts; center is current. Range grows as the cart moves (jogging
-        included). Connect the Sensor Board to light limit zones when a switch closes.
+        show min/max display counts recorded by the control API; center is current. Range grows as the
+        cart moves (jogging included). Connect the Sensor Board to light limit zones when a switch
+        closes.
       </p>
     </div>
   );

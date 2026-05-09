@@ -4,6 +4,11 @@ import { z } from "zod";
 import { friendlyMotorGrpcError } from "./motorErrors.js";
 import { friendlySensorGrpcError } from "./sensorErrors.js";
 import { runRailHoming } from "./homing.js";
+import {
+  getRailDisplayBounds,
+  resetRailDisplayBounds,
+  syncRailDisplayBoundsFromMotorStatus,
+} from "./railDisplayBounds.js";
 import { runLedToggleFlash } from "./runFlashScript.js";
 import * as motor from "@real-pendulum/motor-service/sdk";
 import * as sensor from "@real-pendulum/sensor-service/sdk";
@@ -69,17 +74,32 @@ export const appRouter = t.router({
         );
       }
     }),
+    bounds: t.router({
+      reset: t.procedure
+        .input(z.object({ displayCounts: z.number().finite() }))
+        .mutation(({ input }) => {
+          resetRailDisplayBounds(input.displayCounts);
+          return { ok: true as const };
+        }),
+    }),
   }),
   status: t.router({
     get: t.procedure.query(async () => {
       try {
-        return await motor.getMotorStatus();
+        const st = await motor.getMotorStatus();
+        syncRailDisplayBoundsFromMotorStatus(st.connected, st.measuredPosition);
+        return {
+          ...st,
+          railDisplayBounds: getRailDisplayBounds(),
+        };
       } catch (e) {
+        syncRailDisplayBoundsFromMotorStatus(false, undefined);
         return {
           connected: false,
           commandedRpm: 0,
           detail: friendlyMotorError(e),
           measuredPosition: undefined,
+          railDisplayBounds: null,
         };
       }
     }),
