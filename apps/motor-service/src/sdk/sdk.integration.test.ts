@@ -5,6 +5,7 @@ import {
   connectMotor,
   disconnectMotor,
   getMotorStatus,
+  moveToPosition,
   resetMotorGrpcClientForTests,
   setJogVelocityRpm,
   stopMotor,
@@ -74,6 +75,16 @@ describe("MotorService SDK (fake Connect server)", () => {
     const z = await zeroMeasuredPosition();
     expect(z.ok).toBe(true);
     expect(model.measuredPosition).toBe(0);
+  });
+
+  it("MoveToPosition sets fake measured position (Teknic counts)", async () => {
+    model.connected = true;
+    model.measuredPosition = 10;
+    model.commandedRpm = 50;
+    const r = await moveToPosition(-42);
+    expect(r.ok).toBe(true);
+    expect(model.commandedRpm).toBe(0);
+    expect(model.measuredPosition).toBe(-42);
   });
 
   it("SetJogVelocity and Stop update commanded rpm", async () => {

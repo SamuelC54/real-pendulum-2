@@ -117,3 +117,11 @@ export async function zeroMeasuredPosition(): Promise<{ ok: boolean; error: stri
   const r = await getClient().zeroMeasuredPosition({});
   return { ok: r.ok, error: r.errorMessage ?? "" };
 }
+
+/** Absolute Teknic profile move: `MovePosnStart(positionCounts, true)` (same counts frame as `measuredPosition`). */
+export async function moveToPosition(
+  positionCounts: number,
+): Promise<{ ok: boolean; error: string }> {
+  const r = await getClient().moveToPosition({ positionCounts });
+  return { ok: r.ok, error: r.errorMessage ?? "" };
+}

@@ -8,11 +8,16 @@ import {
   GetStatusReplySchema,
   MotorInfoSchema,
   MotorService,
+  MoveToPositionReplySchema,
   SetJogVelocityReplySchema,
   StopReplySchema,
   ZeroMeasuredPositionReplySchema,
 } from "@real-pendulum/motor-proto/gen/motor_pb.js";
-import type { ConnectReply, SetJogVelocityRequest } from "@real-pendulum/motor-proto/gen/motor_pb.js";
+import type {
+  ConnectReply,
+  MoveToPositionRequest,
+  SetJogVelocityRequest,
+} from "@real-pendulum/motor-proto/gen/motor_pb.js";
 
 /** Motor info fields aligned with **`motor.v1.MotorInfo`** (camelCase). */
 export type MotorInfoWire = {
@@ -115,6 +120,20 @@ export function startFakeMotorGrpcServer(
         }
         model.measuredPosition = 0;
         return create(ZeroMeasuredPositionReplySchema, {
+          ok: true,
+          errorMessage: "",
+        });
+      },
+      async moveToPosition(req: MoveToPositionRequest) {
+        if (!model.connected) {
+          return create(MoveToPositionReplySchema, {
+            ok: false,
+            errorMessage: "not connected",
+          });
+        }
+        model.commandedRpm = 0;
+        model.measuredPosition = req.positionCounts ?? 0;
+        return create(MoveToPositionReplySchema, {
           ok: true,
           errorMessage: "",
         });

@@ -2,6 +2,7 @@ import { AppHeader } from "@/components/AppHeader";
 import { HomingControls } from "@/components/HomingControls";
 import { JogControls } from "@/components/JogControls";
 import { MotorStatusBlocks } from "@/components/MotorStatusBlocks";
+import { PositionMoveControls } from "@/components/PositionMoveControls";
 import { SensorLedCard } from "@/components/SensorLedCard";
 
 export default function App() {
@@ -14,6 +15,7 @@ export default function App() {
           <div className="flex flex-col gap-8">
             <MotorStatusBlocks />
             <JogControls />
+            <PositionMoveControls />
             <HomingControls />
           </div>
           <SensorLedCard />

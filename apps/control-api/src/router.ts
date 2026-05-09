@@ -82,6 +82,17 @@ export const appRouter = t.router({
           return { ok: true as const };
         }),
     }),
+    /** Teknic `MovePosnStart` absolute move — target is UI display counts (negated to Teknic counts). */
+    moveAbsolute: t.procedure
+      .input(z.object({ displayCounts: z.number().finite() }))
+      .mutation(async ({ input }) => {
+        try {
+          const teknicCounts = -input.displayCounts;
+          return await motor.moveToPosition(teknicCounts);
+        } catch (e) {
+          throw new Error(`motor: ${friendlyMotorError(e)}`);
+        }
+      }),
   }),
   status: t.router({
     get: t.procedure.query(async () => {

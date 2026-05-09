@@ -11,11 +11,15 @@ import {
   GetStatusReplySchema,
   MotorInfoSchema,
   MotorService,
+  MoveToPositionReplySchema,
   StopReplySchema,
   SetJogVelocityReplySchema,
   ZeroMeasuredPositionReplySchema,
 } from "@real-pendulum/motor-proto/gen/motor_pb.js";
-import type { SetJogVelocityRequest } from "@real-pendulum/motor-proto/gen/motor_pb.js";
+import type {
+  MoveToPositionRequest,
+  SetJogVelocityRequest,
+} from "@real-pendulum/motor-proto/gen/motor_pb.js";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadTeknic, type TeknicNative } from "./teknic/dll.js";
@@ -103,6 +107,20 @@ function routes(router: ConnectRouter): void {
         });
       }
       return create(ZeroMeasuredPositionReplySchema, {
+        ok: true,
+        errorMessage: "",
+      });
+    },
+    async moveToPosition(req: MoveToPositionRequest) {
+      const positionCounts = req.positionCounts ?? 0;
+      const code = teknic.movePosnAbsolute(positionCounts);
+      if (code !== 0) {
+        return create(MoveToPositionReplySchema, {
+          ok: false,
+          errorMessage: `teknic_move_posn_absolute failed (${code}): ${teknic.getDetail()}`,
+        });
+      }
+      return create(MoveToPositionReplySchema, {
         ok: true,
         errorMessage: "",
       });
