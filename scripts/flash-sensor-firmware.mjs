@@ -21,6 +21,8 @@ import { fileURLToPath } from "node:url";
 import { config } from "dotenv";
 import { setTimeout as delay } from "timers/promises";
 
+const LOG = "[flash-sensor-firmware]";
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, "..");
 const sketch = join(root, "apps/sensor-service/firmware/led_toggle");
@@ -86,7 +88,7 @@ async function main() {
 
   if (!port) {
     console.log(
-      "[flash-led-toggle] Compile OK. To upload, pass your board's COM port (see `arduino-cli board list`), e.g. npm run flash:sensor-led -- COM9",
+      `${LOG} Compile OK. To upload, pass your board's COM port (see \`arduino-cli board list\`), e.g. npm run flash:sensor-led -- COM9`,
     );
     return;
   }
@@ -102,7 +104,7 @@ async function main() {
 
   if (shouldRetryWindows) {
     console.error(`
-[flash-led-toggle] First upload failed — waiting ${retryMs} ms for Windows to release ${port},
+${LOG} First upload failed — waiting ${retryMs} ms for Windows to release ${port},
 then retrying once (common after closing serial / sensor-service).
 `);
     await delay(retryMs);
@@ -119,7 +121,7 @@ then retrying once (common after closing serial / sensor-service).
 
   if (comStateStuck) {
     console.error(`
-[flash-led-toggle] Still seeing COM errors — waiting ${stallMs} ms, then one more upload attempt.
+${LOG} Still seeing COM errors — waiting ${stallMs} ms, then one more upload attempt.
 If this keeps failing: fully STOP the dev stack (\`npm run dev\`) so sensor-service exits,
 or Task Manager → end node.exe holding the port. Disconnect in the UI alone is not always enough.
 `);
@@ -129,7 +131,7 @@ or Task Manager → end node.exe holding the port. Disconnect in the UI alone is
 
   if (upload.status !== 0) {
     console.error(`
-[flash-led-toggle] Upload failed for "${port}".
+${LOG} Upload failed for "${port}".
 
 If avrdude said **cannot find the file specified** for \\\\.\\COMn:
   • That COM port does not exist right now — use the port where your board actually appears.
@@ -156,7 +158,7 @@ Ports detected right now:
     process.exit(upload.status ?? 1);
   }
 
-  console.log(`[flash-led-toggle] Uploaded to ${port} (${fqbn}).`);
+  console.log(`${LOG} Uploaded to ${port} (${fqbn}).`);
 }
 
 main().catch((err) => {

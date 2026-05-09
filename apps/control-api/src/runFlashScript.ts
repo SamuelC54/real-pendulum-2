@@ -22,11 +22,11 @@ export type FlashScriptResult = {
 };
 
 /**
- * Runs **`scripts/flash-led-toggle.mjs`** with the given serial port (requires Arduino CLI on the API machine).
+ * Runs **`scripts/flash-sensor-firmware.mjs`** with the given serial port (requires Arduino CLI on the API machine).
  */
 export function runLedToggleFlash(serialPort: string): Promise<FlashScriptResult> {
   const root = sensorFirmwareRepoRoot();
-  const script = join(root, "scripts", "flash-led-toggle.mjs");
+  const script = join(root, "scripts", "flash-sensor-firmware.mjs");
   if (!existsSync(script)) {
     return Promise.resolve({
       ok: false,

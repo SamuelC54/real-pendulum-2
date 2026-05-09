@@ -12,7 +12,7 @@
     "test:e2e:real": "cross-env E2E_USE_REAL_MOTOR=1 playwright test",
     "test:e2e:real:ui": "cross-env E2E_USE_REAL_MOTOR=1 playwright test --ui",
     "build": "npm run build --workspaces --if-present",
-    "flash:sensor-led": "node ./scripts/flash-led-toggle.mjs",
+    "flash:sensor-led": "node ./scripts/flash-sensor-firmware.mjs",
     "proto:generate": "buf generate",
     "predev": "npm run build:native -w @real-pendulum/motor-service && npx --yes kill-port 4000 50051 50052 5173 5174",
     "dev": "node ./scripts/run-with-root-env.mjs npm run dev:stack",
