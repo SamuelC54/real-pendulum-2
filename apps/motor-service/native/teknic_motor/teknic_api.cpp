@@ -193,8 +193,9 @@ __declspec(dllexport) int __cdecl teknic_stop(void) {
 /**
  * Absolute profile move: Teknic Motion.MovePosnStart(position_counts, true).
  * Stops velocity jog first (MoveVelStart(0)).
- * If vel_limit_rpm is NaN or <= 0, uses TeknicCfg::kJogVelLimitRpm; otherwise clamps to that max.
- * If acc_limit_rpm_per_sec is NaN or <= 0, uses TeknicCfg::kAccLimitRpmPerSec; otherwise clamps to that max.
+ * If vel_limit_rpm is NaN or <= 0, uses TeknicCfg::kJogVelLimitRpm (same default as unspecified jog cap).
+ * If finite and > 0, clamps to TeknicCfg::kPositionMoveVelCeilingRpm (not the jog limit — see teknic_cfg.h).
+ * Accel: NaN/<=0 uses kAccLimitRpmPerSec; else clamps to kPositionMoveAccCeilingRpmPerSec.
  */
 __declspec(dllexport) int __cdecl teknic_move_posn_absolute(double position_counts,
                                                             double vel_limit_rpm,
@@ -222,7 +223,9 @@ __declspec(dllexport) int __cdecl teknic_move_posn_absolute(double position_coun
 
     double acc_lim = static_cast<double>(TeknicCfg::kAccLimitRpmPerSec);
     if (std::isfinite(acc_limit_rpm_per_sec) && acc_limit_rpm_per_sec > 0) {
-      acc_lim = std::min(acc_limit_rpm_per_sec, static_cast<double>(TeknicCfg::kAccLimitRpmPerSec));
+      acc_lim = std::min(
+          acc_limit_rpm_per_sec,
+          static_cast<double>(TeknicCfg::kPositionMoveAccCeilingRpmPerSec));
     }
 
     try {
@@ -232,7 +235,9 @@ __declspec(dllexport) int __cdecl teknic_move_posn_absolute(double position_coun
 
     double vel_lim = static_cast<double>(TeknicCfg::kJogVelLimitRpm);
     if (std::isfinite(vel_limit_rpm) && vel_limit_rpm > 0) {
-      vel_lim = std::min(vel_limit_rpm, static_cast<double>(TeknicCfg::kJogVelLimitRpm));
+      vel_lim = std::min(
+          vel_limit_rpm,
+          static_cast<double>(TeknicCfg::kPositionMoveVelCeilingRpm));
     }
 
     try {
