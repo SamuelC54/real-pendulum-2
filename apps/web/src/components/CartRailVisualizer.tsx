@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * Horizontal rail view: motor position (**display** counts: left negative / right positive) mapped
- * into a running min/max range for this browser session. Arduino limits tint the left/right stops
+ * into a running min/max range for this browser session. Sensor Board limits tint the left/right stops
  * when the sensor is connected.
  */
 export const CartRailVisualizer = memo(function CartRailVisualizer() {
@@ -137,7 +137,7 @@ export const CartRailVisualizer = memo(function CartRailVisualizer() {
 
       <p className="text-muted-foreground text-[10px] leading-snug">
         Numbers match the status strip: left along the rail is negative, right is positive. Range
-        grows as the cart moves (jogging included). Connect the Arduino to light limit zones when a
+        grows as the cart moves (jogging included). Connect the Sensor Board to light limit zones when a
         switch closes.
       </p>
     </div>

@@ -12,7 +12,7 @@ type EncoderDialProps = {
   /** Quadrature counts per full rotation (600 P/R × 4 = 2400). */
   countsPerRev?: number;
   connected: boolean;
-  /** Zero tick counter on the Arduino (requires firmware with RESET_ENC). */
+  /** Zero tick counter on the Sensor Board (requires firmware with RESET_ENC). */
   onReset?: () => void;
   resetBusy?: boolean;
 };
@@ -31,7 +31,7 @@ export function EncoderDial({
   if (!connected) {
     return (
       <div className="text-muted-foreground rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm leading-relaxed">
-        <p>Connect the Arduino to see encoder rotation.</p>
+        <p>Connect the Sensor Board to see encoder rotation.</p>
         <p className="mt-2 text-xs">
           Encoder wiring:{" "}
           <span className="text-neutral-500 dark:text-neutral-300">D2: white wire</span>{" "}

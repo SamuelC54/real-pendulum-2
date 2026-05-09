@@ -55,8 +55,8 @@ export function AppHeader() {
           className="flex flex-wrap items-center gap-2 lg:pt-0.5"
           aria-label="Hardware connection status"
         >
-          <ConnectionBadge label="Motor board" connected={motorOn} />
-          <ConnectionBadge label="Sensor board" connected={sensorOn} />
+          <ConnectionBadge label="Motor Board" connected={motorOn} />
+          <ConnectionBadge label="Sensor Board" connected={sensorOn} />
         </div>
       </div>
     </header>

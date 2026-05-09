@@ -82,7 +82,7 @@ export function SensorLedCard() {
     <section className="flex flex-col gap-4 rounded-xl border border-border bg-card p-6 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <span className="text-muted-foreground text-sm font-medium">
-          Arduino sensor
+          Sensor Board
         </span>
         <span className="font-mono text-xs text-muted-foreground">
           {status.data?.serialPort ? (
@@ -109,7 +109,7 @@ export function SensorLedCard() {
         />
       ) : (
         <div className="rounded-lg border border-dashed border-border bg-muted/20 px-3 py-2.5 text-muted-foreground text-xs">
-          <span className="font-medium text-foreground">Travel limits</span> (Arduino D4 left,
+          <span className="font-medium text-foreground">Travel limits</span> (Sensor Board D4 left,
           D5 right): connect to see switch state and where the cart is against the stops.
         </div>
       )}
@@ -250,7 +250,7 @@ export function SensorLedCard() {
             }
           >
             <Usb aria-hidden className="mr-2 h-4 w-4" />
-            Connect Arduino
+            Connect Sensor Board
           </Button>
         ) : (
           <>

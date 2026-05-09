@@ -112,7 +112,7 @@ This runs four processes:
 | **api** | tRPC HTTP API | `http://localhost:4000` (tRPC base path `/trpc/`) |
 | **web** | Vite + React UI | `http://localhost:5173` |
 
-Open **`http://localhost:5173`** in the browser. The dev server proxies **`/trpc`** to the control API. Click **Connect motor** in the UI (or call the **`Connect`** gRPC) to run **`teknic_init`** — The motor service **starts without opening the hub** so the API and web can come up even when hardware is offline. After connect, the UI shows a **Motor (network report)** panel with node index, type code/label, user ID, firmware string, serial number, and model — the same Teknic **`IInfo`** fields **`SCNetworkReport.exe`** uses for a scan (this path requires an active SDK session after **`Connect`**).
+Open **`http://localhost:5173`** in the browser. The dev server proxies **`/trpc`** to the control API. Click **Connect Motor Board** in the UI (or call the **`Connect`** gRPC) to run **`teknic_init`** — The motor service **starts without opening the hub** so the API and web can come up even when hardware is offline. After connect, the UI shows a **Motor Board (network report)** panel with node index, type code/label, user ID, firmware string, serial number, and model — the same Teknic **`IInfo`** fields **`SCNetworkReport.exe`** uses for a scan (this path requires an active SDK session after **`Connect`**).
 
 The **api** and **web** processes wait until **TCP port 50051** accepts connections (motor service is listening) before starting, so you avoid transient **ECONNREFUSED** errors during startup. If you change **`MOTOR_GRPC_PORT`** on the motor service, update the **`wait-on tcp:127.0.0.1:50051`** lines in the root **`package.json`** scripts to use the same port.
 

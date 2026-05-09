@@ -54,7 +54,7 @@ describe("runRailHoming", () => {
     });
     const r = await runRailHoming();
     expect(r.ok).toBe(false);
-    expect(r.error).toMatch(/Arduino sensor is not connected/);
+    expect(r.error).toMatch(/Sensor Board is not connected/);
     expect(motor.setJogVelocityRpm).not.toHaveBeenCalled();
   });
 

@@ -127,7 +127,7 @@ export async function runRailHoming(): Promise<RailHomingResult> {
     await requireMotorMeasuredPosition();
     const sens = await sensor.getSensorStatus();
     if (!sens.connected) {
-      return { ok: false, error: "Arduino sensor is not connected.", log };
+      return { ok: false, error: "Sensor Board is not connected.", log };
     }
 
     log.push(
@@ -141,7 +141,7 @@ export async function runRailHoming(): Promise<RailHomingResult> {
       const s = await sensor.getSensorStatus();
       if (!s.connected) {
         await stopSafe();
-        return { ok: false, error: "Arduino sensor disconnected during homing.", log };
+        return { ok: false, error: "Sensor Board disconnected during homing.", log };
       }
       if (!s.limitLeftPressed && !s.limitRightPressed) {
         log.push("Limits clear — starting seek.");
@@ -181,7 +181,7 @@ export async function runRailHoming(): Promise<RailHomingResult> {
       const s = await sensor.getSensorStatus();
       if (!s.connected) {
         await stopSafe();
-        return { ok: false, error: "Arduino sensor disconnected during homing.", log };
+        return { ok: false, error: "Sensor Board disconnected during homing.", log };
       }
       if (s.limitRightPressed && !s.limitLeftPressed) {
         await stopSafe();
@@ -217,7 +217,7 @@ export async function runRailHoming(): Promise<RailHomingResult> {
       const s = await sensor.getSensorStatus();
       if (!s.connected) {
         await stopSafe();
-        return { ok: false, error: "Arduino sensor disconnected during homing.", log };
+        return { ok: false, error: "Sensor Board disconnected during homing.", log };
       }
       if (!s.limitLeftPressed) {
         clearedLeftLimitWhileSeekingRight = true;
@@ -279,7 +279,7 @@ export async function runRailHoming(): Promise<RailHomingResult> {
       const sensMid = await sensor.getSensorStatus();
       if (!sensMid.connected) {
         await stopSafe();
-        return { ok: false, error: "Arduino sensor disconnected during homing.", log };
+        return { ok: false, error: "Sensor Board disconnected during homing.", log };
       }
       const pos = await requireMotorMeasuredPosition();
       const err = pos - mid;

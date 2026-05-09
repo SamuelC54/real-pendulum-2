@@ -32,7 +32,7 @@ export const HomingControls = memo(function HomingControls() {
       </div>
       <p className="text-muted-foreground text-xs leading-relaxed">
         Uses Teknic <strong className="text-foreground font-medium">measured motor position</strong>{" "}
-        for rail travel; the Arduino only supplies travel limit switches (the rotary encoder there is
+        for rail travel; the Sensor Board only supplies travel limit switches (the rotary encoder there is
         for the pendulum). Optional slow final approach, then zeros Teknic position at center by
         default.
       </p>
@@ -51,10 +51,10 @@ export const HomingControls = memo(function HomingControls() {
         Home rail
       </Button>
       {!motorConnected ? (
-        <p className="text-muted-foreground text-xs">Connect the motor first.</p>
+        <p className="text-muted-foreground text-xs">Connect the Motor Board first.</p>
       ) : null}
       {!sensorConnected ? (
-        <p className="text-muted-foreground text-xs">Connect the Arduino sensor first.</p>
+        <p className="text-muted-foreground text-xs">Connect the Sensor Board first.</p>
       ) : null}
       {home.error ? (
         <p className="text-destructive text-xs">{home.error.message}</p>
@@ -80,7 +80,7 @@ export const HomingControls = memo(function HomingControls() {
           ) : null}
           {last.motorAbsRevolutions != null ? (
             <p>
-              Motor ∫|rpm|·dt/60 ≈{" "}
+              Motor Board ∫|rpm|·dt/60 ≈{" "}
               <span className="font-mono text-foreground">
                 {last.motorAbsRevolutions.toFixed(2)}
               </span>{" "}
@@ -89,7 +89,7 @@ export const HomingControls = memo(function HomingControls() {
           ) : null}
           {last.motorPositionZeroedAtMid != null ? (
             <p>
-              Motor position at center:{" "}
+              Motor Board position at center:{" "}
               {last.motorPositionZeroedAtMid ? (
                 <span className="text-foreground">zeroed (Teknic)</span>
               ) : (

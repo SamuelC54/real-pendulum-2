@@ -24,7 +24,7 @@ export function MotorStatusBlocks() {
     <>
       <section className="flex flex-col gap-4 rounded-xl border border-border bg-card p-6 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <span className="text-muted-foreground text-sm font-medium">Status</span>
+          <span className="text-muted-foreground text-sm font-medium">Motor Board</span>
           <div className="flex flex-col items-end gap-1 text-right">
             <span className="font-mono text-sm">
               {status.data?.connected ? (
@@ -69,7 +69,7 @@ export function MotorStatusBlocks() {
               onClick={() => void connectMotor()}
             >
               <Link2 aria-hidden className="mr-2 h-4 w-4" />
-              Connect motor
+              Connect Motor Board
             </Button>
           ) : (
             <Button
@@ -94,7 +94,7 @@ export function MotorStatusBlocks() {
 
       {status.data?.motor ? (
         <section className="flex flex-col gap-3 rounded-xl border border-border bg-card p-6 shadow-sm">
-          <h2 className="text-muted-foreground text-sm font-medium">Motor (network report)</h2>
+          <h2 className="text-muted-foreground text-sm font-medium">Motor Board (network report)</h2>
           <p className="text-muted-foreground text-xs">
             From Teknic <code className="text-foreground">IInfo</code> — same class of data as{" "}
             <code className="text-foreground">SCNetworkReport.exe</code> (read-only scan; connect
