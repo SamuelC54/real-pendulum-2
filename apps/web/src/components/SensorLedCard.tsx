@@ -93,13 +93,14 @@ export function SensorLedCard() {
         </span>
       </div>
       <p className="text-muted-foreground text-xs leading-relaxed">
-        Pick the Arduino&apos;s COM port, then use{" "}
-        <strong className="text-foreground font-medium">Flash firmware</strong> or{" "}
-        <code className="text-foreground">npm run flash:sensor-led -- COM3</code>{" "}
-        (Arduino CLI must be on the machine running the control API). If the list is
-        empty, you can still connect when{" "}
-        <code className="text-foreground">SENSOR_SERIAL_PORT</code> is set on the host
-        running sensor-service.
+        The port list comes from sensor-service (USB must be visible there). Choose a
+        port to connect, or set{" "}
+        <code className="text-foreground">SENSOR_SERIAL_PORT</code> on that host when
+        the list is empty.{" "}
+        <strong className="text-foreground font-medium">Flash firmware</strong> runs
+        Arduino CLI on the machine running control-api;{" "}
+        <code className="text-foreground">npm run flash:sensor-firmware -- COM3</code> runs
+        Arduino CLI wherever you execute npm (repo root, board attached there).
       </p>
       {!connected ? (
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">

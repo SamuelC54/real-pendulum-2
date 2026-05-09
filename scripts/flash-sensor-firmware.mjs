@@ -6,8 +6,8 @@
  *   arduino-cli core install arduino:avr
  *
  * Usage:
- *   npm run flash:sensor-led -- COM3
- *   ARDUINO_PORT=COM3 npm run flash:sensor-led
+ *   npm run flash:sensor-firmware -- COM3
+ *   ARDUINO_PORT=COM3 npm run flash:sensor-firmware
  *
  * Env (optional): ARDUINO_FQBN (default arduino:avr:uno), ARDUINO_PORT (same as arg).
  * FLASH_UPLOAD_RETRY_MS — delay before a second upload attempt on Windows (default 2500; set 0 to disable).
@@ -88,7 +88,7 @@ async function main() {
 
   if (!port) {
     console.log(
-      `${LOG} Compile OK. To upload, pass your board's COM port (see \`arduino-cli board list\`), e.g. npm run flash:sensor-led -- COM9`,
+      `${LOG} Compile OK. To upload, pass your board's COM port (see \`arduino-cli board list\`), e.g. npm run flash:sensor-firmware -- COM9`,
     );
     return;
   }

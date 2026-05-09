@@ -16,9 +16,9 @@ export default function App() {
 
         <MotorStatusBlocks />
 
-        <SensorLedCard />
-
         <JogControls />
+
+        <SensorLedCard />
       </div>
     </div>
   );
