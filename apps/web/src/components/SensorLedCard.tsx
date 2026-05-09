@@ -82,7 +82,7 @@ export function SensorLedCard() {
     <section className="flex flex-col gap-4 rounded-xl border border-border bg-card p-6 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <span className="text-muted-foreground text-sm font-medium">
-          Arduino test LED
+          Arduino sensor
         </span>
         <span className="font-mono text-xs text-muted-foreground">
           {status.data?.serialPort ? (
