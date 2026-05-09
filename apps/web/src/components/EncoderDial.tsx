@@ -42,7 +42,8 @@ export function EncoderDial({
     );
   }
 
-  const needleRotation = angleDeg - 90;
+  /** Needle at base points down (6 o'clock); positive SVG rotate is clockwise, matching angle Degrees clockwise from bottom. */
+  const needleRotation = angleDeg;
 
   return (
     <div className="flex flex-col items-center gap-3">
@@ -69,15 +70,15 @@ export function EncoderDial({
           strokeWidth="2"
           className="opacity-30"
         />
-        {[0, 45, 90, 135, 180, 225, 270, 315].map((deg) => {
-          const rad = ((deg - 90) * Math.PI) / 180;
-          const x1 = 60 + 46 * Math.cos(rad);
-          const y1 = 60 + 46 * Math.sin(rad);
-          const x2 = 60 + 52 * Math.cos(rad);
-          const y2 = 60 + 52 * Math.sin(rad);
+        {[0, 45, 90, 135, 180, 225, 270, 315].map((degCwFromBottom) => {
+          const rad = (degCwFromBottom * Math.PI) / 180;
+          const x1 = 60 + 46 * Math.sin(rad);
+          const y1 = 60 + 46 * Math.cos(rad);
+          const x2 = 60 + 52 * Math.sin(rad);
+          const y2 = 60 + 52 * Math.cos(rad);
           return (
             <line
-              key={deg}
+              key={degCwFromBottom}
               x1={x1}
               y1={y1}
               x2={x2}
@@ -93,7 +94,7 @@ export function EncoderDial({
             x1="60"
             y1="60"
             x2="60"
-            y2="18"
+            y2="102"
             stroke="currentColor"
             strokeWidth="3"
             strokeLinecap="round"
@@ -103,7 +104,7 @@ export function EncoderDial({
       </svg>
       <dl className="grid w-full max-w-xs grid-cols-2 gap-x-4 gap-y-1 font-mono text-xs">
         <dt className="text-muted-foreground">Angle (this rev)</dt>
-        <dd className="text-right">{angleDeg.toFixed(1)}°</dd>
+        <dd className="text-right">{angleDeg.toFixed(1)}° from bottom</dd>
         <dt className="text-muted-foreground">Ticks</dt>
         <dd className="text-right">{ticks}</dd>
         <dt className="text-muted-foreground">Turns</dt>
