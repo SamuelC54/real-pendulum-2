@@ -2,5 +2,5 @@
 export const JOG_RPM = 120;
 
 export function jogRpmForDirection(dir: "left" | "right"): number {
-  return dir === "left" ? -JOG_RPM : JOG_RPM;
+  return dir === "left" ? JOG_RPM : -JOG_RPM;
 }

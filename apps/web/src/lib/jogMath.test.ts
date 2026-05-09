@@ -7,8 +7,8 @@ describe("jogMath", () => {
     expect(Math.abs(jogRpmForDirection("right"))).toBe(JOG_RPM);
   });
 
-  it("negates rpm for left", () => {
-    expect(jogRpmForDirection("left")).toBe(-JOG_RPM);
-    expect(jogRpmForDirection("right")).toBe(JOG_RPM);
+  it("signs match rail jog labels vs Teknic velocity convention", () => {
+    expect(jogRpmForDirection("left")).toBe(JOG_RPM);
+    expect(jogRpmForDirection("right")).toBe(-JOG_RPM);
   });
 });
