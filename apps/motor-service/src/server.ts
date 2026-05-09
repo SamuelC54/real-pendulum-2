@@ -113,7 +113,17 @@ function routes(router: ConnectRouter): void {
     },
     async moveToPosition(req: MoveToPositionRequest) {
       const positionCounts = req.positionCounts ?? 0;
-      const code = teknic.movePosnAbsolute(positionCounts);
+      const mv = req.maxVelocityRpm;
+      const velLimitRpm =
+        mv !== undefined && Number.isFinite(mv) && mv > 0 ? mv : Number.NaN;
+      const ma = req.maxAccelerationRpmPerSec;
+      const accLimitRpmPerSec =
+        ma !== undefined && Number.isFinite(ma) && ma > 0 ? ma : Number.NaN;
+      const code = teknic.movePosnAbsolute(
+        positionCounts,
+        velLimitRpm,
+        accLimitRpmPerSec,
+      );
       if (code !== 0) {
         return create(MoveToPositionReplySchema, {
           ok: false,

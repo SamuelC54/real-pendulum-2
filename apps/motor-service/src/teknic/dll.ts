@@ -16,8 +16,12 @@ export type TeknicNative = {
   getPosnMeasured(): number;
   /** `Motion.AddToPosition(-PosnMeasured)` — zeros measured position at current location. */
   zeroMeasuredPosition(): number;
-  /** `Motion.MovePosnStart(counts, true)` — absolute profile move; stops velocity jog first. */
-  movePosnAbsolute(positionCounts: number): number;
+  /** `Motion.MovePosnStart(counts, true)` — absolute profile move; stops velocity jog first. Pass NaN for limits to use DLL defaults. */
+  movePosnAbsolute(
+    positionCounts: number,
+    velLimitRpm: number,
+    accLimitRpmPerSec: number,
+  ): number;
   isConnected(): boolean;
   getDetail(): string;
   /** Returns JSON from Teknic **`IInfo`** or **`null`** if unavailable. */
@@ -60,7 +64,9 @@ export function loadTeknic(pkgRoot: string): TeknicNative {
   const teknic_get_commanded_rpm = lib.func("double teknic_get_commanded_rpm(void)");
   const teknic_get_posn_measured = lib.func("double teknic_get_posn_measured(void)");
   const teknic_zero_measured_position = lib.func("int teknic_zero_measured_position(void)");
-  const teknic_move_posn_absolute = lib.func("int teknic_move_posn_absolute(double position_counts)");
+  const teknic_move_posn_absolute = lib.func(
+    "int teknic_move_posn_absolute(double position_counts, double vel_limit_rpm, double acc_limit_rpm_per_sec)",
+  );
   const teknic_is_connected = lib.func("int teknic_is_connected(void)");
   const teknic_get_detail = lib.func("const char *teknic_get_detail(void)");
   const teknic_get_motor_info_json = lib.func(
@@ -75,8 +81,12 @@ export function loadTeknic(pkgRoot: string): TeknicNative {
     getCommandedRpm: () => teknic_get_commanded_rpm() as number,
     getPosnMeasured: () => teknic_get_posn_measured() as number,
     zeroMeasuredPosition: () => teknic_zero_measured_position() as number,
-    movePosnAbsolute: (positionCounts: number) =>
-      teknic_move_posn_absolute(positionCounts) as number,
+    movePosnAbsolute: (
+      positionCounts: number,
+      velLimitRpm: number,
+      accLimitRpmPerSec: number,
+    ) =>
+      teknic_move_posn_absolute(positionCounts, velLimitRpm, accLimitRpmPerSec) as number,
     isConnected: () => (teknic_is_connected() as number) !== 0,
     getDetail: () => String(teknic_get_detail() ?? ""),
     getMotorInfoJson: () => {

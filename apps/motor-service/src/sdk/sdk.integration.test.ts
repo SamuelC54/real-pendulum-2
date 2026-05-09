@@ -87,6 +87,23 @@ describe("MotorService SDK (fake Connect server)", () => {
     expect(model.measuredPosition).toBe(-42);
   });
 
+  it("MoveToPosition accepts optional maxVelocityRpm", async () => {
+    model.connected = true;
+    const r = await moveToPosition(77, { maxVelocityRpm: 80 });
+    expect(r.ok).toBe(true);
+    expect(model.measuredPosition).toBe(77);
+  });
+
+  it("MoveToPosition accepts optional maxAccelerationRpmPerSec", async () => {
+    model.connected = true;
+    const r = await moveToPosition(12, {
+      maxVelocityRpm: 100,
+      maxAccelerationRpmPerSec: 500,
+    });
+    expect(r.ok).toBe(true);
+    expect(model.measuredPosition).toBe(12);
+  });
+
   it("SetJogVelocity and Stop update commanded rpm", async () => {
     model.connected = true;
     await setJogVelocityRpm(42);

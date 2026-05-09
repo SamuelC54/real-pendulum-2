@@ -84,11 +84,22 @@ export const appRouter = t.router({
     }),
     /** Teknic `MovePosnStart` absolute move — target is UI display counts (negated to Teknic counts). */
     moveAbsolute: t.procedure
-      .input(z.object({ displayCounts: z.number().finite() }))
+      .input(
+        z.object({
+          displayCounts: z.number().finite(),
+          /** Caps profile peak RPM (`Motion.VelLimit`). Omit to use motor-service default. */
+          maxVelocityRpm: z.number().finite().positive().optional(),
+          /** Caps profile acceleration (`Motion.AccLimit`, RPM/s when AccUnit is RPM_PER_SEC). Omit to use motor-service default. */
+          maxAccelerationRpmPerSec: z.number().finite().positive().optional(),
+        }),
+      )
       .mutation(async ({ input }) => {
         try {
           const teknicCounts = -input.displayCounts;
-          return await motor.moveToPosition(teknicCounts);
+          return await motor.moveToPosition(teknicCounts, {
+            maxVelocityRpm: input.maxVelocityRpm,
+            maxAccelerationRpmPerSec: input.maxAccelerationRpmPerSec,
+          });
         } catch (e) {
           throw new Error(`motor: ${friendlyMotorError(e)}`);
         }

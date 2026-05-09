@@ -71,6 +71,10 @@ message GetStatusReply {
 message MoveToPositionRequest {
   // Absolute target in Teknic Motion counts (same frame as measured_position).
   double position_counts = 1;
+  // Caps Motion.VelLimit (RPM) for this profile move. Omit or non-positive to use compile-time default.
+  optional double max_velocity_rpm = 2;
+  // Caps Motion.AccLimit with AccUnit RPM_PER_SEC. Omit or non-positive to use compile-time default.
+  optional double max_acceleration_rpm_per_sec = 3;
 }
 
 message MoveToPositionReply {

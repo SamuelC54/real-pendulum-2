@@ -121,7 +121,19 @@ export async function zeroMeasuredPosition(): Promise<{ ok: boolean; error: stri
 /** Absolute Teknic profile move: `MovePosnStart(positionCounts, true)` (same counts frame as `measuredPosition`). */
 export async function moveToPosition(
   positionCounts: number,
+  options?: {
+    maxVelocityRpm?: number;
+    maxAccelerationRpmPerSec?: number;
+  },
 ): Promise<{ ok: boolean; error: string }> {
-  const r = await getClient().moveToPosition({ positionCounts });
+  const r = await getClient().moveToPosition({
+    positionCounts,
+    ...(options?.maxVelocityRpm !== undefined
+      ? { maxVelocityRpm: options.maxVelocityRpm }
+      : {}),
+    ...(options?.maxAccelerationRpmPerSec !== undefined
+      ? { maxAccelerationRpmPerSec: options.maxAccelerationRpmPerSec }
+      : {}),
+  });
   return { ok: r.ok, error: r.errorMessage ?? "" };
 }

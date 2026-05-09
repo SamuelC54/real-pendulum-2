@@ -193,8 +193,12 @@ __declspec(dllexport) int __cdecl teknic_stop(void) {
 /**
  * Absolute profile move: Teknic Motion.MovePosnStart(position_counts, true).
  * Stops velocity jog first (MoveVelStart(0)).
+ * If vel_limit_rpm is NaN or <= 0, uses TeknicCfg::kJogVelLimitRpm; otherwise clamps to that max.
+ * If acc_limit_rpm_per_sec is NaN or <= 0, uses TeknicCfg::kAccLimitRpmPerSec; otherwise clamps to that max.
  */
-__declspec(dllexport) int __cdecl teknic_move_posn_absolute(double position_counts) {
+__declspec(dllexport) int __cdecl teknic_move_posn_absolute(double position_counts,
+                                                            double vel_limit_rpm,
+                                                            double acc_limit_rpm_per_sec) {
   std::lock_guard<std::recursive_mutex> lock(g_teknic_mu);
   if (!g_teknic_initialized || !g_teknic_node) {
     return -1;
@@ -216,13 +220,23 @@ __declspec(dllexport) int __cdecl teknic_move_posn_absolute(double position_coun
     } catch (mnErr&) {
     }
 
-    try {
-      g_teknic_node->Motion.AccLimit = TeknicCfg::kAccLimitRpmPerSec;
-    } catch (mnErr&) {
+    double acc_lim = static_cast<double>(TeknicCfg::kAccLimitRpmPerSec);
+    if (std::isfinite(acc_limit_rpm_per_sec) && acc_limit_rpm_per_sec > 0) {
+      acc_lim = std::min(acc_limit_rpm_per_sec, static_cast<double>(TeknicCfg::kAccLimitRpmPerSec));
     }
 
     try {
-      g_teknic_node->Motion.VelLimit = TeknicCfg::kJogVelLimitRpm;
+      g_teknic_node->Motion.AccLimit = acc_lim;
+    } catch (mnErr&) {
+    }
+
+    double vel_lim = static_cast<double>(TeknicCfg::kJogVelLimitRpm);
+    if (std::isfinite(vel_limit_rpm) && vel_limit_rpm > 0) {
+      vel_lim = std::min(vel_limit_rpm, static_cast<double>(TeknicCfg::kJogVelLimitRpm));
+    }
+
+    try {
+      g_teknic_node->Motion.VelLimit = vel_lim;
     } catch (mnErr&) {
     }
 
