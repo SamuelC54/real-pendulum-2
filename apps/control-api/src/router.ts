@@ -148,6 +148,8 @@ export const appRouter = t.router({
             detail: friendlySensorError(e),
             serialPort: "",
             encoderTicks: 0,
+            limitLeftPressed: false,
+            limitRightPressed: false,
           };
         }
       }),

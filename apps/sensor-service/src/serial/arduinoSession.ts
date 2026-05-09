@@ -9,12 +9,15 @@ type PendingReset = ((r: { ok: boolean; error: string }) => void) | null;
  * Wire protocol: PC sends **`TOGGLE\\n`**, board replies **`LED:0`** or **`LED:1`** per line;
  * board may push **`ENC:&lt;ticks&gt;\\n`** when the quadrature encoder moves.
  * PC **`RESET_ENC\\n`** → **`ZERO:OK\\n`** then **`ENC:0\\n`** (see firmware).
+ * Board **`LIM:0,1\\n`** — left/right limit pressed (**`1`**) with INPUT_PULLUP + switch to GND.
  */
 export class ArduinoSerialSession {
   private port: SerialPort | null = null;
   private parser: ReadlineParser | null = null;
   private ledOn = false;
   private encoderTicks = 0;
+  private limitLeftPressed = false;
+  private limitRightPressed = false;
   private pendingToggle: PendingToggle = null;
   private pendingReset: PendingReset = null;
   private openedPath: string | null = null;
@@ -26,6 +29,14 @@ export class ArduinoSerialSession {
   /** Latest signed quadrature tick count from **`ENC:`** lines (falls back to 0 before first line). */
   getEncoderTicks(): number {
     return this.encoderTicks;
+  }
+
+  getLimitLeftPressed(): boolean {
+    return this.limitLeftPressed;
+  }
+
+  getLimitRightPressed(): boolean {
+    return this.limitRightPressed;
   }
 
   getSerialPath(): string {
@@ -67,6 +78,12 @@ export class ArduinoSerialSession {
         this.pendingReset = null;
         fn({ ok: true, error: "" });
       }
+      return;
+    }
+    const lim = /^LIM:([01]),([01])$/i.exec(trimmed);
+    if (lim) {
+      this.limitLeftPressed = lim[1] === "1";
+      this.limitRightPressed = lim[2] === "1";
       return;
     }
     const enc = /^ENC:(-?\d+)$/i.exec(trimmed);
@@ -141,6 +158,8 @@ export class ArduinoSerialSession {
     this.pendingToggle = null;
     this.pendingReset = null;
     this.encoderTicks = 0;
+    this.limitLeftPressed = false;
+    this.limitRightPressed = false;
     const p = this.port;
     const parser = this.parser;
     this.port = null;

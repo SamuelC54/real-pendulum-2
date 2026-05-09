@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { EncoderDial } from "@/components/EncoderDial";
+import { LimitSwitchIndicators } from "@/components/LimitSwitchIndicators";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/trpc";
 
@@ -189,6 +190,12 @@ export function SensorLedCard() {
           )}
         </span>
       </div>
+      {connected ? (
+        <LimitSwitchIndicators
+          leftPressed={status.data?.limitLeftPressed ?? false}
+          rightPressed={status.data?.limitRightPressed ?? false}
+        />
+      ) : null}
       {status.data?.detail ? (
         <p className="text-muted-foreground text-xs">{status.data.detail}</p>
       ) : null}

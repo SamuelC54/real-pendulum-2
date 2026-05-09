@@ -59,6 +59,9 @@ message GetStatusReply {
   string serial_port = 4;
   // Quadrature tick counter from the Arduino (e.g. Gray-code ISR on pins 2 & 3).
   sint32 encoder_ticks = 5;
+  // Limit switches: INPUT_PULLUP, active when pin reads LOW (switch to GND).
+  bool limit_left_pressed = 6;
+  bool limit_right_pressed = 7;
 }
 
 message ResetEncoderRequest {}

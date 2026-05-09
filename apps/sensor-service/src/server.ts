@@ -66,6 +66,8 @@ function routes(router: ConnectRouter): void {
         detail,
         serialPort: portPath,
         encoderTicks: session.getEncoderTicks(),
+        limitLeftPressed: session.getLimitLeftPressed(),
+        limitRightPressed: session.getLimitRightPressed(),
       });
     },
     async listSerialPorts() {

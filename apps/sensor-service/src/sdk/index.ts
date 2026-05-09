@@ -86,6 +86,8 @@ export async function getSensorStatus(): Promise<{
   detail: string;
   serialPort: string;
   encoderTicks: number;
+  limitLeftPressed: boolean;
+  limitRightPressed: boolean;
 }> {
   const r = await getClient().getStatus({});
   return {
@@ -94,6 +96,8 @@ export async function getSensorStatus(): Promise<{
     detail: r.detail ?? "",
     serialPort: r.serialPort ?? "",
     encoderTicks: r.encoderTicks ?? 0,
+    limitLeftPressed: r.limitLeftPressed ?? false,
+    limitRightPressed: r.limitRightPressed ?? false,
   };
 }
 
