@@ -9,7 +9,12 @@ vi.mock("@real-pendulum/motor-service/sdk", () => ({
   getMotorStatus: vi.fn(),
 }));
 
+vi.mock("./homing.js", () => ({
+  runRailHoming: vi.fn(),
+}));
+
 import * as motor from "@real-pendulum/motor-service/sdk";
+import { runRailHoming } from "./homing.js";
 import { appRouter } from "./router.js";
 
 describe("appRouter (motor mocked)", () => {
@@ -64,5 +69,24 @@ describe("appRouter (motor mocked)", () => {
     const caller = appRouter.createCaller({});
     await caller.jog.setVelocity({ rpm: 100 });
     expect(motor.setJogVelocityRpm).toHaveBeenCalledWith(100);
+  });
+});
+
+describe("appRouter rail.home", () => {
+  beforeEach(() => {
+    vi.mocked(runRailHoming).mockReset();
+  });
+
+  it("returns homing result", async () => {
+    vi.mocked(runRailHoming).mockResolvedValue({
+      ok: true,
+      motorSpanCounts: 100,
+      motorAbsRevolutions: 2,
+      log: ["done"],
+    });
+    const caller = appRouter.createCaller({});
+    const res = await caller.rail.home();
+    expect(res.ok).toBe(true);
+    expect(res.motorSpanCounts).toBe(100);
   });
 });

@@ -10,6 +10,8 @@ service MotorService {
   rpc SetJogVelocity(SetJogVelocityRequest) returns (SetJogVelocityReply);
   rpc Stop(StopRequest) returns (StopReply);
   rpc GetStatus(GetStatusRequest) returns (GetStatusReply);
+  // Teknic Motion.PosnMeasured / AddToPosition — shaft position in drive counts (see ClearView docs).
+  rpc ZeroMeasuredPosition(ZeroMeasuredPositionRequest) returns (ZeroMeasuredPositionReply);
 }
 
 message ConnectRequest {}
@@ -60,4 +62,13 @@ message GetStatusReply {
   double commanded_rpm = 2;
   string detail = 3;
   MotorInfo motor = 4;
+  // Present when connected and readable: Motion.PosnMeasured (counts along the rail axis).
+  optional double measured_position = 5;
+}
+
+message ZeroMeasuredPositionRequest {}
+
+message ZeroMeasuredPositionReply {
+  bool ok = 1;
+  string error_message = 2;
 }

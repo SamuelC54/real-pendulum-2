@@ -99,6 +99,8 @@ export async function getMotorStatus(): Promise<{
   commandedRpm: number;
   detail: string;
   motor?: MotorInfo;
+  /** Teknic **`Motion.PosnMeasured`** (counts). Absent when not reported by firmware. */
+  measuredPosition?: number;
 }> {
   const r = await getClient().getStatus({});
   return {
@@ -106,5 +108,12 @@ export async function getMotorStatus(): Promise<{
     commandedRpm: Number(r.commandedRpm),
     detail: r.detail ?? "",
     motor: r.motor ? mapMotorInfo(r.motor) : undefined,
+    measuredPosition: r.measuredPosition,
   };
+}
+
+/** Zeros measured position at the current location (`AddToPosition(-PosnMeasured)`). */
+export async function zeroMeasuredPosition(): Promise<{ ok: boolean; error: string }> {
+  const r = await getClient().zeroMeasuredPosition({});
+  return { ok: r.ok, error: r.errorMessage ?? "" };
 }

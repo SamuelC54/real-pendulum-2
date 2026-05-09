@@ -3,9 +3,11 @@
  * Hub discovery/open: hub_connect.cpp. Optional axis enable: node_prepare.cpp. Motor JSON: motor_info.cpp.
  */
 
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <iomanip>
+#include <limits>
 #include <mutex>
 #include <sstream>
 #include <string>
@@ -191,6 +193,54 @@ __declspec(dllexport) int __cdecl teknic_stop(void) {
 __declspec(dllexport) double __cdecl teknic_get_commanded_rpm(void) {
   std::lock_guard<std::recursive_mutex> lock(g_teknic_mu);
   return g_teknic_commanded_rpm;
+}
+
+__declspec(dllexport) double __cdecl teknic_get_posn_measured(void) {
+  std::lock_guard<std::recursive_mutex> lock(g_teknic_mu);
+  if (!g_teknic_initialized || !g_teknic_node) {
+    return std::numeric_limits<double>::quiet_NaN();
+  }
+  try {
+    g_teknic_node->Motion.PosnMeasured.Refresh();
+    double p = static_cast<double>(g_teknic_node->Motion.PosnMeasured);
+    return std::isfinite(p) ? p : std::numeric_limits<double>::quiet_NaN();
+  } catch (...) {
+    return std::numeric_limits<double>::quiet_NaN();
+  }
+}
+
+/**
+ * Shifts commanded/measured position so the current measured position becomes 0 (same as
+ * Motion.AddToPosition(-Motion.PosnMeasured) in Teknic samples).
+ */
+__declspec(dllexport) int __cdecl teknic_zero_measured_position(void) {
+  std::lock_guard<std::recursive_mutex> lock(g_teknic_mu);
+  if (!g_teknic_initialized || !g_teknic_node) {
+    return -1;
+  }
+  if (!g_teknic_motion_enabled) {
+    g_teknic_detail =
+        "Info-only link (TeknicCfg::kEnableReqOnConnect=0); cannot zero position — enable motion.";
+    return -12;
+  }
+  try {
+    if (!g_teknic_node->Motion.IsReady()) {
+      return -5;
+    }
+    g_teknic_node->Motion.PosnMeasured.Refresh();
+    double p = static_cast<double>(g_teknic_node->Motion.PosnMeasured);
+    g_teknic_node->Motion.AddToPosition(-p);
+    return 0;
+  } catch (mnErr& theErr) {
+    std::ostringstream os;
+    os << "Zero position mnErr 0x" << std::hex << std::uppercase
+       << static_cast<unsigned>(theErr.ErrorCode) << std::nouppercase << std::dec << ": "
+       << (theErr.ErrorMsg ? theErr.ErrorMsg : "");
+    g_teknic_detail = os.str();
+    return -100;
+  } catch (...) {
+    return -2;
+  }
 }
 
 __declspec(dllexport) int __cdecl teknic_is_connected(void) {

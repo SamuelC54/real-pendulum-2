@@ -13,6 +13,7 @@ import {
   MotorService,
   StopReplySchema,
   SetJogVelocityReplySchema,
+  ZeroMeasuredPositionReplySchema,
 } from "@real-pendulum/motor-proto/gen/motor_pb.js";
 import type { SetJogVelocityRequest } from "@real-pendulum/motor-proto/gen/motor_pb.js";
 import path from "node:path";
@@ -72,11 +73,15 @@ function routes(router: ConnectRouter): void {
     async getStatus() {
       const connected = teknic.isConnected();
       const detail = teknic.getDetail().trim() || "Teknic ClearPath";
+      const pos = connected ? teknic.getPosnMeasured() : Number.NaN;
       const reply = create(GetStatusReplySchema, {
         connected,
         commandedRpm: teknic.getCommandedRpm(),
         detail,
       });
+      if (connected && Number.isFinite(pos)) {
+        reply.measuredPosition = pos;
+      }
       if (connected) {
         const json = teknic.getMotorInfoJson();
         if (json) {
@@ -88,6 +93,19 @@ function routes(router: ConnectRouter): void {
         }
       }
       return reply;
+    },
+    async zeroMeasuredPosition() {
+      const code = teknic.zeroMeasuredPosition();
+      if (code !== 0) {
+        return create(ZeroMeasuredPositionReplySchema, {
+          ok: false,
+          errorMessage: `teknic_zero_measured_position failed (${code}): ${teknic.getDetail()}`,
+        });
+      }
+      return create(ZeroMeasuredPositionReplySchema, {
+        ok: true,
+        errorMessage: "",
+      });
     },
   });
 }

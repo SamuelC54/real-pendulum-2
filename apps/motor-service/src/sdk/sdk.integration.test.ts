@@ -8,6 +8,7 @@ import {
   resetMotorGrpcClientForTests,
   setJogVelocityRpm,
   stopMotor,
+  zeroMeasuredPosition,
 } from "./index.js";
 import {
   createFakeMotorGrpcModel,
@@ -58,6 +59,21 @@ describe("MotorService SDK (fake Connect server)", () => {
     expect(st.detail).toContain("fake motor service");
     expect(st.motor?.nodeIndex).toBe(1);
     expect(st.motor?.serialNumber).toBe("99");
+  });
+
+  it("GetStatus includes measured position", async () => {
+    model.connected = true;
+    model.measuredPosition = 1234.5;
+    const st = await getMotorStatus();
+    expect(st.measuredPosition).toBe(1234.5);
+  });
+
+  it("ZeroMeasuredPosition clears fake measured position", async () => {
+    model.connected = true;
+    model.measuredPosition = 500;
+    const z = await zeroMeasuredPosition();
+    expect(z.ok).toBe(true);
+    expect(model.measuredPosition).toBe(0);
   });
 
   it("SetJogVelocity and Stop update commanded rpm", async () => {

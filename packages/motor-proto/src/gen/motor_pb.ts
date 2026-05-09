@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file motor.proto.
  */
 export const file_motor: GenFile = /*@__PURE__*/
-  fileDesc("Cgttb3Rvci5wcm90bxIIbW90b3IudjEiEAoOQ29ubmVjdFJlcXVlc3QiMQoMQ29ubmVjdFJlcGx5EgoKAm9rGAEgASgIEhUKDWVycm9yX21lc3NhZ2UYAiABKAkiEwoRRGlzY29ubmVjdFJlcXVlc3QiNAoPRGlzY29ubmVjdFJlcGx5EgoKAm9rGAEgASgIEhUKDWVycm9yX21lc3NhZ2UYAiABKAkiJAoVU2V0Sm9nVmVsb2NpdHlSZXF1ZXN0EgsKA3JwbRgBIAEoASI4ChNTZXRKb2dWZWxvY2l0eVJlcGx5EgoKAm9rGAEgASgIEhUKDWVycm9yX21lc3NhZ2UYAiABKAkiDQoLU3RvcFJlcXVlc3QiLgoJU3RvcFJlcGx5EgoKAm9rGAEgASgIEhUKDWVycm9yX21lc3NhZ2UYAiABKAkiEgoQR2V0U3RhdHVzUmVxdWVzdCKhAQoJTW90b3JJbmZvEhIKCm5vZGVfaW5kZXgYASABKAUSFgoObm9kZV90eXBlX2NvZGUYAiABKAUSFwoPbm9kZV90eXBlX2xhYmVsGAMgASgJEg8KB3VzZXJfaWQYBCABKAkSGAoQZmlybXdhcmVfdmVyc2lvbhgFIAEoCRIVCg1zZXJpYWxfbnVtYmVyGAYgASgEEg0KBW1vZGVsGAcgASgJIm4KDkdldFN0YXR1c1JlcGx5EhEKCWNvbm5lY3RlZBgBIAEoCBIVCg1jb21tYW5kZWRfcnBtGAIgASgBEg4KBmRldGFpbBgDIAEoCRIiCgVtb3RvchgEIAEoCzITLm1vdG9yLnYxLk1vdG9ySW5mbzLaAgoMTW90b3JTZXJ2aWNlEjsKB0Nvbm5lY3QSGC5tb3Rvci52MS5Db25uZWN0UmVxdWVzdBoWLm1vdG9yLnYxLkNvbm5lY3RSZXBseRJECgpEaXNjb25uZWN0EhsubW90b3IudjEuRGlzY29ubmVjdFJlcXVlc3QaGS5tb3Rvci52MS5EaXNjb25uZWN0UmVwbHkSUAoOU2V0Sm9nVmVsb2NpdHkSHy5tb3Rvci52MS5TZXRKb2dWZWxvY2l0eVJlcXVlc3QaHS5tb3Rvci52MS5TZXRKb2dWZWxvY2l0eVJlcGx5EjIKBFN0b3ASFS5tb3Rvci52MS5TdG9wUmVxdWVzdBoTLm1vdG9yLnYxLlN0b3BSZXBseRJBCglHZXRTdGF0dXMSGi5tb3Rvci52MS5HZXRTdGF0dXNSZXF1ZXN0GhgubW90b3IudjEuR2V0U3RhdHVzUmVwbHliBnByb3RvMw");
+  fileDesc("Cgttb3Rvci5wcm90bxIIbW90b3IudjEiEAoOQ29ubmVjdFJlcXVlc3QiMQoMQ29ubmVjdFJlcGx5EgoKAm9rGAEgASgIEhUKDWVycm9yX21lc3NhZ2UYAiABKAkiEwoRRGlzY29ubmVjdFJlcXVlc3QiNAoPRGlzY29ubmVjdFJlcGx5EgoKAm9rGAEgASgIEhUKDWVycm9yX21lc3NhZ2UYAiABKAkiJAoVU2V0Sm9nVmVsb2NpdHlSZXF1ZXN0EgsKA3JwbRgBIAEoASI4ChNTZXRKb2dWZWxvY2l0eVJlcGx5EgoKAm9rGAEgASgIEhUKDWVycm9yX21lc3NhZ2UYAiABKAkiDQoLU3RvcFJlcXVlc3QiLgoJU3RvcFJlcGx5EgoKAm9rGAEgASgIEhUKDWVycm9yX21lc3NhZ2UYAiABKAkiEgoQR2V0U3RhdHVzUmVxdWVzdCKhAQoJTW90b3JJbmZvEhIKCm5vZGVfaW5kZXgYASABKAUSFgoObm9kZV90eXBlX2NvZGUYAiABKAUSFwoPbm9kZV90eXBlX2xhYmVsGAMgASgJEg8KB3VzZXJfaWQYBCABKAkSGAoQZmlybXdhcmVfdmVyc2lvbhgFIAEoCRIVCg1zZXJpYWxfbnVtYmVyGAYgASgEEg0KBW1vZGVsGAcgASgJIqQBCg5HZXRTdGF0dXNSZXBseRIRCgljb25uZWN0ZWQYASABKAgSFQoNY29tbWFuZGVkX3JwbRgCIAEoARIOCgZkZXRhaWwYAyABKAkSIgoFbW90b3IYBCABKAsyEy5tb3Rvci52MS5Nb3RvckluZm8SHgoRbWVhc3VyZWRfcG9zaXRpb24YBSABKAFIAIgBAUIUChJfbWVhc3VyZWRfcG9zaXRpb24iHQobWmVyb01lYXN1cmVkUG9zaXRpb25SZXF1ZXN0Ij4KGVplcm9NZWFzdXJlZFBvc2l0aW9uUmVwbHkSCgoCb2sYASABKAgSFQoNZXJyb3JfbWVzc2FnZRgCIAEoCTK+AwoMTW90b3JTZXJ2aWNlEjsKB0Nvbm5lY3QSGC5tb3Rvci52MS5Db25uZWN0UmVxdWVzdBoWLm1vdG9yLnYxLkNvbm5lY3RSZXBseRJECgpEaXNjb25uZWN0EhsubW90b3IudjEuRGlzY29ubmVjdFJlcXVlc3QaGS5tb3Rvci52MS5EaXNjb25uZWN0UmVwbHkSUAoOU2V0Sm9nVmVsb2NpdHkSHy5tb3Rvci52MS5TZXRKb2dWZWxvY2l0eVJlcXVlc3QaHS5tb3Rvci52MS5TZXRKb2dWZWxvY2l0eVJlcGx5EjIKBFN0b3ASFS5tb3Rvci52MS5TdG9wUmVxdWVzdBoTLm1vdG9yLnYxLlN0b3BSZXBseRJBCglHZXRTdGF0dXMSGi5tb3Rvci52MS5HZXRTdGF0dXNSZXF1ZXN0GhgubW90b3IudjEuR2V0U3RhdHVzUmVwbHkSYgoUWmVyb01lYXN1cmVkUG9zaXRpb24SJS5tb3Rvci52MS5aZXJvTWVhc3VyZWRQb3NpdGlvblJlcXVlc3QaIy5tb3Rvci52MS5aZXJvTWVhc3VyZWRQb3NpdGlvblJlcGx5YgZwcm90bzM");
 
 /**
  * @generated from message motor.v1.ConnectRequest
@@ -241,6 +241,13 @@ export type GetStatusReply = Message<"motor.v1.GetStatusReply"> & {
    * @generated from field: motor.v1.MotorInfo motor = 4;
    */
   motor?: MotorInfo;
+
+  /**
+   * Present when connected and readable: Motion.PosnMeasured (counts along the rail axis).
+   *
+   * @generated from field: optional double measured_position = 5;
+   */
+  measuredPosition?: number;
 };
 
 /**
@@ -249,6 +256,41 @@ export type GetStatusReply = Message<"motor.v1.GetStatusReply"> & {
  */
 export const GetStatusReplySchema: GenMessage<GetStatusReply> = /*@__PURE__*/
   messageDesc(file_motor, 10);
+
+/**
+ * @generated from message motor.v1.ZeroMeasuredPositionRequest
+ */
+export type ZeroMeasuredPositionRequest = Message<"motor.v1.ZeroMeasuredPositionRequest"> & {
+};
+
+/**
+ * Describes the message motor.v1.ZeroMeasuredPositionRequest.
+ * Use `create(ZeroMeasuredPositionRequestSchema)` to create a new message.
+ */
+export const ZeroMeasuredPositionRequestSchema: GenMessage<ZeroMeasuredPositionRequest> = /*@__PURE__*/
+  messageDesc(file_motor, 11);
+
+/**
+ * @generated from message motor.v1.ZeroMeasuredPositionReply
+ */
+export type ZeroMeasuredPositionReply = Message<"motor.v1.ZeroMeasuredPositionReply"> & {
+  /**
+   * @generated from field: bool ok = 1;
+   */
+  ok: boolean;
+
+  /**
+   * @generated from field: string error_message = 2;
+   */
+  errorMessage: string;
+};
+
+/**
+ * Describes the message motor.v1.ZeroMeasuredPositionReply.
+ * Use `create(ZeroMeasuredPositionReplySchema)` to create a new message.
+ */
+export const ZeroMeasuredPositionReplySchema: GenMessage<ZeroMeasuredPositionReply> = /*@__PURE__*/
+  messageDesc(file_motor, 12);
 
 /**
  * Motor control service (ClearPath / Teknic node behind this implementation).
@@ -297,6 +339,16 @@ export const MotorService: GenService<{
     methodKind: "unary";
     input: typeof GetStatusRequestSchema;
     output: typeof GetStatusReplySchema;
+  },
+  /**
+   * Teknic Motion.PosnMeasured / AddToPosition — shaft position in drive counts (see ClearView docs).
+   *
+   * @generated from rpc motor.v1.MotorService.ZeroMeasuredPosition
+   */
+  zeroMeasuredPosition: {
+    methodKind: "unary";
+    input: typeof ZeroMeasuredPositionRequestSchema;
+    output: typeof ZeroMeasuredPositionReplySchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_motor, 0);

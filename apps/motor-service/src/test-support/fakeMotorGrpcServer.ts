@@ -10,6 +10,7 @@ import {
   MotorService,
   SetJogVelocityReplySchema,
   StopReplySchema,
+  ZeroMeasuredPositionReplySchema,
 } from "@real-pendulum/motor-proto/gen/motor_pb.js";
 import type { ConnectReply, SetJogVelocityRequest } from "@real-pendulum/motor-proto/gen/motor_pb.js";
 
@@ -30,6 +31,8 @@ export type FakeMotorGrpcModel = {
   connectReply: ConnectReply;
   connected: boolean;
   commandedRpm: number;
+  /** Fake **`Motion.PosnMeasured`** counts (integration tests may mutate). */
+  measuredPosition: number;
   detail: string;
   motor?: MotorInfoWire;
 };
@@ -41,6 +44,7 @@ export function createFakeMotorGrpcModel(
     connectReply: create(ConnectReplySchema, { ok: true, errorMessage: "" }),
     connected: false,
     commandedRpm: 0,
+    measuredPosition: 0,
     detail: "fake motor service",
     ...partial,
   };
@@ -61,6 +65,7 @@ export function startFakeMotorGrpcServer(
 ): Promise<{ url: string; close: () => Promise<void> }> {
   const explicit = options?.port;
   const listenPort = explicit != null && explicit > 0 ? explicit : 0;
+  let lastStatusMs = Date.now();
 
   function routes(router: ConnectRouter): void {
     router.service(MotorService, {
@@ -83,15 +88,36 @@ export function startFakeMotorGrpcServer(
         return create(StopReplySchema, { ok: true, errorMessage: "" });
       },
       async getStatus() {
+        const now = Date.now();
+        const dt = Math.min(1, Math.max(0, (now - lastStatusMs) / 1000));
+        lastStatusMs = now;
+        model.measuredPosition += ((model.commandedRpm * dt) / 60) * 800;
+
         const reply = create(GetStatusReplySchema, {
           connected: model.connected,
           commandedRpm: model.commandedRpm,
           detail: model.detail,
         });
+        if (model.connected) {
+          reply.measuredPosition = model.measuredPosition;
+        }
         if (model.motor) {
           reply.motor = create(MotorInfoSchema, model.motor);
         }
         return reply;
+      },
+      async zeroMeasuredPosition() {
+        if (!model.connected) {
+          return create(ZeroMeasuredPositionReplySchema, {
+            ok: false,
+            errorMessage: "not connected",
+          });
+        }
+        model.measuredPosition = 0;
+        return create(ZeroMeasuredPositionReplySchema, {
+          ok: true,
+          errorMessage: "",
+        });
       },
     });
   }

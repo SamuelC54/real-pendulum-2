@@ -1,3 +1,4 @@
+import { HomingControls } from "@/components/HomingControls";
 import { JogControls } from "@/components/JogControls";
 import { MotorStatusBlocks } from "@/components/MotorStatusBlocks";
 import { SensorLedCard } from "@/components/SensorLedCard";
@@ -17,6 +18,8 @@ export default function App() {
         <MotorStatusBlocks />
 
         <JogControls />
+
+        <HomingControls />
 
         <SensorLedCard />
       </div>

@@ -12,6 +12,10 @@ export type TeknicNative = {
   setVelocityRpm(rpm: number): number;
   stop(): number;
   getCommandedRpm(): number;
+  /** `Motion.PosnMeasured` counts, or NaN if unavailable. */
+  getPosnMeasured(): number;
+  /** `Motion.AddToPosition(-PosnMeasured)` — zeros measured position at current location. */
+  zeroMeasuredPosition(): number;
   isConnected(): boolean;
   getDetail(): string;
   /** Returns JSON from Teknic **`IInfo`** or **`null`** if unavailable. */
@@ -52,6 +56,8 @@ export function loadTeknic(pkgRoot: string): TeknicNative {
   const teknic_set_velocity_rpm = lib.func("int teknic_set_velocity_rpm(double rpm)");
   const teknic_stop = lib.func("int teknic_stop(void)");
   const teknic_get_commanded_rpm = lib.func("double teknic_get_commanded_rpm(void)");
+  const teknic_get_posn_measured = lib.func("double teknic_get_posn_measured(void)");
+  const teknic_zero_measured_position = lib.func("int teknic_zero_measured_position(void)");
   const teknic_is_connected = lib.func("int teknic_is_connected(void)");
   const teknic_get_detail = lib.func("const char *teknic_get_detail(void)");
   const teknic_get_motor_info_json = lib.func(
@@ -64,6 +70,8 @@ export function loadTeknic(pkgRoot: string): TeknicNative {
     setVelocityRpm: (rpm: number) => teknic_set_velocity_rpm(rpm) as number,
     stop: () => teknic_stop() as number,
     getCommandedRpm: () => teknic_get_commanded_rpm() as number,
+    getPosnMeasured: () => teknic_get_posn_measured() as number,
+    zeroMeasuredPosition: () => teknic_zero_measured_position() as number,
     isConnected: () => (teknic_is_connected() as number) !== 0,
     getDetail: () => String(teknic_get_detail() ?? ""),
     getMotorInfoJson: () => {

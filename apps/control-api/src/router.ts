@@ -3,6 +3,7 @@ import superjson from "superjson";
 import { z } from "zod";
 import { friendlyMotorGrpcError } from "./motorErrors.js";
 import { friendlySensorGrpcError } from "./sensorErrors.js";
+import { runRailHoming } from "./homing.js";
 import { runLedToggleFlash } from "./runFlashScript.js";
 import * as motor from "@real-pendulum/motor-service/sdk";
 import * as sensor from "@real-pendulum/sensor-service/sdk";
@@ -55,6 +56,17 @@ export const appRouter = t.router({
         return await motor.stopMotor();
       } catch (e) {
         throw new Error(`motor: ${friendlyMotorError(e)}`);
+      }
+    }),
+  }),
+  rail: t.router({
+    home: t.procedure.mutation(async () => {
+      try {
+        return await runRailHoming();
+      } catch (e) {
+        throw new Error(
+          `rail: ${e instanceof Error ? e.message : String(e)}`,
+        );
       }
     }),
   }),
