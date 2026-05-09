@@ -99,7 +99,7 @@ export const CartRailVisualizer = memo(function CartRailVisualizer() {
             : "Rail cart position"
         }
       >
-        {/* Left / right stop zones — stronger when limit active */}
+        {/* Left / right stop zones — stronger when limit active; show session extent counts at each end */}
         <div
           className={cn(
             "absolute top-0 bottom-0 left-0 w-[10%] rounded-l-lg transition-colors",
@@ -107,7 +107,18 @@ export const CartRailVisualizer = memo(function CartRailVisualizer() {
               ? "bg-amber-500/35 shadow-[inset_0_0_12px_rgba(245,158,11,0.35)]"
               : "bg-muted/50",
           )}
-        />
+        >
+          {hasPosition && bounds ? (
+            <div
+              className="pointer-events-none absolute inset-0 flex items-center justify-center px-0.5 text-center"
+              title="Minimum display count this session (left end of range)"
+            >
+              <span className="text-muted-foreground font-mono text-[9px] tabular-nums">
+                {bounds.min.toFixed(1)}
+              </span>
+            </div>
+          ) : null}
+        </div>
         <div
           className={cn(
             "absolute top-0 right-0 bottom-0 w-[10%] rounded-r-lg transition-colors",
@@ -115,10 +126,29 @@ export const CartRailVisualizer = memo(function CartRailVisualizer() {
               ? "bg-amber-500/35 shadow-[inset_0_0_12px_rgba(245,158,11,0.35)]"
               : "bg-muted/50",
           )}
-        />
-        <div className="absolute inset-y-0 left-[10%] right-[10%] flex items-center justify-between px-1">
-          <span className="text-muted-foreground select-none font-mono text-[10px]">L</span>
-          <span className="text-muted-foreground select-none font-mono text-[10px]">R</span>
+        >
+          {hasPosition && bounds ? (
+            <div
+              className="pointer-events-none absolute inset-0 flex items-center justify-center px-0.5 text-center"
+              title="Maximum display count this session (right end of range)"
+            >
+              <span className="text-muted-foreground font-mono text-[9px] tabular-nums">
+                {bounds.max.toFixed(1)}
+              </span>
+            </div>
+          ) : null}
+        </div>
+        <div className="absolute inset-y-0 left-[10%] right-[10%] flex items-center justify-between gap-1 px-1">
+          <span className="text-muted-foreground shrink-0 select-none font-mono text-[10px]">L</span>
+          {hasPosition && bounds ? (
+            <span
+              className="min-w-0 truncate text-center font-mono text-[10px] text-foreground tabular-nums font-medium"
+              title="Current display count"
+            >
+              {pos.toFixed(1)}
+            </span>
+          ) : null}
+          <span className="text-muted-foreground shrink-0 select-none font-mono text-[10px]">R</span>
         </div>
 
         {hasPosition && bounds ? (
@@ -136,9 +166,9 @@ export const CartRailVisualizer = memo(function CartRailVisualizer() {
       </div>
 
       <p className="text-muted-foreground text-[10px] leading-snug">
-        Numbers match the status strip: left along the rail is negative, right is positive. Range
-        grows as the cart moves (jogging included). Connect the Sensor Board to light limit zones when a
-        switch closes.
+        Numbers match the status strip: left along the rail is negative, right is positive. End zones
+        show this session’s min/max counts; center is current. Range grows as the cart moves (jogging
+        included). Connect the Sensor Board to light limit zones when a switch closes.
       </p>
     </div>
   );
