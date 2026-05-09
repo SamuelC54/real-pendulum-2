@@ -96,3 +96,16 @@ export async function getSensorStatus(): Promise<{
     encoderTicks: r.encoderTicks ?? 0,
   };
 }
+
+export async function resetEncoder(): Promise<{
+  ok: boolean;
+  error: string;
+  encoderTicks: number;
+}> {
+  const r = await getClient().resetEncoder({});
+  return {
+    ok: r.ok,
+    error: r.errorMessage ?? "",
+    encoderTicks: r.encoderTicks ?? 0,
+  };
+}

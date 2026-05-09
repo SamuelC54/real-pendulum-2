@@ -1,3 +1,6 @@
+import { RotateCcw } from "lucide-react";
+import { Button } from "@/components/ui/button";
+
 /**
  * Visual dial for quadrature encoder ticks: angle within one revolution + summary stats.
  * Default **countsPerRev** matches a typical 600 P/R encoder with x4 decoding (2400 edges/rev).
@@ -9,12 +12,17 @@ type EncoderDialProps = {
   /** Quadrature counts per full rotation (600 P/R × 4 = 2400). */
   countsPerRev?: number;
   connected: boolean;
+  /** Zero tick counter on the Arduino (requires firmware with RESET_ENC). */
+  onReset?: () => void;
+  resetBusy?: boolean;
 };
 
 export function EncoderDial({
   ticks,
   countsPerRev = 2400,
   connected,
+  onReset,
+  resetBusy = false,
 }: EncoderDialProps) {
   const cpr = countsPerRev > 0 ? countsPerRev : 2400;
   const angleDeg = (MOD(ticks, cpr) / cpr) * 360;
@@ -104,6 +112,22 @@ export function EncoderDial({
           Assumes {cpr} counts/rev (600 P/R × 4). Swap A/B if rotation is inverted.
         </dt>
       </dl>
+      {onReset ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="mt-1"
+          disabled={resetBusy}
+          onClick={() => onReset()}
+        >
+          <RotateCcw
+            aria-hidden
+            className={resetBusy ? "mr-2 h-4 w-4 animate-spin" : "mr-2 h-4 w-4"}
+          />
+          Reset encoder
+        </Button>
+      ) : null}
     </div>
   );
 }

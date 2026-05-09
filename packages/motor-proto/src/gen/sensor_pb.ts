@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file sensor.proto.
  */
 export const file_sensor: GenFile = /*@__PURE__*/
-  fileDesc("CgxzZW5zb3IucHJvdG8SCXNlbnNvci52MSIlCg5Db25uZWN0UmVxdWVzdBITCgtzZXJpYWxfcG9ydBgBIAEoCSIxCgxDb25uZWN0UmVwbHkSCgoCb2sYASABKAgSFQoNZXJyb3JfbWVzc2FnZRgCIAEoCSITChFEaXNjb25uZWN0UmVxdWVzdCI0Cg9EaXNjb25uZWN0UmVwbHkSCgoCb2sYASABKAgSFQoNZXJyb3JfbWVzc2FnZRgCIAEoCSISChBUb2dnbGVMZWRSZXF1ZXN0IkMKDlRvZ2dsZUxlZFJlcGx5EgoKAm9rGAEgASgIEhUKDWVycm9yX21lc3NhZ2UYAiABKAkSDgoGbGVkX29uGAMgASgIIhIKEEdldFN0YXR1c1JlcXVlc3QiGAoWTGlzdFNlcmlhbFBvcnRzUmVxdWVzdCJiCg5TZXJpYWxQb3J0SW5mbxIMCgRwYXRoGAEgASgJEhQKDG1hbnVmYWN0dXJlchgCIAEoCRIVCg1zZXJpYWxfbnVtYmVyGAMgASgJEhUKDWZyaWVuZGx5X25hbWUYBCABKAkiQAoUTGlzdFNlcmlhbFBvcnRzUmVwbHkSKAoFcG9ydHMYASADKAsyGS5zZW5zb3IudjEuU2VyaWFsUG9ydEluZm8ibwoOR2V0U3RhdHVzUmVwbHkSEQoJY29ubmVjdGVkGAEgASgIEg4KBmxlZF9vbhgCIAEoCBIOCgZkZXRhaWwYAyABKAkSEwoLc2VyaWFsX3BvcnQYBCABKAkSFQoNZW5jb2Rlcl90aWNrcxgFIAEoETL3AgoNU2Vuc29yU2VydmljZRI9CgdDb25uZWN0Ehkuc2Vuc29yLnYxLkNvbm5lY3RSZXF1ZXN0Ghcuc2Vuc29yLnYxLkNvbm5lY3RSZXBseRJGCgpEaXNjb25uZWN0Ehwuc2Vuc29yLnYxLkRpc2Nvbm5lY3RSZXF1ZXN0Ghouc2Vuc29yLnYxLkRpc2Nvbm5lY3RSZXBseRJDCglUb2dnbGVMZWQSGy5zZW5zb3IudjEuVG9nZ2xlTGVkUmVxdWVzdBoZLnNlbnNvci52MS5Ub2dnbGVMZWRSZXBseRJDCglHZXRTdGF0dXMSGy5zZW5zb3IudjEuR2V0U3RhdHVzUmVxdWVzdBoZLnNlbnNvci52MS5HZXRTdGF0dXNSZXBseRJVCg9MaXN0U2VyaWFsUG9ydHMSIS5zZW5zb3IudjEuTGlzdFNlcmlhbFBvcnRzUmVxdWVzdBofLnNlbnNvci52MS5MaXN0U2VyaWFsUG9ydHNSZXBseWIGcHJvdG8z");
+  fileDesc("CgxzZW5zb3IucHJvdG8SCXNlbnNvci52MSIlCg5Db25uZWN0UmVxdWVzdBITCgtzZXJpYWxfcG9ydBgBIAEoCSIxCgxDb25uZWN0UmVwbHkSCgoCb2sYASABKAgSFQoNZXJyb3JfbWVzc2FnZRgCIAEoCSITChFEaXNjb25uZWN0UmVxdWVzdCI0Cg9EaXNjb25uZWN0UmVwbHkSCgoCb2sYASABKAgSFQoNZXJyb3JfbWVzc2FnZRgCIAEoCSISChBUb2dnbGVMZWRSZXF1ZXN0IkMKDlRvZ2dsZUxlZFJlcGx5EgoKAm9rGAEgASgIEhUKDWVycm9yX21lc3NhZ2UYAiABKAkSDgoGbGVkX29uGAMgASgIIhIKEEdldFN0YXR1c1JlcXVlc3QiGAoWTGlzdFNlcmlhbFBvcnRzUmVxdWVzdCJiCg5TZXJpYWxQb3J0SW5mbxIMCgRwYXRoGAEgASgJEhQKDG1hbnVmYWN0dXJlchgCIAEoCRIVCg1zZXJpYWxfbnVtYmVyGAMgASgJEhUKDWZyaWVuZGx5X25hbWUYBCABKAkiQAoUTGlzdFNlcmlhbFBvcnRzUmVwbHkSKAoFcG9ydHMYASADKAsyGS5zZW5zb3IudjEuU2VyaWFsUG9ydEluZm8ibwoOR2V0U3RhdHVzUmVwbHkSEQoJY29ubmVjdGVkGAEgASgIEg4KBmxlZF9vbhgCIAEoCBIOCgZkZXRhaWwYAyABKAkSEwoLc2VyaWFsX3BvcnQYBCABKAkSFQoNZW5jb2Rlcl90aWNrcxgFIAEoESIVChNSZXNldEVuY29kZXJSZXF1ZXN0Ik0KEVJlc2V0RW5jb2RlclJlcGx5EgoKAm9rGAEgASgIEhUKDWVycm9yX21lc3NhZ2UYAiABKAkSFQoNZW5jb2Rlcl90aWNrcxgDIAEoETLFAwoNU2Vuc29yU2VydmljZRI9CgdDb25uZWN0Ehkuc2Vuc29yLnYxLkNvbm5lY3RSZXF1ZXN0Ghcuc2Vuc29yLnYxLkNvbm5lY3RSZXBseRJGCgpEaXNjb25uZWN0Ehwuc2Vuc29yLnYxLkRpc2Nvbm5lY3RSZXF1ZXN0Ghouc2Vuc29yLnYxLkRpc2Nvbm5lY3RSZXBseRJDCglUb2dnbGVMZWQSGy5zZW5zb3IudjEuVG9nZ2xlTGVkUmVxdWVzdBoZLnNlbnNvci52MS5Ub2dnbGVMZWRSZXBseRJDCglHZXRTdGF0dXMSGy5zZW5zb3IudjEuR2V0U3RhdHVzUmVxdWVzdBoZLnNlbnNvci52MS5HZXRTdGF0dXNSZXBseRJVCg9MaXN0U2VyaWFsUG9ydHMSIS5zZW5zb3IudjEuTGlzdFNlcmlhbFBvcnRzUmVxdWVzdBofLnNlbnNvci52MS5MaXN0U2VyaWFsUG9ydHNSZXBseRJMCgxSZXNldEVuY29kZXISHi5zZW5zb3IudjEuUmVzZXRFbmNvZGVyUmVxdWVzdBocLnNlbnNvci52MS5SZXNldEVuY29kZXJSZXBseWIGcHJvdG8z");
 
 /**
  * If serial_port is empty, sensor-service falls back to SENSOR_SERIAL_PORT.
@@ -243,6 +243,46 @@ export const GetStatusReplySchema: GenMessage<GetStatusReply> = /*@__PURE__*/
   messageDesc(file_sensor, 10);
 
 /**
+ * @generated from message sensor.v1.ResetEncoderRequest
+ */
+export type ResetEncoderRequest = Message<"sensor.v1.ResetEncoderRequest"> & {
+};
+
+/**
+ * Describes the message sensor.v1.ResetEncoderRequest.
+ * Use `create(ResetEncoderRequestSchema)` to create a new message.
+ */
+export const ResetEncoderRequestSchema: GenMessage<ResetEncoderRequest> = /*@__PURE__*/
+  messageDesc(file_sensor, 11);
+
+/**
+ * @generated from message sensor.v1.ResetEncoderReply
+ */
+export type ResetEncoderReply = Message<"sensor.v1.ResetEncoderReply"> & {
+  /**
+   * @generated from field: bool ok = 1;
+   */
+  ok: boolean;
+
+  /**
+   * @generated from field: string error_message = 2;
+   */
+  errorMessage: string;
+
+  /**
+   * @generated from field: sint32 encoder_ticks = 3;
+   */
+  encoderTicks: number;
+};
+
+/**
+ * Describes the message sensor.v1.ResetEncoderReply.
+ * Use `create(ResetEncoderReplySchema)` to create a new message.
+ */
+export const ResetEncoderReplySchema: GenMessage<ResetEncoderReply> = /*@__PURE__*/
+  messageDesc(file_sensor, 12);
+
+/**
  * Arduino / USB-serial test hardware (LED toggle, etc.).
  *
  * @generated from service sensor.v1.SensorService
@@ -287,6 +327,14 @@ export const SensorService: GenService<{
     methodKind: "unary";
     input: typeof ListSerialPortsRequestSchema;
     output: typeof ListSerialPortsReplySchema;
+  },
+  /**
+   * @generated from rpc sensor.v1.SensorService.ResetEncoder
+   */
+  resetEncoder: {
+    methodKind: "unary";
+    input: typeof ResetEncoderRequestSchema;
+    output: typeof ResetEncoderReplySchema;
   },
 }> = /*@__PURE__*/
   serviceDesc(file_sensor, 0);

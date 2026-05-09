@@ -48,13 +48,17 @@ export function SensorLedCard() {
       await utils.sensor.serial.list.invalidate();
     },
   });
+  const resetEncoder = trpc.sensor.encoder.reset.useMutation({
+    onSuccess: () => void utils.sensor.status.get.invalidate(),
+  });
 
   const ports = portsQuery.data ?? [];
   const busy =
     connect.isPending ||
     disconnect.isPending ||
     toggleLed.isPending ||
-    flashFirmware.isPending;
+    flashFirmware.isPending ||
+    resetEncoder.isPending;
   const connected = status.data?.connected ?? false;
 
   /** When exactly one device is present, use it; otherwise the user must choose. */
@@ -210,6 +214,15 @@ export function SensorLedCard() {
           </pre>
         </div>
       ) : null}
+      {resetEncoder.error ? (
+        <p className="text-destructive text-xs">{resetEncoder.error.message}</p>
+      ) : null}
+      {resetEncoder.isSuccess &&
+      resetEncoder.data &&
+      !resetEncoder.data.ok &&
+      resetEncoder.data.error ? (
+        <p className="text-destructive text-xs">{resetEncoder.data.error}</p>
+      ) : null}
       <div className="flex flex-wrap gap-2">
         {!connected ? (
           <Button
@@ -250,10 +263,16 @@ export function SensorLedCard() {
           </>
         )}
       </div>
-      <EncoderDial
-        connected={connected}
-        ticks={status.data?.encoderTicks ?? 0}
-      />
+      <div className="mt-6 flex flex-col gap-3 border-t border-border pt-4">
+        <EncoderDial
+          connected={connected}
+          ticks={status.data?.encoderTicks ?? 0}
+          onReset={
+            connected ? () => void resetEncoder.mutateAsync() : undefined
+          }
+          resetBusy={resetEncoder.isPending}
+        />
+      </div>
     </section>
   );
 }

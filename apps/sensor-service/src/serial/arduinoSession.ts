@@ -2,11 +2,13 @@ import { ReadlineParser } from "@serialport/parser-readline";
 import { SerialPort } from "serialport";
 
 type PendingToggle = ((r: { ok: boolean; error: string; ledOn: boolean }) => void) | null;
+type PendingReset = ((r: { ok: boolean; error: string }) => void) | null;
 
 /**
  * USB-serial session for the LED / encoder Arduino sketch (`firmware/led_toggle`).
  * Wire protocol: PC sends **`TOGGLE\\n`**, board replies **`LED:0`** or **`LED:1`** per line;
  * board may push **`ENC:&lt;ticks&gt;\\n`** when the quadrature encoder moves.
+ * PC **`RESET_ENC\\n`** → **`ZERO:OK\\n`** then **`ENC:0\\n`** (see firmware).
  */
 export class ArduinoSerialSession {
   private port: SerialPort | null = null;
@@ -14,6 +16,7 @@ export class ArduinoSerialSession {
   private ledOn = false;
   private encoderTicks = 0;
   private pendingToggle: PendingToggle = null;
+  private pendingReset: PendingReset = null;
   private openedPath: string | null = null;
 
   getLastLedOn(): boolean {
@@ -56,6 +59,16 @@ export class ArduinoSerialSession {
 
   private onLine(line: string): void {
     const trimmed = line.replace(/\r/g, "").trim();
+    const zeroOk = /^ZERO:OK$/i.exec(trimmed);
+    if (zeroOk) {
+      this.encoderTicks = 0;
+      if (this.pendingReset) {
+        const fn = this.pendingReset;
+        this.pendingReset = null;
+        fn({ ok: true, error: "" });
+      }
+      return;
+    }
     const enc = /^ENC:(-?\d+)$/i.exec(trimmed);
     if (enc) {
       const v = Number(enc[1]);
@@ -99,8 +112,34 @@ export class ArduinoSerialSession {
     });
   }
 
+  async resetEncoder(): Promise<{ ok: boolean; error: string }> {
+    if (!this.port?.isOpen) {
+      return { ok: false, error: "serial port not open" };
+    }
+    return new Promise((resolve) => {
+      const timeout = setTimeout(() => {
+        if (this.pendingReset) {
+          this.pendingReset = null;
+          resolve({ ok: false, error: "timeout waiting for ZERO:OK from Arduino" });
+        }
+      }, 3000);
+      this.pendingReset = () => {
+        clearTimeout(timeout);
+        resolve({ ok: true, error: "" });
+      };
+      this.port!.write("RESET_ENC\n", (err) => {
+        if (err) {
+          clearTimeout(timeout);
+          this.pendingReset = null;
+          resolve({ ok: false, error: err.message });
+        }
+      });
+    });
+  }
+
   async close(): Promise<void> {
     this.pendingToggle = null;
+    this.pendingReset = null;
     this.encoderTicks = 0;
     const p = this.port;
     const parser = this.parser;

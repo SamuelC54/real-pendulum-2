@@ -108,6 +108,15 @@ export const appRouter = t.router({
         }
       }),
     }),
+    encoder: t.router({
+      reset: t.procedure.mutation(async () => {
+        try {
+          return await sensor.resetEncoder();
+        } catch (e) {
+          throw new Error(`sensor: ${friendlySensorError(e)}`);
+        }
+      }),
+    }),
     firmware: t.router({
       flash: t.procedure
         .input(z.object({ serialPort: z.string().min(1) }))

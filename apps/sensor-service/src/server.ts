@@ -10,6 +10,7 @@ import {
   DisconnectReplySchema,
   GetStatusReplySchema,
   ListSerialPortsReplySchema,
+  ResetEncoderReplySchema,
   SensorService,
   SerialPortInfoSchema,
   ToggleLedReplySchema,
@@ -75,9 +76,17 @@ function routes(router: ConnectRouter): void {
             path: p.path,
             manufacturer: p.manufacturer ?? "",
             serialNumber: p.serialNumber ?? "",
-            friendlyName: p.friendlyName ?? "",
+            friendlyName: (p as { friendlyName?: string }).friendlyName ?? "",
           }),
         ),
+      });
+    },
+    async resetEncoder() {
+      const r = await session.resetEncoder();
+      return create(ResetEncoderReplySchema, {
+        ok: r.ok,
+        errorMessage: r.error,
+        encoderTicks: session.getEncoderTicks(),
       });
     },
   });
