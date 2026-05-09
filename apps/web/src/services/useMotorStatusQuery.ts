@@ -20,3 +20,18 @@ export function useMotorStatusConnected() {
     select: (row) => row?.connected ?? false,
   });
 }
+
+/** Matches **`SensorLedCard`** poll: faster while serial is open. */
+function sensorStatusRefetchInterval(query: {
+  state: { data?: { connected?: boolean } };
+}): number {
+  return query.state.data?.connected ? 80 : 1500;
+}
+
+/** Subscribes only to Arduino / sensor-service **connected**. */
+export function useSensorStatusConnected() {
+  return trpc.sensor.status.get.useQuery(undefined, {
+    refetchInterval: sensorStatusRefetchInterval,
+    select: (row) => row?.connected ?? false,
+  });
+}

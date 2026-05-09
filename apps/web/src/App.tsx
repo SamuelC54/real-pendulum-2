@@ -1,27 +1,23 @@
+import { AppHeader } from "@/components/AppHeader";
 import { HomingControls } from "@/components/HomingControls";
 import { JogControls } from "@/components/JogControls";
 import { MotorStatusBlocks } from "@/components/MotorStatusBlocks";
 import { SensorLedCard } from "@/components/SensorLedCard";
-import { JOG_RPM } from "@/lib/jogMath";
 
 export default function App() {
   return (
     <div className="min-h-dvh bg-background text-foreground">
-      <div className="mx-auto flex max-w-lg flex-col gap-8 px-6 py-12">
-        <header className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">Linear rail jog</h1>
-          <p className="text-muted-foreground text-sm">
-            Hold a direction to jog the cart ({JOG_RPM} rpm command). Release to stop.
-          </p>
-        </header>
+      <div className="mx-auto flex max-w-5xl flex-col gap-8 px-6 py-12">
+        <AppHeader />
 
-        <MotorStatusBlocks />
-
-        <JogControls />
-
-        <HomingControls />
-
-        <SensorLedCard />
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-2 lg:items-start lg:gap-10">
+          <div className="flex flex-col gap-8">
+            <MotorStatusBlocks />
+            <JogControls />
+            <HomingControls />
+          </div>
+          <SensorLedCard />
+        </div>
       </div>
     </div>
   );
