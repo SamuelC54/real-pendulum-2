@@ -1,6 +1,7 @@
 import { memo } from "react";
 import { Home } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { motorCountsForDisplay } from "@/lib/motorPositionDisplay";
 import { trpc } from "@/trpc";
 import { useMotorStatusConnected } from "@/services/useMotorStatusQuery";
 
@@ -71,7 +72,9 @@ export const HomingControls = memo(function HomingControls() {
               <span className="font-mono text-foreground">{last.motorSpanCounts.toFixed(1)}</span>{" "}
               counts · mid target:{" "}
               <span className="font-mono text-foreground">
-                {last.midMotorPosition != null ? last.midMotorPosition.toFixed(1) : "—"}
+                {last.midMotorPosition != null
+                  ? motorCountsForDisplay(last.midMotorPosition)!.toFixed(1)
+                  : "—"}
               </span>
             </p>
           ) : null}

@@ -2,13 +2,14 @@ import { memo, useCallback, useEffect, useState } from "react";
 import { RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { trpc } from "@/trpc";
+import { motorCountsForDisplay } from "@/lib/motorPositionDisplay";
 import { useMotorStatusQuery } from "@/services/useMotorStatusQuery";
 import { cn } from "@/lib/utils";
 
 /**
- * Horizontal rail view: Teknic **measuredPosition** mapped into a running min/max range for this
- * browser session (expands as the cart moves — including while jogging). Arduino limits tint the
- * left/right stops when the sensor is connected.
+ * Horizontal rail view: motor position (**display** counts: left negative / right positive) mapped
+ * into a running min/max range for this browser session. Arduino limits tint the left/right stops
+ * when the sensor is connected.
  */
 export const CartRailVisualizer = memo(function CartRailVisualizer() {
   const motor = useMotorStatusQuery();
@@ -17,7 +18,7 @@ export const CartRailVisualizer = memo(function CartRailVisualizer() {
   });
 
   const motorConnected = motor.data?.connected ?? false;
-  const pos = motor.data?.measuredPosition;
+  const pos = motorCountsForDisplay(motor.data?.measuredPosition);
   const sensorConnected = sensor.data?.connected ?? false;
   const limitLeft = sensor.data?.limitLeftPressed ?? false;
   const limitRight = sensor.data?.limitRightPressed ?? false;
@@ -47,13 +48,12 @@ export const CartRailVisualizer = memo(function CartRailVisualizer() {
   }, [pos]);
 
   const hasPosition = pos !== undefined && Number.isFinite(pos);
-  /** Horizontal marker position (% from left). Inverted so motion matches jog labels (same Teknic vs rail convention as **jogMath**). */
+  /** Horizontal marker position (% from left). Uses display counts so increasing toward + matches **right** on screen. */
   let pct = 50;
   if (bounds && hasPosition) {
     const span = bounds.max - bounds.min;
     const t = span > 1e-9 ? (pos - bounds.min) / span : 0.5;
-    const raw = Math.max(3, Math.min(97, t * 100));
-    pct = 100 - raw;
+    pct = Math.max(3, Math.min(97, t * 100));
   }
 
   const rangeLabel =
@@ -95,7 +95,7 @@ export const CartRailVisualizer = memo(function CartRailVisualizer() {
         role="img"
         aria-label={
           hasPosition && bounds
-            ? `Cart about ${pct.toFixed(0)} percent along the visible session range`
+            ? `Cart about ${pct.toFixed(0)} percent from left along the visible session range (display counts)`
             : "Rail cart position"
         }
       >
@@ -136,8 +136,9 @@ export const CartRailVisualizer = memo(function CartRailVisualizer() {
       </div>
 
       <p className="text-muted-foreground text-[10px] leading-snug">
-        Marker uses the Teknic position count. Range grows as the cart moves (jogging included).
-        Connect the Arduino to light limit zones when a switch closes.
+        Numbers match the status strip: left along the rail is negative, right is positive. Range
+        grows as the cart moves (jogging included). Connect the Arduino to light limit zones when a
+        switch closes.
       </p>
     </div>
   );

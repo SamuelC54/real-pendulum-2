@@ -1,6 +1,7 @@
 import { Link2, Link2Off } from "lucide-react";
 import { CartRailVisualizer } from "@/components/CartRailVisualizer";
 import { Button } from "@/components/ui/button";
+import { motorCountsForDisplay } from "@/lib/motorPositionDisplay";
 import { useMotorSession } from "@/services/motorSession";
 import { useMotorStatusQuery } from "@/services/useMotorStatusQuery";
 
@@ -17,7 +18,7 @@ export function MotorStatusBlocks() {
   const status = useMotorStatusQuery();
   const { connect, connected, busy, connectMotor, disconnectMotor } = useMotorSession();
 
-  const measured = status.data?.measuredPosition;
+  const measured = motorCountsForDisplay(status.data?.measuredPosition);
 
   return (
     <>
