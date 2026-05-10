@@ -5,7 +5,7 @@
  * each limit closes (rising edge), triggered from the web.
  */
 
-import { teknicMeasuredToDisplayCounts } from "./railDisplayBounds.js";
+import { teknicMeasuredToDisplayCounts } from "./teknicDisplayCounts.js";
 
 let limitLeftDisplay: number | null = null;
 let limitRightDisplay: number | null = null;

@@ -15,7 +15,6 @@ vi.mock("./homing.js", () => ({
 
 import * as motor from "@real-pendulum/motor-service/sdk";
 import { runRailHoming } from "./homing.js";
-import { resetRailDisplayBoundsStateForTests } from "./railDisplayBounds.js";
 import { resetTravelLimitsStateForTests } from "./railTravelLimits.js";
 import { appRouter } from "./router.js";
 
@@ -26,7 +25,6 @@ describe("appRouter (motor mocked)", () => {
     vi.mocked(motor.setJogVelocityRpm).mockReset();
     vi.mocked(motor.stopMotor).mockReset();
     vi.mocked(motor.getMotorStatus).mockReset();
-    resetRailDisplayBoundsStateForTests();
     resetTravelLimitsStateForTests();
   });
 
@@ -38,7 +36,6 @@ describe("appRouter (motor mocked)", () => {
     const res = await caller.status.get();
     expect(res.connected).toBe(false);
     expect(res.commandedRpm).toBe(0);
-    expect(res.railDisplayBounds).toBeNull();
     expect(res.travelLimits).toEqual({ left: null, right: null });
     expect(res.detail).toContain("Motor service not reachable at http://127.0.0.1:50051");
   });
@@ -57,7 +54,6 @@ describe("appRouter (motor mocked)", () => {
       commandedRpm: 12.5,
       detail: "ok",
       measuredPosition: 7,
-      railDisplayBounds: { min: -7, max: -7 },
       travelLimits: { left: null, right: null },
     });
   });

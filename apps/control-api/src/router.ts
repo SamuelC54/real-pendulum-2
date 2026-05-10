@@ -5,11 +5,6 @@ import { friendlyMotorGrpcError } from "./motorErrors.js";
 import { friendlySensorGrpcError } from "./sensorErrors.js";
 import { runRailHoming } from "./homing.js";
 import {
-  getRailDisplayBounds,
-  resetRailDisplayBounds,
-  syncRailDisplayBoundsFromMotorStatus,
-} from "./railDisplayBounds.js";
-import {
   getTravelLimitDisplays,
   recordTravelLimitFromTeknicMeasured,
   syncTravelLimitsFromMotorConnection,
@@ -79,14 +74,6 @@ export const appRouter = t.router({
         );
       }
     }),
-    bounds: t.router({
-      reset: t.procedure
-        .input(z.object({ displayCounts: z.number().finite() }))
-        .mutation(({ input }) => {
-          resetRailDisplayBounds(input.displayCounts);
-          return { ok: true as const };
-        }),
-    }),
     /**
      * Record which side is at the current measured position (call on limit-switch rising edge).
      * Server snapshots motor `PosnMeasured` so the value matches status strip / homing.
@@ -136,22 +123,18 @@ export const appRouter = t.router({
     get: t.procedure.query(async () => {
       try {
         const st = await motor.getMotorStatus();
-        syncRailDisplayBoundsFromMotorStatus(st.connected, st.measuredPosition);
         syncTravelLimitsFromMotorConnection(st.connected);
         return {
           ...st,
-          railDisplayBounds: getRailDisplayBounds(),
           travelLimits: getTravelLimitDisplays(),
         };
       } catch (e) {
-        syncRailDisplayBoundsFromMotorStatus(false, undefined);
         syncTravelLimitsFromMotorConnection(false);
         return {
           connected: false,
           commandedRpm: 0,
           detail: friendlyMotorError(e),
           measuredPosition: undefined,
-          railDisplayBounds: null,
           travelLimits: { left: null, right: null },
         };
       }
