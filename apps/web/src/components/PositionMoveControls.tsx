@@ -1,5 +1,13 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Crosshair, Home } from "lucide-react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { Crosshair, Home, LocateFixed } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DEFAULT_PROFILE_ACC_RPM_PER_SEC,
@@ -22,6 +30,7 @@ function clamp(n: number, min: number, max: number): number {
 
 function ProfileSlider({
   label,
+  labelAddon,
   value,
   onChange,
   min,
@@ -31,6 +40,7 @@ function ProfileSlider({
   suffix,
 }: {
   label: string;
+  labelAddon?: ReactNode;
   value: number;
   onChange: (v: number) => void;
   min: number;
@@ -41,8 +51,11 @@ function ProfileSlider({
 }) {
   return (
     <div className="flex min-w-0 flex-1 flex-col gap-2">
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="text-muted-foreground text-xs font-medium">{label}</span>
+      <div className="flex flex-wrap items-baseline justify-between gap-x-2 gap-y-1">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <span className="text-muted-foreground text-xs font-medium">{label}</span>
+          {labelAddon}
+        </div>
         <span className="font-mono text-sm tabular-nums text-foreground">
           {value}
           {suffix ? (
@@ -205,6 +218,23 @@ export const PositionMoveControls = memo(function PositionMoveControls() {
         <div className="flex flex-col gap-1">
           <ProfileSlider
             label="Target display counts"
+            labelAddon={
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7 shrink-0"
+                disabled={disabled || displayNow === undefined || !Number.isFinite(displayNow)}
+                aria-label="Use current position"
+                title="Use current position"
+                onClick={() => {
+                  if (displayNow === undefined || !Number.isFinite(displayNow)) return;
+                  setTargetCounts(clamp(Math.round(displayNow), targetSliderMin, targetSliderMax));
+                }}
+              >
+                <LocateFixed className="h-3.5 w-3.5" aria-hidden />
+              </Button>
+            }
             min={targetSliderMin}
             max={targetSliderMax}
             step={targetStep}
@@ -232,38 +262,28 @@ export const PositionMoveControls = memo(function PositionMoveControls() {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex w-full gap-2">
         <Button
           type="button"
           variant="outline"
           size="sm"
-          disabled={disabled || displayNow === undefined || !Number.isFinite(displayNow)}
-          onClick={() => {
-            if (displayNow === undefined || !Number.isFinite(displayNow)) return;
-            setTargetCounts(clamp(Math.round(displayNow), targetSliderMin, targetSliderMax));
-          }}
-        >
-          Use current position
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
+          className="min-w-0 flex-1 touch-manipulation"
           disabled={disabled}
           title="Absolute move to 0 display counts (home / Teknic origin)"
           onClick={() => runMoveToDisplayCounts(0)}
         >
-          <Home aria-hidden className="mr-2 h-4 w-4" />
+          <Home aria-hidden className="mr-2 h-4 w-4 shrink-0" />
           Move to home
         </Button>
         <Button
           type="button"
           variant="secondary"
           size="sm"
+          className="min-w-0 flex-1 touch-manipulation"
           disabled={disabled}
           onClick={() => runMoveToDisplayCounts(sliderTargetValue)}
         >
-          <Crosshair aria-hidden className="mr-2 h-4 w-4" />
+          <Crosshair aria-hidden className="mr-2 h-4 w-4 shrink-0" />
           Go
         </Button>
       </div>

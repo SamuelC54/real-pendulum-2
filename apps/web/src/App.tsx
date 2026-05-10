@@ -16,8 +16,8 @@ export default function App() {
             <JogControls />
           </div>
           <div className="flex flex-col gap-8">
-            <PositionMoveControls />
             <HomingControls />
+            <PositionMoveControls />
           </div>
           <SensorLedCard />
         </div>
