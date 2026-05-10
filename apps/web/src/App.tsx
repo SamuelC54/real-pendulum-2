@@ -8,13 +8,14 @@ import { SensorLedCard } from "@/components/SensorLedCard";
 export default function App() {
   return (
     <div className="min-h-dvh bg-background text-foreground">
-      <div className="mx-auto flex max-w-5xl flex-col gap-8 px-6 py-12">
-        <AppHeader />
-
-        <div className="grid grid-cols-1 gap-8 lg:grid-cols-2 lg:items-start lg:gap-10">
+      <AppHeader />
+      <div className="mx-auto flex max-w-7xl flex-col px-6 pt-4 pb-8">
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-3 lg:items-start lg:gap-8">
           <div className="flex flex-col gap-8">
             <MotorStatusBlocks />
             <JogControls />
+          </div>
+          <div className="flex flex-col gap-8">
             <PositionMoveControls />
             <HomingControls />
           </div>

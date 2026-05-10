@@ -92,15 +92,11 @@ export function SensorLedCard() {
           )}
         </span>
       </div>
-      <p className="text-muted-foreground text-xs leading-relaxed">
-        The port list comes from sensor-service (USB must be visible there). Choose a
-        port to connect, or set{" "}
-        <code className="text-foreground">SENSOR_SERIAL_PORT</code> on that host when
-        the list is empty.{" "}
-        <strong className="text-foreground font-medium">Flash firmware</strong> runs
-        Arduino CLI on the machine running control-api;{" "}
-        <code className="text-foreground">npm run flash:sensor-firmware -- COM3</code> runs
-        Arduino CLI wherever you execute npm (repo root, board attached there).
+      <p className="text-muted-foreground text-[11px] leading-snug">
+        USB list via sensor-service — pick a port or{" "}
+        <code className="text-foreground">SENSOR_SERIAL_PORT</code>.{" "}
+        <strong className="text-foreground font-medium">Flash</strong>: CLI on control-api.{" "}
+        <code className="text-foreground">npm run flash:sensor-firmware -- COM3</code>: CLI where npm runs.
       </p>
       {connected ? (
         <LimitSwitchIndicators

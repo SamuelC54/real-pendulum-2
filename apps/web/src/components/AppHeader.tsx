@@ -2,7 +2,6 @@ import {
   useMotorStatusConnected,
   useSensorStatusConnected,
 } from "@/services/useMotorStatusQuery";
-import { JOG_RPM } from "@/lib/jogMath";
 import { cn } from "@/lib/utils";
 
 function ConnectionBadge({
@@ -15,7 +14,7 @@ function ConnectionBadge({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium tabular-nums",
+        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-medium tabular-nums",
         connected
           ? "border-emerald-500/45 bg-emerald-500/10 text-emerald-800 dark:border-emerald-500/35 dark:bg-emerald-500/15 dark:text-emerald-300"
           : "border-border bg-muted/60 text-muted-foreground",
@@ -43,22 +42,15 @@ export function AppHeader() {
   const sensorOn = sensor.data ?? false;
 
   return (
-    <header className="space-y-4">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">Linear rail jog</h1>
-          <p className="text-muted-foreground text-sm">
-            Hold a direction to jog the cart ({JOG_RPM} rpm command). Release to stop.
-          </p>
-        </div>
-        <div
-          className="flex flex-wrap items-center gap-2 lg:pt-0.5"
-          aria-label="Hardware connection status"
-        >
-          <ConnectionBadge label="Motor Board" connected={motorOn} />
-          <ConnectionBadge label="Sensor Board" connected={sensorOn} />
-        </div>
+    <header className="pointer-events-none fixed top-3 right-4 z-50 max-w-[min(100vw-2rem,20rem)] sm:top-4 sm:right-6">
+      <div
+        className="pointer-events-auto flex flex-wrap justify-end gap-1.5"
+        aria-label="Hardware connection status"
+      >
+        <ConnectionBadge label="Motor Board" connected={motorOn} />
+        <ConnectionBadge label="Sensor Board" connected={sensorOn} />
       </div>
+      <span className="sr-only">Linear rail jog — hardware connection status</span>
     </header>
   );
 }
