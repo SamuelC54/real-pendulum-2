@@ -7,6 +7,7 @@ import {
   Usb,
 } from "lucide-react";
 import { useState } from "react";
+import { Card } from "@/components/ui/card";
 import { EncoderDial } from "@/components/EncoderDial";
 import { LimitSwitchIndicators } from "@/components/LimitSwitchIndicators";
 import { Button } from "@/components/ui/button";
@@ -79,7 +80,7 @@ export function SensorLedCard() {
   const flashBlocked = !flashPort;
 
   return (
-    <section className="flex flex-col gap-4 rounded-xl border border-border bg-card p-6 shadow-sm">
+    <Card className="flex flex-col gap-4 p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <span className="text-muted-foreground text-sm font-medium">
           Sensor Board
@@ -282,6 +283,6 @@ export function SensorLedCard() {
           resetBusy={resetEncoder.isPending}
         />
       </div>
-    </section>
+    </Card>
   );
 }

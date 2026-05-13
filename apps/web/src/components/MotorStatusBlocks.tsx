@@ -1,4 +1,5 @@
 import { Link2, Link2Off } from "lucide-react";
+import { Card } from "@/components/ui/card";
 import { CartRailVisualizer } from "@/components/CartRailVisualizer";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -22,7 +23,7 @@ export function MotorStatusBlocks() {
   const measured = motorCountsForDisplay(status.data?.measuredPosition);
 
   return (
-    <section className="flex flex-col gap-4 rounded-xl border border-border bg-card p-6 shadow-sm">
+    <Card className="flex flex-col gap-4 p-6">
       <Tabs defaultValue="live" className="w-full">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <span className="text-muted-foreground text-sm font-medium">Motor Board</span>
@@ -131,6 +132,6 @@ export function MotorStatusBlocks() {
           )}
         </TabsContent>
       </Tabs>
-    </section>
+    </Card>
   );
 }

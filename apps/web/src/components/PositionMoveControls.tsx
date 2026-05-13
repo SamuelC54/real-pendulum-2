@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { Crosshair, Home, LocateFixed } from "lucide-react";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   DEFAULT_PROFILE_ACC_RPM_PER_SEC,
@@ -179,7 +180,7 @@ export const PositionMoveControls = memo(function PositionMoveControls() {
   const sliderTargetValue = clamp(targetCounts, targetSliderMin, targetSliderMax);
 
   return (
-    <section className="flex flex-col gap-4 rounded-xl border border-border bg-card p-6 shadow-sm">
+    <Card className="flex flex-col gap-4 p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <span className="text-muted-foreground text-sm font-medium">Move to position</span>
       </div>
@@ -294,6 +295,6 @@ export const PositionMoveControls = memo(function PositionMoveControls() {
       {moveAbsolute.data && !moveAbsolute.data.ok && moveAbsolute.data.error ? (
         <p className="text-destructive wrap-break-word text-xs">{moveAbsolute.data.error}</p>
       ) : null}
-    </section>
+    </Card>
   );
 });

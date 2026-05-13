@@ -1,6 +1,7 @@
 import { memo } from "react";
 import { ChevronLeft, ChevronRight, OctagonAlert } from "lucide-react";
 import { useAtomValue } from "jotai";
+import { Card } from "@/components/ui/card";
 import { RailPendulumSchematic } from "@/components/RailPendulumSchematic";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -70,35 +71,37 @@ export const JogControls = memo(function JogControls() {
     !connected || connectionBusy || (jogMutating && holding === null);
 
   return (
-    <section className="flex flex-col items-center gap-6">
-      <div className="flex w-full max-w-md gap-4">
-        <JogDirectionButton
-          direction="left"
-          held={holding === "left"}
+    <Card className="flex flex-col gap-4 p-6" aria-label="Jog controls">
+      <div className="flex flex-col items-center gap-4">
+        <div className="flex w-full max-w-md gap-4">
+          <JogDirectionButton
+            direction="left"
+            held={holding === "left"}
+            disabled={disabled}
+            applyHold={applyHold}
+          />
+          <JogDirectionButton
+            direction="right"
+            held={holding === "right"}
+            disabled={disabled}
+            applyHold={applyHold}
+          />
+        </div>
+
+        <Button
+          type="button"
+          variant="destructive"
+          size="lg"
+          className="min-w-48"
           disabled={disabled}
-          applyHold={applyHold}
-        />
-        <JogDirectionButton
-          direction="right"
-          held={holding === "right"}
-          disabled={disabled}
-          applyHold={applyHold}
-        />
+          onClick={() => void applyHold(null)}
+        >
+          <OctagonAlert aria-hidden />
+          Stop
+        </Button>
+
+        <RailPendulumSchematic />
       </div>
-
-      <Button
-        type="button"
-        variant="destructive"
-        size="lg"
-        className="min-w-48"
-        disabled={disabled}
-        onClick={() => void applyHold(null)}
-      >
-        <OctagonAlert aria-hidden />
-        Stop
-      </Button>
-
-      <RailPendulumSchematic />
-    </section>
+    </Card>
   );
 });

@@ -1,5 +1,6 @@
 import { memo, useEffect, useState } from "react";
 import { Home } from "lucide-react";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { motorCountsForDisplay } from "@/lib/motorPositionDisplay";
 import { trpc } from "@/trpc";
@@ -31,7 +32,7 @@ export const HomingControls = memo(function HomingControls() {
   }, [railHomeResult]);
 
   return (
-    <section className="flex flex-col gap-4 rounded-xl border border-border bg-card p-6 shadow-sm">
+    <Card className="flex flex-col gap-4 p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <span className="text-muted-foreground text-sm font-medium">Homing</span>
       </div>
@@ -125,6 +126,6 @@ export const HomingControls = memo(function HomingControls() {
           ) : null}
         </div>
       ) : null}
-    </section>
+    </Card>
   );
 });

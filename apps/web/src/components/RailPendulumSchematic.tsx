@@ -76,8 +76,8 @@ export const RailPendulumSchematic = memo(function RailPendulumSchematic() {
   ].join(". ");
 
   return (
-    <section
-      className="w-full max-w-md rounded-xl border border-border bg-card p-4 shadow-sm"
+    <div
+      className="w-full max-w-md border-t border-border pt-4"
       aria-label={ariaLabel}
     >
       <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
@@ -223,6 +223,6 @@ export const RailPendulumSchematic = memo(function RailPendulumSchematic() {
         Cart follows Teknic measured position (display counts: left negative, right positive). Rod and
         bob follow the quadrature encoder on the Sensor Board (same phase as the dial card).
       </p>
-    </section>
+    </div>
   );
 });
