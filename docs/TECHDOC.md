@@ -2,6 +2,8 @@
 
 This document describes the intended software architecture for controlling a motor on a linear rail as part of an inverted-pendulum experiment. Hardware assumed: Teknic ClearPath-SC servos on an SC4-HUB (USB), as used in the vendor’s C++ SDK examples.
 
+**Related:** simulation without hardware, bench (real vs sim), and coupled cart–pendulum physics are described in [`simulation-and-bench.md`](./simulation-and-bench.md).
+
 ---
 
 ## 1. Goals
@@ -49,12 +51,15 @@ flowchart LR
 real-pendulum-2/
   apps/
     motor-service/       # @real-pendulum/motor-service — Node gRPC + teknic_motor.dll + proto/
-    control-api/         # Node/TypeScript: tRPC server + gRPC client to motor service
+    sensor-service/      # @real-pendulum/sensor-service — serial / Sensor Board; gRPC sensor.v1
+    control-api/         # tRPC server + gRPC clients to motor + sensor services
     web/                 # React + Vite + TypeScript + Tailwind + shadcn/ui
   packages/
-    shared-types/        # optional: Zod schemas / types shared control-api ↔ web
+    motor-proto/         # Buf-generated motor + sensor protobufs
+    cart-pendulum-sim/   # @real-pendulum/cart-pendulum-sim — coupled cart + pendulum step (simulation)
   docs/
-    TECHDOC.md           # this file
+    TECHDOC.md
+    simulation-and-bench.md
 ```
 
 Naming is illustrative; adjust to your tooling (pnpm/npm workspaces, Turborepo, etc.).
@@ -97,6 +102,10 @@ Defined by **`proto/motor.proto`** — **Connect**, **Disconnect**, **SetJogVelo
 - Configure **`TEKNIC_SDK_ROOT`** (see **`apps/motor-service/native/README.md`**) so CMake finds Teknic headers and **`sFoundation20`** import libs / DLL copy rules.
 - **`npm run build:native -w @real-pendulum/motor-service`** runs **`scripts/build-native.mjs`** (CMake: Visual Studio 2022 then 2026 generator fallback on Windows, Release; **`CMAKE_GENERATOR`** override in **`.env.local`**). Output: **`native/build/Release/teknic_motor.dll`** next to copied **`sFoundation20.dll`**.
 
+### 4.4 Simulation (fake gRPC + coupled plant)
+
+Full detail — **how `CartPendulumPlant` feeds fake `motor.v1` and `sensor.v1` gRPC** (RPC tables, time stepping, one shared plant) — lives in **[`simulation-and-bench.md`](./simulation-and-bench.md) §3.5**. Stack overview and Teknic notes remain in this file.
+
 ---
 
 ## 5. Module B — TypeScript control API (`control-api`)
@@ -105,6 +114,7 @@ Defined by **`proto/motor.proto`** — **Connect**, **Disconnect**, **SetJogVelo
 
 - **tRPC router** for the frontend: typed procedures for jog start/stop, limits, and status.
 - **Connect client** to **motor service** (`MOTOR_GRPC_URL` / default port) for all hardware actions.
+- **Connect client** to **sensor service** (`SENSOR_GRPC_URL`) for Sensor Board serial, limits, encoder, LED — see proto **`sensor.v1`** in **`packages/motor-proto`**.
 - Future: pendulum state (IMU/encoder), PID or LQR, logging — **not** required for Phase 1.
 
 ### 5.2 Suggested boundaries
@@ -175,6 +185,7 @@ Avoid committing secrets; use env files locally.
 
 - **[Testing strategy](./testing-strategy.md)** — Vitest layers, Playwright E2E (`e2e/`, `scripts/e2e-stack.mjs`), CI jobs (Ubuntu + Windows native), and Teknic SDK notes for **`native-windows`**.
 - **[Hardware smoke checklist](./hardware-smoke-checklist.md)** — manual verification when motion or native code changes.
+- **[Simulation & bench](./simulation-and-bench.md)** — solo simulation, real+sim comparison, **`@real-pendulum/cart-pendulum-sim`**, **§3.5** (physics → fake motor/sensor gRPC), env sketches, roadmap.
 
 ---
 
@@ -187,3 +198,4 @@ Avoid committing secrets; use env files locally.
 | 2026-05-02 | Link to hardware-smoke-checklist.md. |
 | 2026-05-03 | Related docs: Playwright E2E + native CI pointers. |
 | 2026-05-03 | Motor service: Node gRPC + DLL architecture; package **`@real-pendulum/motor-service`**; folder **`apps/motor-service`**. |
+| 2026-05-12 | Simulation: §4.4 points to simulation-and-bench.md §3.5; repo layout; control-api sensor client note. |
