@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useEffect, useState } from "react";
 import { Home } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motorCountsForDisplay } from "@/lib/motorPositionDisplay";
@@ -23,7 +23,12 @@ export const HomingControls = memo(function HomingControls() {
   const ready = motorConnected && sensorConnected;
   const disabled = !ready || home.isPending;
 
-  const last = home.data;
+  const railHomeResult = home.data;
+  const [homingDetailOpen, setHomingDetailOpen] = useState(true);
+
+  useEffect(() => {
+    if (railHomeResult != null) setHomingDetailOpen(true);
+  }, [railHomeResult]);
 
   return (
     <section className="flex flex-col gap-4 rounded-xl border border-border bg-card p-6 shadow-sm">
@@ -59,48 +64,64 @@ export const HomingControls = memo(function HomingControls() {
       {home.error ? (
         <p className="text-destructive text-xs">{home.error.message}</p>
       ) : null}
-      {last ? (
+      {railHomeResult ? (
         <div
           className={
-            last.ok ? "text-muted-foreground text-xs" : "text-destructive text-xs"
+            railHomeResult.ok ? "text-muted-foreground text-xs" : "text-destructive text-xs"
           }
         >
-          <p className="mb-1 font-medium">{last.ok ? "Homing finished" : "Homing failed"}</p>
-          {last.motorSpanCounts != null ? (
-            <p>
-              Motor span:{" "}
-              <span className="font-mono text-foreground">{last.motorSpanCounts.toFixed(1)}</span>{" "}
-              counts · mid target:{" "}
-              <span className="font-mono text-foreground">
-                {last.midMotorPosition != null
-                  ? motorCountsForDisplay(last.midMotorPosition)!.toFixed(1)
-                  : "—"}
-              </span>
-            </p>
-          ) : null}
-          {last.motorAbsRevolutions != null ? (
-            <p>
-              Motor Board ∫|rpm|·dt/60 ≈{" "}
-              <span className="font-mono text-foreground">
-                {last.motorAbsRevolutions.toFixed(2)}
-              </span>{" "}
-              rev (commanded-velocity estimate)
-            </p>
-          ) : null}
-          {last.motorPositionZeroedAtMid != null ? (
-            <p>
-              Motor Board position at center:{" "}
-              {last.motorPositionZeroedAtMid ? (
-                <span className="text-foreground">zeroed (Teknic)</span>
-              ) : (
-                <span className="text-destructive">zero failed — see log</span>
-              )}
-            </p>
-          ) : null}
-          {last.log?.length ? (
-            <pre className="mt-2 max-h-36 overflow-auto whitespace-pre-wrap wrap-break-word rounded-md border border-border bg-muted/40 p-2 font-mono text-[10px] leading-relaxed">
-              {last.log.join("\n")}
-            </pre>
+          <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+            <p className="font-medium">{railHomeResult.ok ? "Homing finished" : "Homing failed"}</p>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 shrink-0 px-2 text-[11px]"
+              aria-expanded={homingDetailOpen}
+              onClick={() => setHomingDetailOpen((o) => !o)}
+            >
+              {homingDetailOpen ? "Hide detail" : "Show detail"}
+            </Button>
+          </div>
+          {homingDetailOpen ? (
+            <>
+              {railHomeResult.motorSpanCounts != null ? (
+                <p>
+                  Motor span:{" "}
+                  <span className="font-mono text-foreground">{railHomeResult.motorSpanCounts.toFixed(1)}</span>{" "}
+                  counts · mid target:{" "}
+                  <span className="font-mono text-foreground">
+                    {railHomeResult.midMotorPosition != null
+                      ? motorCountsForDisplay(railHomeResult.midMotorPosition)!.toFixed(1)
+                      : "—"}
+                  </span>
+                </p>
+              ) : null}
+              {railHomeResult.motorAbsRevolutions != null ? (
+                <p>
+                  Motor Board ∫|rpm|·dt/60 ≈{" "}
+                  <span className="font-mono text-foreground">
+                    {railHomeResult.motorAbsRevolutions.toFixed(2)}
+                  </span>{" "}
+                  rev (commanded-velocity estimate)
+                </p>
+              ) : null}
+              {railHomeResult.motorPositionZeroedAtMid != null ? (
+                <p>
+                  Motor Board position at center:{" "}
+                  {railHomeResult.motorPositionZeroedAtMid ? (
+                    <span className="text-foreground">zeroed (Teknic)</span>
+                  ) : (
+                    <span className="text-destructive">zero failed — see log</span>
+                  )}
+                </p>
+              ) : null}
+              {railHomeResult.log?.length ? (
+                <pre className="mt-2 max-h-36 overflow-auto whitespace-pre-wrap wrap-break-word rounded-md border border-border bg-muted/40 p-2 font-mono text-[10px] leading-relaxed">
+                  {railHomeResult.log.join("\n")}
+                </pre>
+              ) : null}
+            </>
           ) : null}
         </div>
       ) : null}

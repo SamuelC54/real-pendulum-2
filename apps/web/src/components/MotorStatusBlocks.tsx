@@ -65,9 +65,6 @@ export function MotorStatusBlocks() {
             </div>
           </div>
           {status.data?.connected ? <CartRailVisualizer /> : null}
-          {status.data?.detail ? (
-            <p className="text-muted-foreground text-xs leading-relaxed">{status.data.detail}</p>
-          ) : null}
           <div className="flex flex-wrap gap-2">
             {!connected ? (
               <Button
