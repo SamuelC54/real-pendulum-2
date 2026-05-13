@@ -14,11 +14,11 @@
     "build": "npm run build --workspaces --if-present",
     "flash:sensor-firmware": "node ./scripts/flash-sensor-firmware.mjs",
     "proto:generate": "buf generate",
-    "predev": "npm run build:native -w @real-pendulum/motor-service && npx --yes kill-port 4000 50051 50052 5173 5174",
+    "predev": "npm run build:native -w @real-pendulum/motor-service && npx --yes kill-port 4000 50051 50052 58870 5173 5174",
     "dev": "node ./scripts/run-with-root-env.mjs npm run dev:stack",
-    "dev:stack": "concurrently -n motor,sensor,api,web -c blue,green,yellow,magenta \"npm run dev -w @real-pendulum/motor-service\" \"npm run dev -w @real-pendulum/sensor-service\" \"wait-on -t 120000 tcp:127.0.0.1:50051 && npm run dev -w @real-pendulum/control-api\" \"wait-on -t 120000 tcp:127.0.0.1:50051 && npm run dev -w web\"",
+    "dev:stack": "concurrently -n motor,sensor,coupled-sim,api,web -c blue,green,cyan,yellow,magenta \"npm run dev -w @real-pendulum/motor-service\" \"npm run dev -w @real-pendulum/sensor-service\" \"npm run serve:coupled-sim -w @real-pendulum/motor-service\" \"wait-on -t 120000 tcp:127.0.0.1:50051 && npm run dev -w @real-pendulum/control-api\" \"wait-on -t 120000 tcp:127.0.0.1:50051 && npm run dev -w web\"",
     "dev:no-kill": "node ./scripts/run-with-root-env.mjs npm run dev:no-kill:stack",
-    "dev:no-kill:stack": "npm run build:native -w @real-pendulum/motor-service && concurrently -n motor,sensor,api,web -c blue,green,yellow,magenta \"npm run dev -w @real-pendulum/motor-service\" \"npm run dev -w @real-pendulum/sensor-service\" \"wait-on -t 120000 tcp:127.0.0.1:50051 && npm run dev -w @real-pendulum/control-api\" \"wait-on -t 120000 tcp:127.0.0.1:50051 && npm run dev -w web\""
+    "dev:no-kill:stack": "npm run build:native -w @real-pendulum/motor-service && concurrently -n motor,sensor,coupled-sim,api,web -c blue,green,cyan,yellow,magenta \"npm run dev -w @real-pendulum/motor-service\" \"npm run dev -w @real-pendulum/sensor-service\" \"npm run serve:coupled-sim -w @real-pendulum/motor-service\" \"wait-on -t 120000 tcp:127.0.0.1:50051 && npm run dev -w @real-pendulum/control-api\" \"wait-on -t 120000 tcp:127.0.0.1:50051 && npm run dev -w web\""
   },
   "devDependencies": {
     "@bufbuild/buf": "^1.69.0",

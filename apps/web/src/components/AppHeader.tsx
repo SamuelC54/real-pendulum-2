@@ -1,3 +1,4 @@
+import { BackendModeControl } from "@/components/BackendModeControl";
 import {
   useMotorStatusConnected,
   useSensorStatusConnected,
@@ -42,13 +43,16 @@ export function AppHeader() {
   const sensorOn = sensor.data ?? false;
 
   return (
-    <header className="pointer-events-none fixed top-3 right-4 z-50 max-w-[min(100vw-2rem,20rem)] sm:top-4 sm:right-6">
-      <div
-        className="pointer-events-auto flex flex-wrap justify-end gap-1.5"
-        aria-label="Hardware connection status"
-      >
-        <ConnectionBadge label="Motor Board" connected={motorOn} />
-        <ConnectionBadge label="Sensor Board" connected={sensorOn} />
+    <header className="pointer-events-none fixed top-3 right-4 z-50 max-w-[min(100vw-2rem,22rem)] sm:top-4 sm:right-6">
+      <div className="pointer-events-auto flex flex-col items-end gap-2">
+        <BackendModeControl />
+        <div
+          className="flex flex-wrap justify-end gap-1.5"
+          aria-label="Hardware connection status"
+        >
+          <ConnectionBadge label="Motor Board" connected={motorOn} />
+          <ConnectionBadge label="Sensor Board" connected={sensorOn} />
+        </div>
       </div>
       <span className="sr-only">Linear rail jog — hardware connection status</span>
     </header>

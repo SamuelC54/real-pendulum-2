@@ -8,14 +8,23 @@ import {
   ConnectRequestSchema,
   SensorService,
 } from "@real-pendulum/motor-proto/gen/sensor_pb.js";
+import {
+  defaultSensorGrpcUrlFromEnv,
+  peekSensorGrpcBaseUrlOverride,
+  withSensorGrpcBaseUrl,
+} from "./grpcUrlContext.js";
 
-/** Normalizes **`SENSOR_GRPC_URL`** for Connect (expects **`http(s)://`**). */
+export {
+  defaultSensorGrpcUrlFromEnv,
+  normalizeSensorGrpcBaseUrl,
+  withSensorGrpcBaseUrl,
+} from "./grpcUrlContext.js";
+
+/** Normalizes active Connect **`baseUrl`** (per-request override or **`SENSOR_GRPC_URL`**). */
 export function sensorConnectBaseUrl(): string {
-  const raw = process.env.SENSOR_GRPC_URL ?? "127.0.0.1:50052";
-  if (/^https?:\/\//i.test(raw)) {
-    return raw;
-  }
-  return `http://${raw}`;
+  const override = peekSensorGrpcBaseUrlOverride();
+  if (override) return override;
+  return defaultSensorGrpcUrlFromEnv();
 }
 
 let cachedBaseUrl: string | null = null;

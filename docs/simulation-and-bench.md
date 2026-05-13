@@ -22,7 +22,7 @@ This document extends the stack overview in [`TECHDOC.md`](./TECHDOC.md). It des
 
 - Today, **`apps/control-api`** calls **`@real-pendulum/motor-service/sdk`** and **`@real-pendulum/sensor-service/sdk`** (see `router.ts`, `homing.ts`). URLs are typically set via environment (e.g. `MOTOR_GRPC_URL`, `SENSOR_GRPC_URL`).
 - **Simulation** should implement the **same protos and RPCs** as production (or a documented subset), so **homing, limits, jog, and UI-facing procedures stay identical** whether the backend is real hardware or a fake. **You do not branch business logic** (“if sim then … else …”) inside **`control-api`** for behavior that already exists behind the motor/sensor SDK — only the **target URL** (or an extra bench client) changes.
-- The repo already includes a **fake motor gRPC** entrypoint: `apps/control-api/scripts/serve-fake-motor-grpc.ts` → `motor-service/test-support/fake-motor-server`. Extend that pattern for a fuller plant and add a **fake sensor** when needed.
+- The repo already includes a **fake motor gRPC** entrypoint: `apps/control-api/scripts/serve-fake-motor-grpc.ts` → `motor-service/test-support/fake-motor-server`. For **solo coupled simulation** (motor + sensor, one plant), use **`serve-coupled-sim-grpc.ts`** / **`test-support/coupled-sim-server`** (see **§3.5**, implementation pointers).
 
 ### 2.2 Two gRPC facades, one shared plant (solo sim)
 
@@ -146,7 +146,16 @@ This repeats **§2.2** for readers who jump straight here: if motor and sensor f
 
 #### Implementation pointers
 
-- **`apps/control-api/scripts/serve-fake-motor-grpc.ts`** and **`motor-service/test-support/fake-motor-server`** — extend for full status + plant coupling; add a parallel **fake sensor** host or a **combined** sim binary that registers both services over one or two ports.
+- **`apps/control-api/scripts/serve-fake-motor-grpc.ts`** and **`motor-service/test-support/fake-motor-server`** — lightweight fake motor (no plant); still useful for SDK smoke tests.
+- **Coupled sim (one `CartPendulumPlant`, two facades):** `@real-pendulum/motor-service/test-support/coupled-sim-server` — `createCoupledSimGrpcModel`, `startCoupledSimGrpcServer`; registers **`motor.v1.MotorService`** and **`sensor.v1.SensorService`** on one HTTP port.
+
+##### Running the coupled sim daemon
+
+- **From motor-service:** `npm run serve:coupled-sim -w @real-pendulum/motor-service`
+- **From control-api (re-exports same server):** `npm run serve:coupled-sim -w @real-pendulum/control-api`
+- Set **`MOTOR_GRPC_URL`** and **`SENSOR_GRPC_URL`** to the **hardware** motor and sensor services (defaults **50051** / **50052**).
+- **Web “Simulator”** mode targets **`MOTOR_SIM_GRPC_URL`** / **`SENSOR_SIM_GRPC_URL`** when set; otherwise it defaults to **`http://127.0.0.1:`** + **`SIM_COUPLED_GRPC_PORT`** (**58870**, chosen to avoid Windows **50xxx** bind **`EACCES`**), matching **`serve:coupled-sim`**. Override the port with **`SIM_COUPLED_GRPC_PORT`** if needed. The browser sends **`x-pendulum-backend: sim`** on each tRPC batch; **Hardware** uses the primary env URLs.
+- Tunables: **`SIM_METERS_PER_DISPLAY_COUNT`**, **`SIM_MPS_PER_RPM`**, **`SIM_LIMIT_LEFT_X_M`**, **`SIM_LIMIT_RIGHT_X_M`**.
 
 ---
 
@@ -174,8 +183,9 @@ Pick one pattern (or evolve from A → B):
 |----------|------|
 | `MOTOR_GRPC_URL` | Primary motor backend (real or fake). |
 | `SENSOR_GRPC_URL` | Primary sensor backend. |
-| `MOTOR_SIM_GRPC_URL` | Optional second motor (sim only). |
-| `SENSOR_SIM_GRPC_URL` | Optional second sensor (sim only). |
+| `MOTOR_SIM_GRPC_URL` | Optional sim motor URL; if unset, control-api defaults to **`http://127.0.0.1:`** + **`SIM_COUPLED_GRPC_PORT`** (default **58870**). |
+| `SENSOR_SIM_GRPC_URL` | Optional sim sensor URL; if unset, uses `MOTOR_SIM_GRPC_URL` or the same default as motor sim. |
+| `SIM_COUPLED_GRPC_PORT` | Port baked into that default (same as `serve:coupled-sim`). |
 | `BENCH_COMMAND_TARGET` | `real` \| `sim` \| `both` (if `both` is ever allowed, document hazards). |
 
 ### 4.4 Web UX
@@ -270,5 +280,5 @@ so cart acceleration \(a = \ddot x\) is non-zero during transients and couples i
 | Date | Change |
 |------|--------|
 | 2026-05-12 | Review pass: §2 split + no branching logic; §2.2 dual facades; §3 intro; velocity table + E2E jog flow; time step callout; bench wording; §3.5 “Why” reprise. |
-| 2026-05-12 | §3.5: physics → fake `MotorService` / `SensorService` gRPC (tables, stepping, shared plant). |
+| 2026-05-12 | Simulator gRPC URLs default to coupled sim host/port (**`SIM_COUPLED_GRPC_PORT`**); **`MOTOR_SIM_GRPC_URL`** optional. |
 | 2026-05-12 | Initial doc: simulation, bench mode, and `cart-pendulum-sim` integration notes. |

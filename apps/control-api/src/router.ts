@@ -3,6 +3,7 @@ import superjson from "superjson";
 import { z } from "zod";
 import { friendlyMotorGrpcError } from "./motorErrors.js";
 import { friendlySensorGrpcError } from "./sensorErrors.js";
+import { withGrpcBackendMode, type GrpcBackendMode } from "./grpcRequestContext.js";
 import { runRailHoming } from "./homing.js";
 import {
   getTravelLimitDisplays,
@@ -12,6 +13,7 @@ import {
 import { runLedToggleFlash } from "./runFlashScript.js";
 import * as motor from "@real-pendulum/motor-service/sdk";
 import * as sensor from "@real-pendulum/sensor-service/sdk";
+import { defaultCoupledSimGrpcUrl, resolveSimMotorGrpcUrl, resolveSimSensorGrpcUrl } from "./grpcSimDefaults.js";
 
 function friendlyMotorError(err: unknown): string {
   return friendlyMotorGrpcError(motor.motorConnectBaseUrl(), err);
@@ -25,20 +27,49 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-const t = initTRPC.context<{ motorUnavailable?: boolean }>().create({
+type RouterContext = { grpcBackendMode?: GrpcBackendMode };
+
+const t = initTRPC.context<RouterContext>().create({
   transformer: superjson,
 });
 
+const grpcWireMiddleware = t.middleware(async ({ ctx, next }) => {
+  const mode: GrpcBackendMode = ctx.grpcBackendMode ?? "hardware";
+  const motorUrl = mode === "sim" ? resolveSimMotorGrpcUrl() : motor.defaultMotorGrpcUrlFromEnv();
+  const sensorUrl = mode === "sim" ? resolveSimSensorGrpcUrl() : sensor.defaultSensorGrpcUrlFromEnv();
+
+  const run = () =>
+    motor.withMotorGrpcBaseUrl(motorUrl, () =>
+      sensor.withSensorGrpcBaseUrl(sensorUrl, () =>
+        next({ ctx: { ...ctx, grpcBackendMode: mode } }),
+      ),
+    );
+
+  if (mode === "sim") {
+    return withGrpcBackendMode("sim", run);
+  }
+  return run();
+});
+
+const baseProcedure = t.procedure;
+const publicProcedure = t.procedure.use(grpcWireMiddleware);
+
 export const appRouter = t.router({
+  meta: t.router({
+    backends: baseProcedure.query(() => ({
+      /** Used when **`MOTOR_SIM_GRPC_URL`** / **`SENSOR_SIM_GRPC_URL`** are unset (coupled sim). */
+      simDefaultUrl: defaultCoupledSimGrpcUrl(),
+    })),
+  }),
   connection: t.router({
-    connect: t.procedure.mutation(async () => {
+    connect: publicProcedure.mutation(async () => {
       try {
         return await motor.connectMotor();
       } catch (e) {
         throw new Error(`motor: ${friendlyMotorError(e)}`);
       }
     }),
-    disconnect: t.procedure.mutation(async () => {
+    disconnect: publicProcedure.mutation(async () => {
       try {
         return await motor.disconnectMotor();
       } catch (e) {
@@ -47,7 +78,7 @@ export const appRouter = t.router({
     }),
   }),
   jog: t.router({
-    setVelocity: t.procedure
+    setVelocity: publicProcedure
       .input(z.object({ rpm: z.number().finite() }))
       .mutation(async ({ input }) => {
         try {
@@ -56,7 +87,7 @@ export const appRouter = t.router({
           throw new Error(`motor: ${friendlyMotorError(e)}`);
         }
       }),
-    stop: t.procedure.mutation(async () => {
+    stop: publicProcedure.mutation(async () => {
       try {
         return await motor.stopMotor();
       } catch (e) {
@@ -65,7 +96,7 @@ export const appRouter = t.router({
     }),
   }),
   rail: t.router({
-    home: t.procedure.mutation(async () => {
+    home: publicProcedure.mutation(async () => {
       try {
         return await runRailHoming();
       } catch (e) {
@@ -79,7 +110,7 @@ export const appRouter = t.router({
      * Server snapshots motor `PosnMeasured` so the value matches status strip / homing.
      */
     limits: t.router({
-      record: t.procedure
+      record: publicProcedure
         .input(z.object({ side: z.enum(["left", "right"]) }))
         .mutation(async ({ input }) => {
           const st = await motor.getMotorStatus();
@@ -97,7 +128,7 @@ export const appRouter = t.router({
         }),
     }),
     /** Teknic `MovePosnStart` absolute move — target is UI display counts (negated to Teknic counts). */
-    moveAbsolute: t.procedure
+    moveAbsolute: publicProcedure
       .input(
         z.object({
           displayCounts: z.number().finite(),
@@ -120,7 +151,7 @@ export const appRouter = t.router({
       }),
   }),
   status: t.router({
-    get: t.procedure.query(async () => {
+    get: publicProcedure.query(async () => {
       try {
         const st = await motor.getMotorStatus();
         syncTravelLimitsFromMotorConnection(st.connected);
@@ -142,7 +173,7 @@ export const appRouter = t.router({
   }),
   sensor: t.router({
     serial: t.router({
-      list: t.procedure.query(async () => {
+      list: publicProcedure.query(async () => {
         try {
           return await sensor.listSerialPorts();
         } catch (e) {
@@ -151,7 +182,7 @@ export const appRouter = t.router({
       }),
     }),
     connection: t.router({
-      connect: t.procedure
+      connect: publicProcedure
         .input(z.object({ serialPort: z.string().optional() }))
         .mutation(async ({ input }) => {
           try {
@@ -160,7 +191,7 @@ export const appRouter = t.router({
             throw new Error(`sensor: ${friendlySensorError(e)}`);
           }
         }),
-      disconnect: t.procedure.mutation(async () => {
+      disconnect: publicProcedure.mutation(async () => {
         try {
           return await sensor.disconnectSensor();
         } catch (e) {
@@ -169,7 +200,7 @@ export const appRouter = t.router({
       }),
     }),
     led: t.router({
-      toggle: t.procedure.mutation(async () => {
+      toggle: publicProcedure.mutation(async () => {
         try {
           return await sensor.toggleLed();
         } catch (e) {
@@ -178,7 +209,7 @@ export const appRouter = t.router({
       }),
     }),
     encoder: t.router({
-      reset: t.procedure.mutation(async () => {
+      reset: publicProcedure.mutation(async () => {
         try {
           return await sensor.resetEncoder();
         } catch (e) {
@@ -187,7 +218,7 @@ export const appRouter = t.router({
       }),
     }),
     firmware: t.router({
-      flash: t.procedure
+      flash: publicProcedure
         .input(z.object({ serialPort: z.string().min(1) }))
         .mutation(async ({ input }) => {
           try {
@@ -207,7 +238,7 @@ export const appRouter = t.router({
         }),
     }),
     status: t.router({
-      get: t.procedure.query(async () => {
+      get: publicProcedure.query(async () => {
         try {
           return await sensor.getSensorStatus();
         } catch (e) {
