@@ -1,6 +1,7 @@
 import { memo } from "react";
 import { ChevronLeft, ChevronRight, OctagonAlert } from "lucide-react";
 import { useAtomValue } from "jotai";
+import { RailPendulumSchematic } from "@/components/RailPendulumSchematic";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useMotorSession } from "@/services/motorSession";
@@ -96,6 +97,8 @@ export const JogControls = memo(function JogControls() {
         <OctagonAlert aria-hidden />
         Stop
       </Button>
+
+      <RailPendulumSchematic />
     </section>
   );
 });

@@ -3,6 +3,10 @@ import { createStore, Provider as JotaiProvider } from "jotai";
 import type { ReactElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { JogControls } from "./JogControls";
+
+vi.mock("@/components/RailPendulumSchematic", () => ({
+  RailPendulumSchematic: () => null,
+}));
 import { MotorSessionContext, type MotorSessionValue } from "@/services/motorSession";
 import { holdingAtom } from "@/stores/jog";
 
