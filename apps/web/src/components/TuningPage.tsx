@@ -1,6 +1,7 @@
 import { useAtom } from "jotai";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Activity, CircleStop, Download, Play, Trash2 } from "lucide-react";
+import { JogControls } from "@/components/JogControls";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -164,29 +165,34 @@ export function TuningPage() {
 
   if (mode !== "twin") {
     return (
-      <Card className="mx-auto max-w-2xl p-6">
-        <h1 className="text-lg font-semibold">Twin tuning</h1>
-        <p className="text-muted-foreground mt-2 text-sm leading-relaxed">
-          Compare hardware and simulation side by side, record traces, and tune coupled-sim parameters.
-          Switch the header backend to <strong className="text-foreground">Twin</strong> and connect motor
-          + sensor on the Control page first.
-        </p>
-        <Button type="button" className="mt-4" onClick={() => setMode("twin")}>
-          Enable Twin mode
-        </Button>
-      </Card>
+      <div className="grid grid-cols-1 gap-5 pb-10 lg:grid-cols-3 lg:items-start">
+        <JogControls />
+        <Card className="p-6 lg:col-span-2">
+          <h1 className="text-lg font-semibold">Twin tuning</h1>
+          <p className="text-muted-foreground mt-2 text-sm leading-relaxed">
+            Compare hardware and simulation side by side, record traces, and tune coupled-sim parameters.
+            Switch the header backend to <strong className="text-foreground">Twin</strong> and connect motor
+            + sensor on the Control page first.
+          </p>
+          <Button type="button" className="mt-4" onClick={() => setMode("twin")}>
+            Enable Twin mode
+          </Button>
+        </Card>
+      </div>
     );
   }
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-5 pb-10">
+    <div className="grid grid-cols-1 gap-5 pb-10 lg:grid-cols-3 lg:items-start">
+      <JogControls />
+      <div className="flex flex-col gap-5 lg:col-span-2">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-lg font-semibold">Twin tuning</h1>
-          <p className="text-muted-foreground mt-1 max-w-2xl text-sm leading-relaxed">
-            Start recording here, switch to Control for jog/homing — recording continues across tabs. Tune
-            and plant physics; apply patches live to the coupled sim (requires{" "}
-            <code className="text-foreground">serve:coupled-sim</code>).
+          <p className="text-muted-foreground mt-1 text-sm leading-relaxed">
+            Record traces while jogging from the left column. Tune plant physics and apply patches live to
+            the coupled sim (requires <code className="text-foreground">serve:coupled-sim</code>).
+            Recording continues if you switch to Control.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -375,7 +381,7 @@ export function TuningPage() {
           <li>Approach each limit switch slowly</li>
         </ul>
         <p className="text-muted-foreground mt-3 text-[11px]">
-          Start Record on this tab, then use Control for jog/homing while the trace keeps running.
+          Start Record, then jog from the left column (or homing on Control) while the trace keeps running.
         </p>
       </Card>
 
@@ -467,6 +473,7 @@ export function TuningPage() {
           <p className="text-muted-foreground mt-2 text-xs">Loading sim config…</p>
         )}
       </Card>
+      </div>
     </div>
   );
 }
