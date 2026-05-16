@@ -222,17 +222,6 @@ export function TuningPage() {
                   />
                 </td>
               </tr>
-              <tr className="border-b border-border/60">
-                <td className="py-2 pr-4 font-sans">Commanded RPM</td>
-                <td className="py-2 pr-4 tabular-nums">{fmt(live?.real.motor.commandedRpm)}</td>
-                <td className="py-2 pr-4 tabular-nums">{fmt(live?.sim.motor.commandedRpm)}</td>
-                <td className="py-2">
-                  <DeltaCell
-                    real={live?.real.motor.commandedRpm ?? null}
-                    sim={live?.sim.motor.commandedRpm ?? null}
-                  />
-                </td>
-              </tr>
               <tr>
                 <td className="py-2 pr-4 font-sans">Limits L / R</td>
                 <td className="py-2 pr-4">
@@ -269,8 +258,6 @@ export function TuningPage() {
             <dd className="font-mono tabular-nums">{fmt(summary.meanAbsPositionCm, 2)}</dd>
             <dt className="text-muted-foreground">Mean |Δ encoder|</dt>
             <dd className="font-mono tabular-nums">{fmt(summary.meanAbsEncoder, 1)}</dd>
-            <dt className="text-muted-foreground">Mean |Δ RPM|</dt>
-            <dd className="font-mono tabular-nums">{fmt(summary.meanAbsRpm, 2)}</dd>
             <dt className="text-muted-foreground">Limit mismatch rate</dt>
             <dd className="font-mono tabular-nums">{(summary.limitMismatchRate * 100).toFixed(1)}%</dd>
           </dl>

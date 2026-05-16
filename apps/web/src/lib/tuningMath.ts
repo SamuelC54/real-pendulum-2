@@ -1,11 +1,11 @@
 export type TuningSample = {
   t: number;
+  /** Jog command shared by hardware and sim (logged only, not compared). */
+  commandedRpm: number;
   realMotorCm: number | null;
   simMotorCm: number | null;
   realEncoderTicks: number;
   simEncoderTicks: number;
-  realCommandedRpm: number;
-  simCommandedRpm: number;
   realLimitLeft: boolean;
   realLimitRight: boolean;
   simLimitLeft: boolean;
@@ -15,20 +15,23 @@ export type TuningSample = {
 export type TuningErrorWeights = {
   position: number;
   encoder: number;
-  rpm: number;
   limits: number;
 };
 
 export const DEFAULT_TUNING_WEIGHTS: TuningErrorWeights = {
   position: 1,
   encoder: 0.5,
-  rpm: 0.25,
   limits: 2,
 };
 
+function sharedCommandedRpm(data: ComparePayload): number {
+  const rpm = data.real.motor.commandedRpm ?? data.sim.motor.commandedRpm;
+  return rpm !== undefined && Number.isFinite(rpm) ? rpm : 0;
+}
+
 type ComparePayload = {
   real: {
-    motor: { connected: boolean; commandedRpm: number; positionCm?: number };
+    motor: { connected: boolean; positionCm?: number; commandedRpm?: number };
     sensor: {
       encoderTicks: number;
       limitLeftPressed: boolean;
@@ -36,7 +39,7 @@ type ComparePayload = {
     };
   };
   sim: {
-    motor: { connected: boolean; commandedRpm: number; positionCm?: number };
+    motor: { connected: boolean; positionCm?: number; commandedRpm?: number };
     sensor: {
       encoderTicks: number;
       limitLeftPressed: boolean;
@@ -50,14 +53,13 @@ export function sampleFromCompare(data: ComparePayload, t = Date.now()): TuningS
   const simPos = data.sim.motor.positionCm;
   return {
     t,
+    commandedRpm: sharedCommandedRpm(data),
     realMotorCm:
       data.real.motor.connected && realPos !== undefined && Number.isFinite(realPos) ? realPos : null,
     simMotorCm:
       data.sim.motor.connected && simPos !== undefined && Number.isFinite(simPos) ? simPos : null,
     realEncoderTicks: data.real.sensor.encoderTicks,
     simEncoderTicks: data.sim.sensor.encoderTicks,
-    realCommandedRpm: data.real.motor.commandedRpm,
-    simCommandedRpm: data.sim.motor.commandedRpm,
     realLimitLeft: data.real.sensor.limitLeftPressed,
     realLimitRight: data.real.sensor.limitRightPressed,
     simLimitLeft: data.sim.sensor.limitLeftPressed,
@@ -75,7 +77,6 @@ export type TuningErrorSummary = {
   score: number;
   meanAbsPositionCm: number | null;
   meanAbsEncoder: number;
-  meanAbsRpm: number;
   limitMismatchRate: number;
 };
 
@@ -85,7 +86,6 @@ export function summarizeTuningError(
 ): TuningErrorSummary {
   const posDeltas: number[] = [];
   const encDeltas: number[] = [];
-  const rpmDeltas: number[] = [];
   let limitMismatches = 0;
 
   for (const s of samples) {
@@ -93,7 +93,6 @@ export function summarizeTuningError(
       posDeltas.push(s.realMotorCm - s.simMotorCm);
     }
     encDeltas.push(s.realEncoderTicks - s.simEncoderTicks);
-    rpmDeltas.push(s.realCommandedRpm - s.simCommandedRpm);
     if (s.realLimitLeft !== s.simLimitLeft || s.realLimitRight !== s.simLimitRight) {
       limitMismatches += 1;
     }
@@ -101,13 +100,11 @@ export function summarizeTuningError(
 
   const meanAbsPositionCm = posDeltas.length > 0 ? meanAbs(posDeltas) : null;
   const meanAbsEncoder = meanAbs(encDeltas);
-  const meanAbsRpm = meanAbs(rpmDeltas);
   const limitMismatchRate = samples.length > 0 ? limitMismatches / samples.length : 0;
 
   const score =
     (meanAbsPositionCm ?? 0) * weights.position +
     meanAbsEncoder * weights.encoder +
-    meanAbsRpm * weights.rpm +
     limitMismatchRate * weights.limits;
 
   return {
@@ -115,7 +112,6 @@ export function summarizeTuningError(
     score,
     meanAbsPositionCm,
     meanAbsEncoder,
-    meanAbsRpm,
     limitMismatchRate,
   };
 }
@@ -123,12 +119,11 @@ export function summarizeTuningError(
 export function samplesToCsv(samples: TuningSample[]): string {
   const header = [
     "timestamp_iso",
+    "commanded_rpm",
     "real_motor_cm",
     "sim_motor_cm",
     "real_encoder_ticks",
     "sim_encoder_ticks",
-    "real_commanded_rpm",
-    "sim_commanded_rpm",
     "real_limit_left",
     "real_limit_right",
     "sim_limit_left",
@@ -137,12 +132,11 @@ export function samplesToCsv(samples: TuningSample[]): string {
   const rows = samples.map((s) =>
     [
       new Date(s.t).toISOString(),
+      s.commandedRpm,
       s.realMotorCm ?? "",
       s.simMotorCm ?? "",
       s.realEncoderTicks,
       s.simEncoderTicks,
-      s.realCommandedRpm,
-      s.simCommandedRpm,
       s.realLimitLeft ? 1 : 0,
       s.realLimitRight ? 1 : 0,
       s.simLimitLeft ? 1 : 0,
