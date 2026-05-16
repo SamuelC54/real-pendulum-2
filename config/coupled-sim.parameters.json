@@ -1,11 +1,9 @@
 {
-  "mpsPerRpm": 0.1,
-  "limitLeftXM": -0.2,
-  "limitRightXM": 0.2,
+  "mpsPerRpm": 0.00040673134134689803,
   "plant": {
-    "pendulumLengthM": 0.35,
-    "cartVelocityTrackingPerSec": 12,
-    "angularDampingPerSec": 1,
+    "pendulumLengthM": 0.6357160886243302,
+    "cartVelocityTrackingPerSec": 3.76988630046875,
+    "angularDampingPerSec": 0.48318382080000005,
     "maxInternalStepSec": 0.004166666666666667
   }
 }

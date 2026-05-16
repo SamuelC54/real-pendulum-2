@@ -13,11 +13,17 @@ import {
   stopMotor,
   zeroMeasuredPosition,
 } from "./index.js";
+import { metersPerDisplayCount } from "@real-pendulum/app-config/rail";
 import {
   createCoupledSimGrpcModel,
   startCoupledSimGrpcServer,
   type CoupledSimGrpcModel,
 } from "../test-support/coupledSimGrpcServer.js";
+
+/** Teknic counts for cart `xM` (m) under coupled-sim display sign convention. */
+function teknicCountsForXM(xM: number): number {
+  return -xM / metersPerDisplayCount();
+}
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
@@ -65,7 +71,7 @@ describe("Coupled sim (MotorService + SensorService, one plant)", () => {
     await connectMotor();
     const r = await moveToPosition(100);
     expect(r.ok).toBe(true);
-    expect(model.plant.state.xM).toBeCloseTo(-0.01, 8);
+    expect(model.plant.state.xM).toBeCloseTo(-100 * metersPerDisplayCount(), 8);
     const st = await getMotorStatus();
     expect(st.measuredPosition).toBeCloseTo(100, 4);
     await disconnectMotor();
@@ -104,7 +110,7 @@ describe("Coupled sim (MotorService + SensorService, one plant)", () => {
   it("limits follow plant xM when sensor is connected", async () => {
     await connectMotor();
     await sensor.connect({});
-    await moveToPosition(100);
+    await moveToPosition(teknicCountsForXM(model.limitLeftXM));
     const s = await sensor.getStatus({});
     expect(s.limitLeftPressed).toBe(true);
     expect(s.limitRightPressed).toBe(false);
@@ -115,7 +121,7 @@ describe("Coupled sim (MotorService + SensorService, one plant)", () => {
   it("zeros jog command into an active travel limit", async () => {
     await connectMotor();
     await sensor.connect({});
-    await moveToPosition(100);
+    await moveToPosition(teknicCountsForXM(model.limitLeftXM));
     await setJogVelocityRpm(200);
     expect(model.plant.state.vCmdMps).toBe(0);
     expect(model.lastCommandedRpm).toBe(0);

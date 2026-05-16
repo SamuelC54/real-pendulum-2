@@ -40,6 +40,7 @@ import {
 } from "@real-pendulum/app-config/coupled-sim-parameters";
 import { encoderTicksPerRadian, plantGravityMS2 } from "@real-pendulum/app-config/pendulum";
 import { metersPerDisplayCount } from "@real-pendulum/app-config/rail";
+import { simLimitLeftXM, simLimitRightXM } from "@real-pendulum/app-config/sim-limits";
 
 export type CoupledSimGrpcOptions = {
   port?: number;
@@ -83,8 +84,8 @@ export function getCoupledSimConfigSnapshot(model: CoupledSimGrpcModel): Coupled
   return {
     metersPerDisplayCount: metersPerDisplayCount(),
     mpsPerRpm: model.mpsPerRpm,
-    limitLeftXM: model.limitLeftXM,
-    limitRightXM: model.limitRightXM,
+    limitLeftXM: simLimitLeftXM(),
+    limitRightXM: simLimitRightXM(),
     plant: {
       gravity: plantGravityMS2(),
       pendulumLengthM: c.pendulumLengthM,
@@ -101,12 +102,6 @@ export function patchCoupledSimConfig(
 ): void {
   if (patch.mpsPerRpm != null && Number.isFinite(patch.mpsPerRpm)) {
     model.mpsPerRpm = patch.mpsPerRpm;
-  }
-  if (patch.limitLeftXM != null && Number.isFinite(patch.limitLeftXM)) {
-    model.limitLeftXM = patch.limitLeftXM;
-  }
-  if (patch.limitRightXM != null && Number.isFinite(patch.limitRightXM)) {
-    model.limitRightXM = patch.limitRightXM;
   }
   if (patch.plant) {
     const cfg = model.plant.config as CartPendulumPlant["config"] & Record<string, number>;
@@ -185,8 +180,8 @@ export function createCoupledSimGrpcModel(
 ): CoupledSimGrpcModel {
   const file = loadCoupledSimParametersForStartup();
   const mpsPerRpm = partial?.mpsPerRpm ?? file.mpsPerRpm;
-  const limitLeftXM = partial?.limitLeftXM ?? file.limitLeftXM;
-  const limitRightXM = partial?.limitRightXM ?? file.limitRightXM;
+  const limitLeftXM = partial?.limitLeftXM ?? simLimitLeftXM();
+  const limitRightXM = partial?.limitRightXM ?? simLimitRightXM();
   const plant = partial?.plant ?? plantFromParameters(file);
   return {
     plant,

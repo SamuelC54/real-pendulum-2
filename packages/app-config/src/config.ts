@@ -68,6 +68,9 @@ export type AppConfig = {
     motorSimGrpcUrl?: string;
     sensorSimGrpcUrl?: string;
     /** Plant tuning lives in `config/coupled-sim.parameters.json` (see `@real-pendulum/app-config/coupled-sim-parameters`). */
+    /** Cart position (m) where coupled-sim left/right limit switches assert. */
+    limitLeftXM: number;
+    limitRightXM: number;
   };
 
   flash: {
@@ -146,6 +149,8 @@ export const config: AppConfig = {
     coupledGrpcPort: 58870,
     motorSimGrpcUrl: undefined,
     sensorSimGrpcUrl: undefined,
+    limitLeftXM: -0.2,
+    limitRightXM: 0.2,
   },
 
   flash: {

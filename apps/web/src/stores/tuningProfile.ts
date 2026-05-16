@@ -3,7 +3,7 @@ import type { SimConfigForm } from "@/lib/tuningMath";
 import { DEFAULT_TUNING_WEIGHTS, type TuningErrorWeights } from "@/lib/tuningMath";
 
 export const tuningErrorWeightsAtom = atomWithStorage<TuningErrorWeights>(
-  "rp-tuning-weights",
+  "rp-tuning-weights-v2",
   DEFAULT_TUNING_WEIGHTS,
 );
 

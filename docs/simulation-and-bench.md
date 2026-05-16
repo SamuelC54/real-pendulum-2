@@ -155,7 +155,7 @@ This repeats **§2.2** for readers who jump straight here: if motor and sensor f
 - **From control-api (re-exports same server):** `npm run serve:coupled-sim -w @real-pendulum/control-api`
 - Hardware URLs: **`motorGrpcBaseUrl()`** / **`sensorGrpcBaseUrl()`** (defaults **50051** / **50052**).
 - **Web “Simulator”** mode uses **`resolveSimMotorGrpcUrl()`** / **`resolveSimSensorGrpcUrl()`** (default coupled sim **58870** on **`config.sim.coupledGrpcPort`**). The browser sends **`x-pendulum-backend: sim`**; **Hardware** uses config hardware URLs.
-- Tunables: **`config/coupled-sim.parameters.json`** (`mpsPerRpm`, `limitLeftXM`, `limitRightXM`, plant). Rail cm scale comes from **`config.rail.displayCountsPerCm`** (shared with hardware).
+- Tunables: **`config/coupled-sim.parameters.json`** (`mpsPerRpm`, plant). Sim limit positions: **`config.sim.limitLeftXM`** / **`limitRightXM`** in `packages/app-config/src/config.ts`. Rail cm scale comes from **`config.rail.displayCountsPerCm`** (shared with hardware).
 
 ---
 

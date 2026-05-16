@@ -12,8 +12,6 @@ export const coupledSimPlantSchema = z.object({
 
 export const coupledSimParametersSchema = z.object({
   mpsPerRpm: z.number().finite(),
-  limitLeftXM: z.number().finite(),
-  limitRightXM: z.number().finite(),
   plant: coupledSimPlantSchema,
 });
 

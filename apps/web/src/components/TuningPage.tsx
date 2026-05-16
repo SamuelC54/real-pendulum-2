@@ -5,23 +5,21 @@ import { JogControls } from "@/components/JogControls";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
-  applySuggestionToForm,
   configToForm,
   formToConfigSnippet,
   formToPatch,
   samplesToCsv,
-  suggestSimTuning,
   summarizeTuningError,
   type SimConfigForm,
-  type TuningSuggestion,
-  type TuningSuggestionConfidence,
 } from "@/lib/tuningMath";
-import { grpcBackendModeAtom } from "@/stores/grpcBackendMode";
 import {
-  tuningRecordingAtom,
-  tuningSamplesAtom,
-  tuningSuggestionsAfterSampleCountAtom,
-} from "@/stores/tuningSession";
+  applyOptimizedToForm,
+  MIN_OPTIMIZE_SAMPLES,
+  optimizeSimTuning,
+  type TuningParamChange,
+} from "@/lib/tuningOptimize";
+import { grpcBackendModeAtom } from "@/stores/grpcBackendMode";
+import { tuningRecordingAtom, tuningSamplesAtom } from "@/stores/tuningSession";
 import { tuningErrorWeightsAtom, tuningProfileAtom } from "@/stores/tuningProfile";
 import {
   encoderCountsPerRevolution,
@@ -29,6 +27,7 @@ import {
   plantGravityMS2,
 } from "@/lib/pendulumEncoder";
 import { displayCountsPerCm, metersPerDisplayCount } from "@/lib/railPositionCm";
+import { simLimitLeftXM, simLimitRightXM } from "@/lib/simLimits";
 import { trpc } from "@/trpc";
 import { cn } from "@/lib/utils";
 
@@ -56,39 +55,13 @@ function DeltaCell({ real, sim }: { real: number | null; sim: number | null }) {
   );
 }
 
-const confidenceClass: Record<TuningSuggestionConfidence, string> = {
-  low: "bg-muted text-muted-foreground",
-  medium: "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200",
-  high: "bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200",
-};
-
-function SuggestionRow({
-  suggestion,
-  onApply,
-}: {
-  suggestion: TuningSuggestion;
-  onApply: () => void;
-}) {
+function OptimizedParamRow({ change }: { change: TuningParamChange }) {
   return (
-    <li className="border-border/60 border-b py-3 last:border-0 last:pb-0">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="font-mono text-xs font-medium">{suggestion.label}</span>
-        <span
-          className={cn(
-            "rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide",
-            confidenceClass[suggestion.confidence],
-          )}
-        >
-          {suggestion.confidence}
-        </span>
-        <span className="text-muted-foreground font-mono text-xs tabular-nums">
-          {fmt(suggestion.currentValue, 6)} → {fmt(suggestion.suggestedValue, 6)} ({suggestion.direction})
-        </span>
-      </div>
-      <p className="text-muted-foreground mt-1 text-xs leading-relaxed">{suggestion.reason}</p>
-      <Button type="button" size="sm" variant="outline" className="mt-2 h-7 text-xs" onClick={onApply}>
-        Apply to form
-      </Button>
+    <li className="border-border/60 border-b py-2 last:border-0 last:pb-0">
+      <span className="font-mono text-xs font-medium">{change.label}</span>
+      <span className="text-muted-foreground mt-0.5 block font-mono text-xs tabular-nums">
+        {fmt(change.currentValue, 6)} → {fmt(change.optimizedValue, 6)}
+      </span>
     </li>
   );
 }
@@ -125,9 +98,6 @@ export function TuningPage() {
 
   const [recording, setRecording] = useAtom(tuningRecordingAtom);
   const [samples, setSamples] = useAtom(tuningSamplesAtom);
-  const [suggestionsAfterSampleCount, setSuggestionsAfterSampleCount] = useAtom(
-    tuningSuggestionsAfterSampleCountAtom,
-  );
 
   const compare = trpc.tuning.compare.useQuery(undefined, {
     enabled: mode === "twin",
@@ -153,36 +123,17 @@ export function TuningPage() {
     }
   }, [simConfigQuery.data]);
 
-  useEffect(() => {
-    if (samples.length === 0) setSuggestionsAfterSampleCount(0);
-  }, [samples.length, setSuggestionsAfterSampleCount]);
-
   const summary = useMemo(() => summarizeTuningError(samples, weights), [samples, weights]);
 
-  const tuningHints = useMemo(() => {
-    if (!form || samples.length === 0) return null;
-    return suggestSimTuning(samples, form);
-  }, [samples, form]);
+  const optimization = useMemo(() => {
+    if (!form || samples.length < MIN_OPTIMIZE_SAMPLES) return null;
+    return optimizeSimTuning(samples, form, weights);
+  }, [samples, form, weights]);
 
-  const suggestionsNeedMoreSamples = samples.length < 8;
-  const suggestionsStaleAfterApply = samples.length >= 8 && samples.length <= suggestionsAfterSampleCount;
-  const showTuningSuggestions =
-    !suggestionsNeedMoreSamples &&
-    !suggestionsStaleAfterApply &&
-    tuningHints != null &&
-    tuningHints.suggestions.length > 0;
-
-  const dismissTuningSuggestions = useCallback(() => {
-    setSuggestionsAfterSampleCount(samples.length);
-  }, [samples.length, setSuggestionsAfterSampleCount]);
-
-  const applyTuningSuggestion = useCallback(
-    (suggestion: TuningSuggestion) => {
-      setForm((f) => (f ? applySuggestionToForm(f, suggestion) : f));
-      dismissTuningSuggestions();
-    },
-    [dismissTuningSuggestions],
-  );
+  const applyOptimizedProfile = useCallback(() => {
+    if (!form || !optimization) return;
+    setForm(applyOptimizedToForm(form, optimization.optimized));
+  }, [form, optimization]);
 
   const live = compare.data;
   const realPos = live?.real.motor.positionCm;
@@ -206,7 +157,7 @@ export function TuningPage() {
   if (mode !== "twin") {
     return (
       <div className="grid grid-cols-1 gap-5 pb-10 lg:grid-cols-3 lg:items-start">
-        <JogControls />
+        <JogControls showMoveToHome />
         <Card className="p-6 lg:col-span-2">
           <h1 className="text-lg font-semibold">Twin tuning</h1>
           <p className="text-muted-foreground mt-2 text-sm leading-relaxed">
@@ -224,7 +175,7 @@ export function TuningPage() {
 
   return (
     <div className="grid grid-cols-1 gap-5 pb-10 lg:grid-cols-3 lg:items-start">
-      <JogControls />
+      <JogControls showMoveToHome />
       <div className="flex flex-col gap-5 lg:col-span-2">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
@@ -350,91 +301,62 @@ export function TuningPage() {
             <dd className="font-mono tabular-nums">{fmt(summary.meanAbsPositionCm, 2)}</dd>
             <dt className="text-muted-foreground">Mean |Δ encoder|</dt>
             <dd className="font-mono tabular-nums">{fmt(summary.meanAbsEncoder, 1)}</dd>
-            <dt className="text-muted-foreground">Limit mismatch rate</dt>
-            <dd className="font-mono tabular-nums">{(summary.limitMismatchRate * 100).toFixed(1)}%</dd>
           </dl>
         </Card>
 
         <Card className="p-4">
-          <h2 className="text-sm font-medium">Suggested adjustments</h2>
+          <h2 className="text-sm font-medium">Optimized profile</h2>
           <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
-            Heuristic hints from your recording — review before applying. Mean Δ uses hardware − sim.
+            Replays your recording through the cart–pendulum plant and searches parameters that minimize
+            hardware vs sim error (position and encoder only).
           </p>
-          {suggestionsNeedMoreSamples ? (
+          {samples.length < MIN_OPTIMIZE_SAMPLES ? (
             <p className="text-muted-foreground mt-3 text-xs">
-              Record at least ~8 samples (a short jog is enough) to see suggestions.
+              Record at least {MIN_OPTIMIZE_SAMPLES} samples (a short jog is enough) to run optimization.
             </p>
-          ) : suggestionsStaleAfterApply ? (
-            <p className="text-muted-foreground mt-3 text-xs leading-relaxed">
-              Suggestions were applied to the form. Record more motion while{" "}
-              <strong className="text-foreground">Record</strong> is on to refresh hints from new data.
+          ) : optimization == null ? (
+            <p className="text-muted-foreground mt-3 text-xs">
+              Need cart position in the recording — jog or move while Record is on.
             </p>
-          ) : showTuningSuggestions ? (
+          ) : (
             <>
-              <ul className="mt-3">
-                {tuningHints.suggestions.map((s) => (
-                  <SuggestionRow
-                    key={s.param}
-                    suggestion={s}
-                    onApply={() => applyTuningSuggestion(s)}
-                  />
-                ))}
-              </ul>
+              <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+                <dt className="text-muted-foreground">Replay score (current)</dt>
+                <dd className="font-mono tabular-nums">{fmt(optimization.diagnostics.baselineScore, 3)}</dd>
+                <dt className="text-muted-foreground">Replay score (optimized)</dt>
+                <dd className="font-mono font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">
+                  {fmt(optimization.diagnostics.optimizedScore, 3)}
+                </dd>
+                <dt className="text-muted-foreground">Improvement</dt>
+                <dd className="font-mono tabular-nums">{fmt(optimization.diagnostics.scoreImprovement, 3)}</dd>
+                <dt className="text-muted-foreground">Samples used</dt>
+                <dd className="font-mono tabular-nums">
+                  {optimization.diagnostics.optimizeSampleCount} / {optimization.diagnostics.sampleCount}
+                </dd>
+              </dl>
+              {optimization.changes.length > 0 ? (
+                <ul className="mt-3 border-t border-border/60 pt-3">
+                  {optimization.changes.map((c) => (
+                    <OptimizedParamRow key={c.param} change={c} />
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-muted-foreground mt-3 text-xs">
+                  Current parameters already minimize replay error on this session (within search bounds).
+                </p>
+              )}
               <Button
                 type="button"
                 size="sm"
                 variant="secondary"
                 className="mt-3"
-                disabled={!form}
-                onClick={() => {
-                  if (!form || !tuningHints) return;
-                  let next = form;
-                  for (const s of tuningHints.suggestions) {
-                    next = applySuggestionToForm(next, s);
-                  }
-                  setForm(next);
-                  dismissTuningSuggestions();
-                }}
+                disabled={!form || optimization.changes.length === 0}
+                onClick={applyOptimizedProfile}
               >
-                Apply all to form
+                Apply optimized to form
               </Button>
             </>
-          ) : tuningHints ? (
-            <p className="text-muted-foreground mt-3 text-xs">
-              No clear bias detected yet — try more motion (jog, limits, homing) or larger mismatches.
-              {tuningHints.diagnostics.meanPositionDeltaCm != null ? (
-                <>
-                  {" "}
-                  Mean position Δ{" "}
-                  <span className="font-mono tabular-nums">
-                    {fmt(tuningHints.diagnostics.meanPositionDeltaCm, 2)} cm
-                  </span>
-                  {Math.abs(tuningHints.diagnostics.meanPositionDeltaCm) >= 0.25 &&
-                  tuningHints.diagnostics.positionDisplacementScale != null &&
-                  Math.abs(1 - tuningHints.diagnostics.positionDisplacementScale) < 0.02 ? (
-                    <>
-                      {" "}
-                      (offset — re-zero hardware and sim at the same place; rail scale is fixed to
-                      hardware).
-                    </>
-                  ) : (
-                    "."
-                  )}
-                </>
-              ) : null}
-              {tuningHints.diagnostics.positionDisplacementPairs > 0 &&
-              tuningHints.diagnostics.positionDisplacementScale != null ? (
-                <>
-                  {" "}
-                  Δreal/Δsim ≈{" "}
-                  <span className="font-mono tabular-nums">
-                    {fmt(tuningHints.diagnostics.positionDisplacementScale, 2)}
-                  </span>{" "}
-                  ({tuningHints.diagnostics.positionDisplacementPairs} jog steps).
-                </>
-              ) : null}
-            </p>
-          ) : null}
+          )}
         </Card>
       </div>
 
@@ -444,8 +366,6 @@ export function TuningPage() {
           <li>Short jog left / right, then stop</li>
           <li>Constant-speed jog across mid-span</li>
           <li>Sudden stop from motion</li>
-          <li>Full homing sequence</li>
-          <li>Approach each limit switch slowly</li>
         </ul>
         <p className="text-muted-foreground mt-3 text-[11px]">
           Start Record, then jog from the left column (or homing on Control) while the trace keeps running.
@@ -464,8 +384,12 @@ export function TuningPage() {
           <span className="font-mono text-foreground">{encoderTicksPerRadian().toFixed(2)}</span> ticks/rad
           from <code className="text-foreground">config.pendulum.encoderCountsPerRevolution</code>). Gravity{" "}
           <span className="font-mono text-foreground">{plantGravityMS2()}</span> m/s² is fixed in{" "}
-          <code className="text-foreground">config.pendulum.gravityMS2</code>. Tune cart speed, limits, and
-          plant dynamics below.
+          <code className="text-foreground">config.pendulum.gravityMS2</code>. Sim limit positions are fixed in{" "}
+          <code className="text-foreground">config.sim.limitLeftXM</code> /{" "}
+          <code className="text-foreground">limitRightXM</code> (
+          <span className="font-mono text-foreground">{simLimitLeftXM()}</span> /{" "}
+          <span className="font-mono text-foreground">{simLimitRightXM()}</span> m). Tune cart speed and plant
+          dynamics below.
         </p>
         <p className="text-muted-foreground text-xs leading-relaxed">
           Plant and sim motion values are stored in{" "}
@@ -490,16 +414,6 @@ export function TuningPage() {
                 value={form.mpsPerRpm}
                 onChange={(v) => setForm({ ...form, mpsPerRpm: v })}
                 step="0.000001"
-              />
-              <ConfigField
-                label="SIM_LIMIT_LEFT_X_M"
-                value={form.limitLeftXM}
-                onChange={(v) => setForm({ ...form, limitLeftXM: v })}
-              />
-              <ConfigField
-                label="SIM_LIMIT_RIGHT_X_M"
-                value={form.limitRightXM}
-                onChange={(v) => setForm({ ...form, limitRightXM: v })}
               />
               <ConfigField
                 label="Pendulum length (m)"

@@ -21,8 +21,6 @@ import {
 
 const sampleConfig: CoupledSimParameters = {
   mpsPerRpm: 5e-5,
-  limitLeftXM: -0.4,
-  limitRightXM: 0.4,
   plant: {
     pendulumLengthM: 0.35,
     cartVelocityTrackingPerSec: 12,
@@ -83,13 +81,13 @@ describe("coupledSimConfigFile", () => {
 
   it("put replaces the full JSON document", async () => {
     writeCoupledSimParametersFile(sampleConfig, tmpDir);
-    const next = { ...sampleConfig, limitRightXM: 0.55 };
+    const next = { ...sampleConfig, mpsPerRpm: 0.88 };
     const r = await putCoupledSimConfigFile(next, tmpDir);
     expect(r.ok).toBe(true);
-    expect(r.config?.limitRightXM).toBe(0.55);
+    expect(r.config?.mpsPerRpm).toBe(0.88);
     const onDisk = JSON.parse(fs.readFileSync(parametersPath, "utf8")) as {
-      limitRightXM: number;
+      mpsPerRpm: number;
     };
-    expect(onDisk.limitRightXM).toBe(0.55);
+    expect(onDisk.mpsPerRpm).toBe(0.88);
   });
 });

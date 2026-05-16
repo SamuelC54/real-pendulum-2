@@ -9,7 +9,8 @@
     "./node": "./src/node.ts",
     "./coupled-sim-parameters": "./src/coupledSimParameters.ts",
     "./rail": "./src/rail.ts",
-    "./pendulum": "./src/pendulum.ts"
+    "./pendulum": "./src/pendulum.ts",
+    "./sim-limits": "./src/simLimits.ts"
   },
   "dependencies": {
     "zod": "^3.24.4"
