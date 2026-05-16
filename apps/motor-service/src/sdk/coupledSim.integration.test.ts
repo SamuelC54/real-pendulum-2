@@ -115,6 +115,19 @@ describe("Coupled sim (MotorService + SensorService, one plant)", () => {
     await disconnectMotor();
   });
 
+  it("zeros jog command into an active travel limit", async () => {
+    await connectMotor();
+    await sensor.connect({});
+    await moveToPosition(100);
+    await setJogVelocityRpm(200);
+    expect(model.plant.state.vCmdMps).toBe(0);
+    expect(model.lastCommandedRpm).toBe(0);
+    const st = await getMotorStatus();
+    expect(st.commandedRpm).toBe(0);
+    await sensor.disconnect({});
+    await disconnectMotor();
+  });
+
   it("zeroMeasuredPosition clears cart position in plant", async () => {
     await connectMotor();
     await moveToPosition(50);

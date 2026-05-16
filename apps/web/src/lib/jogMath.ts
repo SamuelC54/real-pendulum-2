@@ -22,3 +22,42 @@ export const POSITION_TARGET_SLIDER_MAX_CM = 1000 / displayCountsPerCm();
 export function jogRpmForDirection(dir: "left" | "right"): number {
   return dir === "left" ? JOG_RPM : -JOG_RPM;
 }
+
+export type TravelLimitSwitchState = {
+  connected: boolean;
+  limitLeftPressed: boolean;
+  limitRightPressed: boolean;
+};
+
+/** True when jog in `dir` would travel further into an active limit (matches control-api guards). */
+export function isJogBlockedByTravelLimit(
+  dir: "left" | "right",
+  limits: TravelLimitSwitchState,
+): boolean {
+  if (!limits.connected) return false;
+  if (dir === "left" && limits.limitLeftPressed) return true;
+  if (dir === "right" && limits.limitRightPressed) return true;
+  return false;
+}
+
+/** Active jog hold that must release because its direction hit a travel limit. */
+export function shouldReleaseJogHoldForTravelLimit(
+  holding: "left" | "right" | null,
+  limits: TravelLimitSwitchState,
+): boolean {
+  if (!holding) return false;
+  return isJogBlockedByTravelLimit(holding, limits);
+}
+
+export function isMoveTargetBlockedByTravelLimit(
+  targetCm: number,
+  currentCm: number | undefined,
+  limits: TravelLimitSwitchState,
+): boolean {
+  if (!limits.connected || currentCm === undefined || !Number.isFinite(currentCm)) {
+    return false;
+  }
+  if (limits.limitLeftPressed && targetCm < currentCm) return true;
+  if (limits.limitRightPressed && targetCm > currentCm) return true;
+  return false;
+}

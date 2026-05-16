@@ -5,7 +5,9 @@ import { Card } from "@/components/ui/card";
 import { RailPendulumSchematic } from "@/components/RailPendulumSchematic";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { isJogBlockedByTravelLimit } from "@/lib/jogMath";
 import { useMotorSession } from "@/services/motorSession";
+import { useSensorStatusQuery } from "@/services/useMotorStatusQuery";
 import { holdingAtom, type JogHold } from "@/stores/jog";
 
 /** Held look via aria-pressed — keeps variant="secondary" so CVA does not swap presets (avoids transition-colors flicker). */
@@ -60,6 +62,12 @@ const JogDirectionButton = memo(function JogDirectionButton({
 export const JogControls = memo(function JogControls() {
   const { connected, applyHold, connect, disconnect, setVelocity, stop } = useMotorSession();
   const holding = useAtomValue(holdingAtom);
+  const sensor = useSensorStatusQuery();
+  const travelLimits = {
+    connected: sensor.data?.connected ?? false,
+    limitLeftPressed: sensor.data?.limitLeftPressed ?? false,
+    limitRightPressed: sensor.data?.limitRightPressed ?? false,
+  };
 
   const connectionBusy = connect.isPending || disconnect.isPending;
   const jogMutating = setVelocity.isPending || stop.isPending;
@@ -69,6 +77,8 @@ export const JogControls = memo(function JogControls() {
   // jog RPC is in flight (avoids double-starts).
   const disabled =
     !connected || connectionBusy || (jogMutating && holding === null);
+  const leftBlocked = isJogBlockedByTravelLimit("left", travelLimits);
+  const rightBlocked = isJogBlockedByTravelLimit("right", travelLimits);
 
   return (
     <Card className="flex flex-col gap-4 p-6" aria-label="Jog controls">
@@ -77,13 +87,13 @@ export const JogControls = memo(function JogControls() {
           <JogDirectionButton
             direction="left"
             held={holding === "left"}
-            disabled={disabled}
+            disabled={disabled || leftBlocked}
             applyHold={applyHold}
           />
           <JogDirectionButton
             direction="right"
             held={holding === "right"}
-            disabled={disabled}
+            disabled={disabled || rightBlocked}
             applyHold={applyHold}
           />
         </div>
@@ -99,6 +109,13 @@ export const JogControls = memo(function JogControls() {
           <OctagonAlert aria-hidden />
           Stop
         </Button>
+
+        {leftBlocked || rightBlocked ? (
+          <p className="text-muted-foreground text-center text-xs leading-relaxed">
+            {leftBlocked ? "Left limit active — jog left blocked. " : null}
+            {rightBlocked ? "Right limit active — jog right blocked." : null}
+          </p>
+        ) : null}
 
         <RailPendulumSchematic />
       </div>

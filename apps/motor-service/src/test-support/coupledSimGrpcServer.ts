@@ -211,6 +211,23 @@ function teknicMeasuredFromPlant(model: CoupledSimGrpcModel): number {
   return -x / model.metersPerDisplayCount;
 }
 
+/** Stop velocity commands that would drive further into an active limit switch. */
+function enforceTravelLimitOnPlant(model: CoupledSimGrpcModel): void {
+  if (!model.sensorConnected) return;
+  const x = model.plant.state.xM;
+  const atLeft = x <= model.limitLeftXM;
+  const atRight = x >= model.limitRightXM;
+  // Jog left (+rpm) → vCmdMps < 0; jog right → vCmdMps > 0 (see setJogVelocity).
+  if (atLeft && model.plant.state.vCmdMps < 0) {
+    model.plant.state.vCmdMps = 0;
+    model.lastCommandedRpm = 0;
+  }
+  if (atRight && model.plant.state.vCmdMps > 0) {
+    model.plant.state.vCmdMps = 0;
+    model.lastCommandedRpm = 0;
+  }
+}
+
 function advancePhysics(model: CoupledSimGrpcModel, lastMs: { t: number }): void {
   if (!model.motorConnected) return;
   const now = Date.now();
@@ -218,6 +235,7 @@ function advancePhysics(model: CoupledSimGrpcModel, lastMs: { t: number }): void
   lastMs.t = now;
   if (dt <= 0) return;
   stepCartPendulum(model.plant, dt);
+  enforceTravelLimitOnPlant(model);
 }
 
 export function startCoupledSimGrpcServer(
@@ -250,6 +268,7 @@ export function startCoupledSimGrpcServer(
         const rpm = req.rpm ?? 0;
         model.lastCommandedRpm = rpm;
         model.plant.state.vCmdMps = -rpm * model.mpsPerRpm;
+        enforceTravelLimitOnPlant(model);
         return create(SetJogVelocityReplySchema, { ok: true, errorMessage: "" });
       },
       async stop() {

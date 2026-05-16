@@ -18,6 +18,7 @@ import {
   POSITION_MOVE_VEL_SLIDER_MAX,
   POSITION_TARGET_SLIDER_MAX_CM,
   POSITION_TARGET_SLIDER_MIN_CM,
+  isMoveTargetBlockedByTravelLimit,
 } from "@/lib/jogMath";
 import { boundsFromTravelLimitsCm } from "@/lib/railPositionCm";
 import { grpcBackendModeAtom } from "@/stores/grpcBackendMode";
@@ -196,6 +197,17 @@ export const PositionMoveControls = memo(function PositionMoveControls() {
   );
 
   const sliderTargetValue = clamp(targetCm, targetSliderMin, targetSliderMax);
+  const travelLimitState = {
+    connected: sensorConnected,
+    limitLeftPressed: limitLeft,
+    limitRightPressed: limitRight,
+  };
+  const moveTargetBlocked = isMoveTargetBlockedByTravelLimit(
+    sliderTargetValue,
+    positionNowCm,
+    travelLimitState,
+  );
+  const moveHomeBlocked = isMoveTargetBlockedByTravelLimit(0, positionNowCm, travelLimitState);
 
   return (
     <Card className="flex flex-col gap-4 p-6">
@@ -288,7 +300,7 @@ export const PositionMoveControls = memo(function PositionMoveControls() {
           variant="outline"
           size="sm"
           className="min-w-0 flex-1 touch-manipulation"
-          disabled={disabled}
+          disabled={disabled || moveHomeBlocked}
           title="Absolute move to 0 cm (home / Teknic origin)"
           onClick={() => runMoveToCm(0)}
         >
@@ -300,13 +312,19 @@ export const PositionMoveControls = memo(function PositionMoveControls() {
           variant="secondary"
           size="sm"
           className="min-w-0 flex-1 touch-manipulation"
-          disabled={disabled}
+          disabled={disabled || moveTargetBlocked}
           onClick={() => runMoveToCm(sliderTargetValue)}
         >
           <Crosshair aria-hidden className="mr-2 h-4 w-4 shrink-0" />
           Go
         </Button>
       </div>
+
+      {moveTargetBlocked ? (
+        <p className="text-muted-foreground text-xs">
+          Active travel limit — cannot move further in that direction until you jog away from the switch.
+        </p>
+      ) : null}
 
       {moveAbsolute.error ? (
         <p className="text-destructive wrap-break-word text-xs">{moveAbsolute.error.message}</p>

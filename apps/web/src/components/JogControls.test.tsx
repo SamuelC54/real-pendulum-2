@@ -7,6 +7,16 @@ import { JogControls } from "./JogControls";
 vi.mock("@/components/RailPendulumSchematic", () => ({
   RailPendulumSchematic: () => null,
 }));
+
+vi.mock("@/services/useMotorStatusQuery", () => ({
+  useSensorStatusQuery: () => ({
+    data: {
+      connected: true,
+      limitLeftPressed: false,
+      limitRightPressed: false,
+    },
+  }),
+}));
 import { MotorSessionContext, type MotorSessionValue } from "@/services/motorSession";
 import { holdingAtom } from "@/stores/jog";
 

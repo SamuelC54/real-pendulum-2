@@ -31,6 +31,7 @@ vi.mock("@real-pendulum/sensor-service/sdk", () => ({
 }));
 
 import * as motor from "@real-pendulum/motor-service/sdk";
+import * as sensor from "@real-pendulum/sensor-service/sdk";
 import { runRailHoming } from "./homing.js";
 import { resetTravelLimitsStateForTests } from "./railTravelLimits.js";
 import { appRouter } from "./router.js";
@@ -42,6 +43,16 @@ describe("appRouter (motor mocked)", () => {
     vi.mocked(motor.setJogVelocityRpm).mockReset();
     vi.mocked(motor.stopMotor).mockReset();
     vi.mocked(motor.getMotorStatus).mockReset();
+    vi.mocked(sensor.getSensorStatus).mockReset();
+    vi.mocked(sensor.getSensorStatus).mockResolvedValue({
+      connected: true,
+      ledOn: false,
+      detail: "ok",
+      serialPort: "COM1",
+      encoderTicks: 0,
+      limitLeftPressed: false,
+      limitRightPressed: false,
+    });
     resetTravelLimitsStateForTests();
   });
 
@@ -92,6 +103,22 @@ describe("appRouter (motor mocked)", () => {
     const caller = appRouter.createCaller({});
     await caller.jog.setVelocity({ rpm: 100 });
     expect(motor.setJogVelocityRpm).toHaveBeenCalledWith(100);
+  });
+
+  it("jog.setVelocity clamps rpm when left limit is pressed", async () => {
+    vi.mocked(motor.setJogVelocityRpm).mockResolvedValue({ ok: true, error: "" });
+    vi.mocked(sensor.getSensorStatus).mockResolvedValue({
+      connected: true,
+      ledOn: false,
+      detail: "ok",
+      serialPort: "COM1",
+      encoderTicks: 0,
+      limitLeftPressed: true,
+      limitRightPressed: false,
+    });
+    const caller = appRouter.createCaller({});
+    await caller.jog.setVelocity({ rpm: 100 });
+    expect(motor.setJogVelocityRpm).toHaveBeenCalledWith(0);
   });
 
   it("rail.limits.record stores display count from motor measured position", async () => {

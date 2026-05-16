@@ -16,7 +16,11 @@ import { defaultCoupledSimGrpcUrl, resolveSimMotorGrpcUrl, resolveSimSensorGrpcU
 import { runRailHoming } from "./homing.js";
 import { homingResultForClient } from "./homingApi.js";
 import { motorStatusForClient, type MotorStatusForClient } from "./motorStatusApi.js";
-import { cmToTeknicMeasured, displayCountsPerCm } from "./railPositionCm.js";
+import { displayCountsPerCm } from "./railPositionCm.js";
+import {
+  moveToPositionCmRespectingTravelLimits,
+  setJogVelocityRpmRespectingTravelLimits,
+} from "./railLimitGuards.js";
 import { withHardwareGrpc, withSimGrpc } from "./twinGrpc.js";
 import {
   fetchCoupledSimConfig,
@@ -166,7 +170,7 @@ export const appRouter = t.router({
       .input(z.object({ rpm: z.number().finite() }))
       .mutation(async ({ input }) => {
         try {
-          return await motor.setJogVelocityRpm(input.rpm);
+          return await setJogVelocityRpmRespectingTravelLimits(input.rpm);
         } catch (e) {
           throw new Error(`motor: ${friendlyMotorError(e)}`);
         }
@@ -224,11 +228,14 @@ export const appRouter = t.router({
       )
       .mutation(async ({ input }) => {
         try {
-          const teknicCounts = cmToTeknicMeasured(input.positionCm);
-          return await motor.moveToPosition(teknicCounts, {
+          const r = await moveToPositionCmRespectingTravelLimits(input.positionCm, {
             maxVelocityRpm: input.maxVelocityRpm,
             maxAccelerationRpmPerSec: input.maxAccelerationRpmPerSec,
           });
+          if (!r.ok) {
+            throw new Error(r.error);
+          }
+          return r;
         } catch (e) {
           throw new Error(`motor: ${friendlyMotorError(e)}`);
         }
@@ -334,14 +341,14 @@ export const appRouter = t.router({
         .mutation(async ({ input }) => {
           const real = await withHardwareGrpc(async () => {
             try {
-              return await motor.setJogVelocityRpm(input.rpm);
+              return await setJogVelocityRpmRespectingTravelLimits(input.rpm);
             } catch (e) {
               throw new Error(`motor: ${friendlyMotorError(e)}`);
             }
           });
           const sim = await withSimGrpc(async () => {
             try {
-              return await motor.setJogVelocityRpm(input.rpm);
+              return await setJogVelocityRpmRespectingTravelLimits(input.rpm);
             } catch (e) {
               return { ok: false as const, error: friendlyMotorError(e) };
             }
@@ -424,21 +431,24 @@ export const appRouter = t.router({
           }),
         )
         .mutation(async ({ input }) => {
-          const teknicCounts = cmToTeknicMeasured(input.positionCm);
           const opts = {
             maxVelocityRpm: input.maxVelocityRpm,
             maxAccelerationRpmPerSec: input.maxAccelerationRpmPerSec,
           };
           const real = await withHardwareGrpc(async () => {
             try {
-              return await motor.moveToPosition(teknicCounts, opts);
+              const r = await moveToPositionCmRespectingTravelLimits(input.positionCm, opts);
+              if (!r.ok) {
+                throw new Error(r.error);
+              }
+              return r;
             } catch (e) {
               throw new Error(`motor: ${friendlyMotorError(e)}`);
             }
           });
           const sim = await withSimGrpc(async () => {
             try {
-              return await motor.moveToPosition(teknicCounts, opts);
+              return await moveToPositionCmRespectingTravelLimits(input.positionCm, opts);
             } catch (e) {
               return { ok: false as const, error: friendlyMotorError(e) };
             }
