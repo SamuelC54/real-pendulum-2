@@ -4,7 +4,6 @@ import { z } from "zod";
 import { friendlyMotorGrpcError } from "./motorErrors.js";
 import { friendlySensorGrpcError } from "./sensorErrors.js";
 import { withGrpcBackendMode, type GrpcBackendMode } from "./grpcRequestContext.js";
-import { runRailHoming } from "./homing.js";
 import {
   getTravelLimitDisplays,
   recordTravelLimitFromTeknicMeasured,
@@ -14,6 +13,8 @@ import { runLedToggleFlash } from "./runFlashScript.js";
 import * as motor from "@real-pendulum/motor-service/sdk";
 import * as sensor from "@real-pendulum/sensor-service/sdk";
 import { defaultCoupledSimGrpcUrl, resolveSimMotorGrpcUrl, resolveSimSensorGrpcUrl } from "./grpcSimDefaults.js";
+import { runRailHoming, type RailHomingResult } from "./homing.js";
+import { withHardwareGrpc, withSimGrpc } from "./twinGrpc.js";
 
 function friendlyMotorError(err: unknown): string {
   return friendlyMotorGrpcError(motor.motorConnectBaseUrl(), err);
@@ -27,6 +28,79 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+type MotorStatusPayload = Awaited<ReturnType<typeof motor.getMotorStatus>> & {
+  travelLimits: { left: number | null; right: number | null };
+};
+
+async function readMotorStatusPayload(): Promise<MotorStatusPayload> {
+  try {
+    const st = await motor.getMotorStatus();
+    syncTravelLimitsFromMotorConnection(st.connected);
+    return {
+      ...st,
+      travelLimits: getTravelLimitDisplays(),
+    };
+  } catch (e) {
+    syncTravelLimitsFromMotorConnection(false);
+    return {
+      connected: false,
+      commandedRpm: 0,
+      detail: friendlyMotorError(e),
+      measuredPosition: undefined,
+      travelLimits: { left: null, right: null },
+    };
+  }
+}
+
+type SensorStatusPayload = {
+  connected: boolean;
+  ledOn: boolean;
+  detail: string;
+  serialPort: string;
+  encoderTicks: number;
+  limitLeftPressed: boolean;
+  limitRightPressed: boolean;
+};
+
+async function readSensorStatusPayload(): Promise<SensorStatusPayload> {
+  try {
+    return await sensor.getSensorStatus();
+  } catch (e) {
+    return {
+      connected: false,
+      ledOn: false,
+      detail: friendlySensorError(e),
+      serialPort: "",
+      encoderTicks: 0,
+      limitLeftPressed: false,
+      limitRightPressed: false,
+    };
+  }
+}
+
+type MotorWireResult = { ok: boolean; error: string };
+type SensorWireResult = { ok: boolean; error: string };
+
+async function twinMotorWire(
+  run: () => MotorWireResult | Promise<MotorWireResult>,
+): Promise<MotorWireResult> {
+  try {
+    return await run();
+  } catch (e) {
+    return { ok: false, error: friendlyMotorError(e) };
+  }
+}
+
+async function twinSensorWire(
+  run: () => SensorWireResult | Promise<SensorWireResult>,
+): Promise<SensorWireResult> {
+  try {
+    return await run();
+  } catch (e) {
+    return { ok: false, error: friendlySensorError(e) };
+  }
+}
+
 type RouterContext = { grpcBackendMode?: GrpcBackendMode };
 
 const t = initTRPC.context<RouterContext>().create({
@@ -35,8 +109,10 @@ const t = initTRPC.context<RouterContext>().create({
 
 const grpcWireMiddleware = t.middleware(async ({ ctx, next }) => {
   const mode: GrpcBackendMode = ctx.grpcBackendMode ?? "hardware";
-  const motorUrl = mode === "sim" ? resolveSimMotorGrpcUrl() : motor.defaultMotorGrpcUrlFromEnv();
-  const sensorUrl = mode === "sim" ? resolveSimSensorGrpcUrl() : sensor.defaultSensorGrpcUrlFromEnv();
+  const motorUrl =
+    mode === "sim" ? resolveSimMotorGrpcUrl() : motor.defaultMotorGrpcUrlFromEnv();
+  const sensorUrl =
+    mode === "sim" ? resolveSimSensorGrpcUrl() : sensor.defaultSensorGrpcUrlFromEnv();
 
   const run = () =>
     motor.withMotorGrpcBaseUrl(motorUrl, () =>
@@ -151,25 +227,7 @@ export const appRouter = t.router({
       }),
   }),
   status: t.router({
-    get: publicProcedure.query(async () => {
-      try {
-        const st = await motor.getMotorStatus();
-        syncTravelLimitsFromMotorConnection(st.connected);
-        return {
-          ...st,
-          travelLimits: getTravelLimitDisplays(),
-        };
-      } catch (e) {
-        syncTravelLimitsFromMotorConnection(false);
-        return {
-          connected: false,
-          commandedRpm: 0,
-          detail: friendlyMotorError(e),
-          measuredPosition: undefined,
-          travelLimits: { left: null, right: null },
-        };
-      }
-    }),
+    get: publicProcedure.query(async (): Promise<MotorStatusPayload> => readMotorStatusPayload()),
   }),
   sensor: t.router({
     serial: t.router({
@@ -238,20 +296,206 @@ export const appRouter = t.router({
         }),
     }),
     status: t.router({
-      get: publicProcedure.query(async () => {
-        try {
-          return await sensor.getSensorStatus();
-        } catch (e) {
-          return {
-            connected: false,
-            ledOn: false,
-            detail: friendlySensorError(e),
-            serialPort: "",
-            encoderTicks: 0,
-            limitLeftPressed: false,
-            limitRightPressed: false,
+      get: publicProcedure.query(async (): Promise<SensorStatusPayload> => readSensorStatusPayload()),
+    }),
+  }),
+  /**
+   * Digital twin: same motor/sensor RPC contract against **both** hardware and simulation gRPC
+   * backends. Commands hit hardware first, then mirror into sim. Reads return explicit `{ real, sim }`.
+   */
+  twin: t.router({
+    status: t.router({
+      get: baseProcedure.query(async () => ({
+        real: await withHardwareGrpc(() => readMotorStatusPayload()),
+        sim: await withSimGrpc(() => readMotorStatusPayload()),
+      })),
+    }),
+    connection: t.router({
+      connect: baseProcedure.mutation(async () => ({
+        real: await twinMotorWire(() => withHardwareGrpc(() => motor.connectMotor())),
+        sim: await twinMotorWire(() => withSimGrpc(() => motor.connectMotor())),
+      })),
+      disconnect: baseProcedure.mutation(async () => ({
+        real: await twinMotorWire(() => withHardwareGrpc(() => motor.disconnectMotor())),
+        sim: await twinMotorWire(() => withSimGrpc(() => motor.disconnectMotor())),
+      })),
+    }),
+    jog: t.router({
+      setVelocity: baseProcedure
+        .input(z.object({ rpm: z.number().finite() }))
+        .mutation(async ({ input }) => {
+          const real = await withHardwareGrpc(async () => {
+            try {
+              return await motor.setJogVelocityRpm(input.rpm);
+            } catch (e) {
+              throw new Error(`motor: ${friendlyMotorError(e)}`);
+            }
+          });
+          const sim = await withSimGrpc(async () => {
+            try {
+              return await motor.setJogVelocityRpm(input.rpm);
+            } catch (e) {
+              return { ok: false as const, error: friendlyMotorError(e) };
+            }
+          });
+          return { real, sim };
+        }),
+      stop: baseProcedure.mutation(async () => {
+        const real = await withHardwareGrpc(async () => {
+          try {
+            return await motor.stopMotor();
+          } catch (e) {
+            throw new Error(`motor: ${friendlyMotorError(e)}`);
+          }
+        });
+        const sim = await withSimGrpc(async () => {
+          try {
+            return await motor.stopMotor();
+          } catch (e) {
+            return { ok: false as const, error: friendlyMotorError(e) };
+          }
+        });
+        return { real, sim };
+      }),
+    }),
+    rail: t.router({
+      /** Runs full homing on hardware and simulation in parallel (independent plants). */
+      home: baseProcedure.mutation(async () => {
+        const [real, sim] = await Promise.all([
+          withHardwareGrpc(() => runRailHoming()),
+          withSimGrpc(() => runRailHoming()),
+        ]);
+        return { real, sim } satisfies { real: RailHomingResult; sim: RailHomingResult };
+      }),
+      limits: t.router({
+        record: baseProcedure
+          .input(z.object({ side: z.enum(["left", "right"]) }))
+          .mutation(async ({ input }) => {
+            await withHardwareGrpc(async () => {
+              const st = await motor.getMotorStatus();
+              if (!st.connected) {
+                throw new Error("Motor is not connected.");
+              }
+              const p = st.measuredPosition;
+              if (p === undefined || !Number.isFinite(p)) {
+                throw new Error(
+                  "Motor measured position unavailable — rebuild motor DLL / motor-service for PosnMeasured.",
+                );
+              }
+              recordTravelLimitFromTeknicMeasured(p, input.side);
+            });
+            const sim = await withSimGrpc(async () => {
+              try {
+                const st = await motor.getMotorStatus();
+                if (!st.connected) {
+                  return { ok: false as const, error: "Motor is not connected." };
+                }
+                const p = st.measuredPosition;
+                if (p === undefined || !Number.isFinite(p)) {
+                  return {
+                    ok: false as const,
+                    error:
+                      "Motor measured position unavailable — rebuild motor DLL / motor-service for PosnMeasured.",
+                  };
+                }
+                recordTravelLimitFromTeknicMeasured(p, input.side);
+                return { ok: true as const };
+              } catch (e) {
+                return { ok: false as const, error: e instanceof Error ? e.message : String(e) };
+              }
+            });
+            return { real: { ok: true as const }, sim };
+          }),
+      }),
+      moveAbsolute: baseProcedure
+        .input(
+          z.object({
+            displayCounts: z.number().finite(),
+            maxVelocityRpm: z.number().finite().positive().optional(),
+            maxAccelerationRpmPerSec: z.number().finite().positive().optional(),
+          }),
+        )
+        .mutation(async ({ input }) => {
+          const teknicCounts = -input.displayCounts;
+          const opts = {
+            maxVelocityRpm: input.maxVelocityRpm,
+            maxAccelerationRpmPerSec: input.maxAccelerationRpmPerSec,
           };
-        }
+          const real = await withHardwareGrpc(async () => {
+            try {
+              return await motor.moveToPosition(teknicCounts, opts);
+            } catch (e) {
+              throw new Error(`motor: ${friendlyMotorError(e)}`);
+            }
+          });
+          const sim = await withSimGrpc(async () => {
+            try {
+              return await motor.moveToPosition(teknicCounts, opts);
+            } catch (e) {
+              return { ok: false as const, error: friendlyMotorError(e) };
+            }
+          });
+          return { real, sim };
+        }),
+    }),
+    sensor: t.router({
+      connection: t.router({
+        connect: baseProcedure
+          .input(z.object({ serialPort: z.string().optional() }))
+          .mutation(async ({ input }) => ({
+            real: await twinSensorWire(() =>
+              withHardwareGrpc(() => sensor.connectSensor(input.serialPort)),
+            ),
+            sim: await twinSensorWire(() =>
+              withSimGrpc(() => sensor.connectSensor(input.serialPort)),
+            ),
+          })),
+        disconnect: baseProcedure.mutation(async () => ({
+          real: await twinSensorWire(() => withHardwareGrpc(() => sensor.disconnectSensor())),
+          sim: await twinSensorWire(() => withSimGrpc(() => sensor.disconnectSensor())),
+        })),
+      }),
+      led: t.router({
+        toggle: baseProcedure.mutation(async () => ({
+          real: await withHardwareGrpc(async () => {
+            try {
+              return await sensor.toggleLed();
+            } catch (e) {
+              throw new Error(`sensor: ${friendlySensorError(e)}`);
+            }
+          }),
+          sim: await withSimGrpc(async () => {
+            try {
+              return await sensor.toggleLed();
+            } catch (e) {
+              return { ok: false as const, error: friendlySensorError(e), ledOn: false };
+            }
+          }),
+        })),
+      }),
+      encoder: t.router({
+        reset: baseProcedure.mutation(async () => ({
+          real: await withHardwareGrpc(async () => {
+            try {
+              return await sensor.resetEncoder();
+            } catch (e) {
+              throw new Error(`sensor: ${friendlySensorError(e)}`);
+            }
+          }),
+          sim: await withSimGrpc(async () => {
+            try {
+              return await sensor.resetEncoder();
+            } catch (e) {
+              return { ok: false as const, error: friendlySensorError(e), encoderTicks: 0 };
+            }
+          }),
+        })),
+      }),
+      status: t.router({
+        get: baseProcedure.query(async () => ({
+          real: await withHardwareGrpc(() => readSensorStatusPayload()),
+          sim: await withSimGrpc(() => readSensorStatusPayload()),
+        })),
       }),
     }),
   }),

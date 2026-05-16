@@ -4,4 +4,8 @@ export { useConnectMotorMutation } from "./useConnectMotorMutation";
 export { useDisconnectMotorMutation } from "./useDisconnectMotorMutation";
 export { useJogSetVelocityMutation } from "./useJogSetVelocityMutation";
 export { useJogStopMutation } from "./useJogStopMutation";
-export { useMotorStatusQuery } from "./useMotorStatusQuery";
+export {
+  useMotorStatusQuery,
+  useSensorStatusQuery,
+  useTwinSensorStatusQuery,
+} from "./useMotorStatusQuery";

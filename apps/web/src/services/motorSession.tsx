@@ -32,6 +32,11 @@ export function MotorSessionProvider({ children }: { children: ReactNode }) {
   const stop = useJogStopMutation();
   const setHolding = useSetAtom(holdingAtom);
 
+  const invalidateMotorQueries = useCallback(() => {
+    void utils.status.get.invalidate();
+    void utils.twin.status.get.invalidate();
+  }, [utils]);
+
   const busy =
     connect.isPending || disconnect.isPending || setVelocity.isPending || stop.isPending;
 
@@ -41,29 +46,41 @@ export function MotorSessionProvider({ children }: { children: ReactNode }) {
       setHolding(dir);
       if (!dir) {
         await stop.mutateAsync();
-        await utils.status.get.invalidate();
+        invalidateMotorQueries();
         return;
       }
       await setVelocity.mutateAsync({ rpm: jogRpmForDirection(dir) });
-      await utils.status.get.invalidate();
+      invalidateMotorQueries();
     },
-    [connected, setHolding, stop, setVelocity, utils],
+    [connected, setHolding, stop, setVelocity, invalidateMotorQueries],
   );
 
   const connectMotor = useCallback(async () => {
     connect.reset();
-    const r = await connect.mutateAsync();
-    await utils.status.get.invalidate();
-    if (!r.ok && r.error) {
-      console.warn("[jog] connect failed:", r.error);
+    try {
+      const r = await connect.mutateAsync();
+      invalidateMotorQueries();
+      if ("real" in r) {
+        if (!r.real.ok && r.real.error) {
+          console.warn("[jog] motor connect (hardware) failed:", r.real.error);
+        }
+        if (!r.sim.ok && r.sim.error) {
+          console.warn("[jog] motor connect (sim) failed:", r.sim.error);
+        }
+      } else if (!r.ok && r.error) {
+        console.warn("[jog] connect failed:", r.error);
+      }
+    } catch (e) {
+      invalidateMotorQueries();
+      throw e;
     }
-  }, [connect, utils]);
+  }, [connect, invalidateMotorQueries]);
 
   const disconnectMotor = useCallback(async () => {
     setHolding(null);
     await disconnect.mutateAsync();
-    await utils.status.get.invalidate();
-  }, [disconnect, setHolding, utils]);
+    invalidateMotorQueries();
+  }, [disconnect, setHolding, invalidateMotorQueries]);
 
   const value = useMemo<MotorSessionValue>(
     () => ({

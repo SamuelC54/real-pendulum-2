@@ -17,6 +17,7 @@ function parseGrpcBackendMode(header: string | string[] | undefined): GrpcBacken
   if (typeof v !== "string") return "hardware";
   const t = v.trim().toLowerCase();
   if (t === "sim" || t === "simulator") return "sim";
+  if (t === "twin" || t === "digital-twin") return "twin";
   return "hardware";
 }
 

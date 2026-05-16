@@ -1,12 +1,97 @@
 import { memo, useEffect, useState } from "react";
+import { useAtomValue } from "jotai";
 import { Home } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { motorCountsForDisplay } from "@/lib/motorPositionDisplay";
+import { grpcBackendModeAtom } from "@/stores/grpcBackendMode";
 import { trpc } from "@/trpc";
 import { useMotorStatusConnected } from "@/services/useMotorStatusQuery";
 
+type RailHomingRow = {
+  ok: boolean;
+  error?: string;
+  motorSpanCounts?: number;
+  midMotorPosition?: number;
+  motorAbsRevolutions?: number;
+  motorPositionZeroedAtMid?: boolean;
+  log?: string[];
+};
+
+function HomingResultDetail({ title, railHomeResult }: { title: string; railHomeResult: RailHomingRow }) {
+  const [homingDetailOpen, setHomingDetailOpen] = useState(true);
+
+  useEffect(() => {
+    setHomingDetailOpen(true);
+  }, [railHomeResult]);
+
+  return (
+    <div
+      className={
+        railHomeResult.ok ? "text-muted-foreground text-xs" : "text-destructive text-xs"
+      }
+    >
+      <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+        <p className="font-medium">
+          {title}: {railHomeResult.ok ? "Homing finished" : "Homing failed"}
+        </p>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-7 shrink-0 px-2 text-[11px]"
+          aria-expanded={homingDetailOpen}
+          onClick={() => setHomingDetailOpen((o) => !o)}
+        >
+          {homingDetailOpen ? "Hide detail" : "Show detail"}
+        </Button>
+      </div>
+      {homingDetailOpen ? (
+        <>
+          {railHomeResult.motorSpanCounts != null ? (
+            <p>
+              Motor span:{" "}
+              <span className="font-mono text-foreground">{railHomeResult.motorSpanCounts.toFixed(1)}</span>{" "}
+              counts · mid target:{" "}
+              <span className="font-mono text-foreground">
+                {railHomeResult.midMotorPosition != null
+                  ? motorCountsForDisplay(railHomeResult.midMotorPosition)!.toFixed(1)
+                  : "—"}
+              </span>
+            </p>
+          ) : null}
+          {railHomeResult.motorAbsRevolutions != null ? (
+            <p>
+              Motor Board ∫|rpm|·dt/60 ≈{" "}
+              <span className="font-mono text-foreground">
+                {railHomeResult.motorAbsRevolutions.toFixed(2)}
+              </span>{" "}
+              rev (commanded-velocity estimate)
+            </p>
+          ) : null}
+          {railHomeResult.motorPositionZeroedAtMid != null ? (
+            <p>
+              Motor Board position at center:{" "}
+              {railHomeResult.motorPositionZeroedAtMid ? (
+                <span className="text-foreground">zeroed (Teknic)</span>
+              ) : (
+                <span className="text-destructive">zero failed — see log</span>
+              )}
+            </p>
+          ) : null}
+          {railHomeResult.log?.length ? (
+            <pre className="mt-2 max-h-36 overflow-auto whitespace-pre-wrap wrap-break-word rounded-md border border-border bg-muted/40 p-2 font-mono text-[10px] leading-relaxed">
+              {railHomeResult.log.join("\n")}
+            </pre>
+          ) : null}
+        </>
+      ) : null}
+    </div>
+  );
+}
+
 export const HomingControls = memo(function HomingControls() {
+  const mode = useAtomValue(grpcBackendModeAtom);
   const utils = trpc.useUtils();
   const motorConnected = useMotorStatusConnected().data ?? false;
   const sensorStatus = trpc.sensor.status.get.useQuery(undefined, {
@@ -14,22 +99,28 @@ export const HomingControls = memo(function HomingControls() {
   });
   const sensorConnected = sensorStatus.data?.connected ?? false;
 
-  const home = trpc.rail.home.useMutation({
+  const homeSingle = trpc.rail.home.useMutation({
     onSuccess: () => {
       void utils.status.get.invalidate();
+      void utils.twin.status.get.invalidate();
       void utils.sensor.status.get.invalidate();
+      void utils.twin.sensor.status.get.invalidate();
     },
   });
+  const homeTwin = trpc.twin.rail.home.useMutation({
+    onSuccess: () => {
+      void utils.status.get.invalidate();
+      void utils.twin.status.get.invalidate();
+      void utils.sensor.status.get.invalidate();
+      void utils.twin.sensor.status.get.invalidate();
+    },
+  });
+  const home = mode === "twin" ? homeTwin : homeSingle;
 
   const ready = motorConnected && sensorConnected;
   const disabled = !ready || home.isPending;
 
   const railHomeResult = home.data;
-  const [homingDetailOpen, setHomingDetailOpen] = useState(true);
-
-  useEffect(() => {
-    if (railHomeResult != null) setHomingDetailOpen(true);
-  }, [railHomeResult]);
 
   return (
     <Card className="flex flex-col gap-4 p-6">
@@ -65,66 +156,14 @@ export const HomingControls = memo(function HomingControls() {
       {home.error ? (
         <p className="text-destructive text-xs">{home.error.message}</p>
       ) : null}
-      {railHomeResult ? (
-        <div
-          className={
-            railHomeResult.ok ? "text-muted-foreground text-xs" : "text-destructive text-xs"
-          }
-        >
-          <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-            <p className="font-medium">{railHomeResult.ok ? "Homing finished" : "Homing failed"}</p>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-7 shrink-0 px-2 text-[11px]"
-              aria-expanded={homingDetailOpen}
-              onClick={() => setHomingDetailOpen((o) => !o)}
-            >
-              {homingDetailOpen ? "Hide detail" : "Show detail"}
-            </Button>
-          </div>
-          {homingDetailOpen ? (
-            <>
-              {railHomeResult.motorSpanCounts != null ? (
-                <p>
-                  Motor span:{" "}
-                  <span className="font-mono text-foreground">{railHomeResult.motorSpanCounts.toFixed(1)}</span>{" "}
-                  counts · mid target:{" "}
-                  <span className="font-mono text-foreground">
-                    {railHomeResult.midMotorPosition != null
-                      ? motorCountsForDisplay(railHomeResult.midMotorPosition)!.toFixed(1)
-                      : "—"}
-                  </span>
-                </p>
-              ) : null}
-              {railHomeResult.motorAbsRevolutions != null ? (
-                <p>
-                  Motor Board ∫|rpm|·dt/60 ≈{" "}
-                  <span className="font-mono text-foreground">
-                    {railHomeResult.motorAbsRevolutions.toFixed(2)}
-                  </span>{" "}
-                  rev (commanded-velocity estimate)
-                </p>
-              ) : null}
-              {railHomeResult.motorPositionZeroedAtMid != null ? (
-                <p>
-                  Motor Board position at center:{" "}
-                  {railHomeResult.motorPositionZeroedAtMid ? (
-                    <span className="text-foreground">zeroed (Teknic)</span>
-                  ) : (
-                    <span className="text-destructive">zero failed — see log</span>
-                  )}
-                </p>
-              ) : null}
-              {railHomeResult.log?.length ? (
-                <pre className="mt-2 max-h-36 overflow-auto whitespace-pre-wrap wrap-break-word rounded-md border border-border bg-muted/40 p-2 font-mono text-[10px] leading-relaxed">
-                  {railHomeResult.log.join("\n")}
-                </pre>
-              ) : null}
-            </>
-          ) : null}
+      {railHomeResult && "real" in railHomeResult ? (
+        <div className="flex flex-col gap-4">
+          <HomingResultDetail title="Hardware" railHomeResult={railHomeResult.real} />
+          <HomingResultDetail title="Simulation" railHomeResult={railHomeResult.sim} />
         </div>
+      ) : null}
+      {railHomeResult && !("real" in railHomeResult) ? (
+        <HomingResultDetail title="Rail" railHomeResult={railHomeResult} />
       ) : null}
     </Card>
   );

@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 
-export type GrpcBackendMode = "hardware" | "sim";
+export type GrpcBackendMode = "hardware" | "sim" | "twin";
 
 type Store = { mode: GrpcBackendMode };
 

@@ -107,17 +107,32 @@ describe("appRouter (motor mocked)", () => {
     expect(st.travelLimits?.left).toBe(-42);
   });
 
-  it("meta.backends exposes default coupled sim URL", async () => {
-    const prevPort = process.env.SIM_COUPLED_GRPC_PORT;
-    delete process.env.SIM_COUPLED_GRPC_PORT;
+  it("twin.connection.connect returns real ok when sim gRPC throws", async () => {
+    vi.mocked(motor.connectMotor)
+      .mockResolvedValueOnce({ ok: true, error: "" })
+      .mockRejectedValueOnce(Object.assign(new Error("14 UNAVAILABLE: sim down"), { code: 14 }));
     const caller = appRouter.createCaller({});
-    try {
-      const r = await caller.meta.backends();
-      expect(r.simDefaultUrl).toBe("http://127.0.0.1:58870");
-    } finally {
-      if (prevPort === undefined) delete process.env.SIM_COUPLED_GRPC_PORT;
-      else process.env.SIM_COUPLED_GRPC_PORT = prevPort;
-    }
+    const r = await caller.twin.connection.connect();
+    expect(r.real).toEqual({ ok: true, error: "" });
+    expect(r.sim.ok).toBe(false);
+    expect(r.sim.error).toContain("Motor service not reachable");
+  });
+
+  it("twin.status.get returns real and sim motor snapshots", async () => {
+    vi.mocked(motor.getMotorStatus).mockResolvedValue({
+      connected: true,
+      commandedRpm: 3,
+      detail: "ok",
+      measuredPosition: 9,
+    });
+    const caller = appRouter.createCaller({});
+    const r = await caller.twin.status.get();
+    expect(r.real.connected).toBe(true);
+    expect(r.real.commandedRpm).toBe(3);
+    expect(r.sim.connected).toBe(true);
+    expect(r.sim.commandedRpm).toBe(3);
+    expect(r.real.travelLimits).toEqual({ left: null, right: null });
+    expect(r.sim.travelLimits).toEqual({ left: null, right: null });
   });
 });
 

@@ -63,6 +63,17 @@ export function MotorStatusBlocks() {
                   ) : null}
                 </span>
               ) : null}
+              {status.data && "twinSimMotor" in status.data && status.data.twinSimMotor ? (
+                <span className="text-muted-foreground block font-mono text-[10px] leading-tight">
+                  Sim: {status.data.twinSimMotor.commandedRpm.toFixed(1)} rpm · pos{" "}
+                  <span className="text-sky-900 dark:text-sky-200">
+                    {formatMeasuredCounts(
+                      motorCountsForDisplay(status.data.twinSimMotor.measuredPosition),
+                    )}
+                  </span>{" "}
+                  counts
+                </span>
+              ) : null}
             </div>
           </div>
           {status.data?.connected ? <CartRailVisualizer /> : null}
@@ -91,7 +102,20 @@ export function MotorStatusBlocks() {
               </Button>
             )}
           </div>
-          {connect.data && !connect.data.ok && connect.data.error ? (
+          {connect.data && "real" in connect.data ? (
+            <>
+              {!connect.data.real.ok && connect.data.real.error ? (
+                <p className="text-destructive wrap-break-word whitespace-pre-wrap text-xs">
+                  {connect.data.real.error}
+                </p>
+              ) : null}
+              {!connect.data.sim.ok && connect.data.sim.error ? (
+                <p className="text-destructive wrap-break-word whitespace-pre-wrap text-xs">
+                  Sim motor: {connect.data.sim.error}
+                </p>
+              ) : null}
+            </>
+          ) : connect.data && !("real" in connect.data) && !connect.data.ok && connect.data.error ? (
             <p className="text-destructive wrap-break-word whitespace-pre-wrap text-xs">{connect.data.error}</p>
           ) : null}
           {connect.error ? (

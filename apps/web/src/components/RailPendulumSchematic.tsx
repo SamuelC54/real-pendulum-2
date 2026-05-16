@@ -4,8 +4,7 @@ import {
   motorCountsForDisplay,
 } from "@/lib/motorPositionDisplay";
 import { cn } from "@/lib/utils";
-import { trpc } from "@/trpc";
-import { useMotorStatusQuery } from "@/services/useMotorStatusQuery";
+import { useMotorStatusQuery, useSensorStatusQuery } from "@/services/useMotorStatusQuery";
 
 /** Match `EncoderDial` default (600 P/R × 4). */
 const COUNTS_PER_REV = 2400;
@@ -23,9 +22,7 @@ function formatMotor(n: number | undefined): string {
  */
 export const RailPendulumSchematic = memo(function RailPendulumSchematic() {
   const motor = useMotorStatusQuery();
-  const sensor = trpc.sensor.status.get.useQuery(undefined, {
-    refetchInterval: (q) => (q.state.data?.connected ? 80 : 1500),
-  });
+  const sensor = useSensorStatusQuery();
 
   const motorConnected = motor.data?.connected ?? false;
   const sensorConnected = sensor.data?.connected ?? false;
@@ -114,6 +111,23 @@ export const RailPendulumSchematic = memo(function RailPendulumSchematic() {
           </div>
         </div>
       </div>
+
+      {motor.data && "twinSimMotor" in motor.data && motor.data.twinSimMotor && sensor.data && "twinSimSensor" in sensor.data && sensor.data.twinSimSensor ? (
+        <div className="mb-3 grid grid-cols-2 gap-2 text-[11px] leading-tight">
+          <div className="rounded-md border border-sky-500/35 bg-sky-500/10 px-2 py-1.5 dark:bg-sky-500/15">
+            <div className="text-muted-foreground font-medium">Simulation · motor</div>
+            <div className="font-mono text-sky-950 tabular-nums dark:text-sky-100">
+              {formatMotor(motorCountsForDisplay(motor.data.twinSimMotor.measuredPosition))} cts
+            </div>
+          </div>
+          <div className="rounded-md border border-sky-500/35 bg-sky-500/10 px-2 py-1.5 dark:bg-sky-500/15">
+            <div className="text-muted-foreground font-medium">Simulation · encoder</div>
+            <div className="font-mono text-sky-950 tabular-nums dark:text-sky-100">
+              {sensor.data.twinSimSensor.encoderTicks} ticks
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <svg
         viewBox={`0 ${-vbTopPad} ${vbW} ${vbH + vbTopPad}`}

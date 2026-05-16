@@ -7,6 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useAtomValue } from "jotai";
 import { Crosshair, Home, LocateFixed } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -22,8 +23,9 @@ import {
   boundsFromTravelSwitchDisplays,
   motorCountsForDisplay,
 } from "@/lib/motorPositionDisplay";
+import { grpcBackendModeAtom } from "@/stores/grpcBackendMode";
 import { trpc } from "@/trpc";
-import { useMotorStatusQuery } from "@/services/useMotorStatusQuery";
+import { useMotorStatusQuery, useSensorStatusQuery } from "@/services/useMotorStatusQuery";
 
 function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n));
@@ -79,11 +81,10 @@ function ProfileSlider({
 }
 
 export const PositionMoveControls = memo(function PositionMoveControls() {
+  const mode = useAtomValue(grpcBackendModeAtom);
   const utils = trpc.useUtils();
   const status = useMotorStatusQuery();
-  const sensor = trpc.sensor.status.get.useQuery(undefined, {
-    refetchInterval: (q) => (q.state.data?.connected ? 80 : 1500),
-  });
+  const sensor = useSensorStatusQuery();
 
   const connected = status.data?.connected ?? false;
   const sensorConnected = sensor.data?.connected ?? false;
@@ -100,13 +101,33 @@ export const PositionMoveControls = memo(function PositionMoveControls() {
   const [maxAccelRpmPerSec, setMaxAccelRpmPerSec] = useState(DEFAULT_PROFILE_ACC_RPM_PER_SEC);
   const [targetCounts, setTargetCounts] = useState(0);
 
-  const moveAbsolute = trpc.rail.moveAbsolute.useMutation({
-    onSuccess: () => void utils.status.get.invalidate(),
+  const moveSingle = trpc.rail.moveAbsolute.useMutation({
+    onSuccess: () => {
+      void utils.status.get.invalidate();
+      void utils.twin.status.get.invalidate();
+    },
   });
+  const moveTwin = trpc.twin.rail.moveAbsolute.useMutation({
+    onSuccess: () => {
+      void utils.status.get.invalidate();
+      void utils.twin.status.get.invalidate();
+    },
+  });
+  const moveAbsolute = mode === "twin" ? moveTwin : moveSingle;
 
-  const recordTravelLimit = trpc.rail.limits.record.useMutation({
-    onSuccess: () => void utils.status.get.invalidate(),
+  const recordSingle = trpc.rail.limits.record.useMutation({
+    onSuccess: () => {
+      void utils.status.get.invalidate();
+      void utils.twin.status.get.invalidate();
+    },
   });
+  const recordTwin = trpc.twin.rail.limits.record.useMutation({
+    onSuccess: () => {
+      void utils.status.get.invalidate();
+      void utils.twin.status.get.invalidate();
+    },
+  });
+  const recordTravelLimit = mode === "twin" ? recordTwin : recordSingle;
 
   const busy = moveAbsolute.isPending;
   const disabled = !connected || busy;
@@ -292,7 +313,21 @@ export const PositionMoveControls = memo(function PositionMoveControls() {
       {moveAbsolute.error ? (
         <p className="text-destructive wrap-break-word text-xs">{moveAbsolute.error.message}</p>
       ) : null}
-      {moveAbsolute.data && !moveAbsolute.data.ok && moveAbsolute.data.error ? (
+      {moveAbsolute.data && "real" in moveAbsolute.data ? (
+        <>
+          {!moveAbsolute.data.real.ok && moveAbsolute.data.real.error ? (
+            <p className="text-destructive wrap-break-word text-xs">{moveAbsolute.data.real.error}</p>
+          ) : null}
+          {!moveAbsolute.data.sim.ok && moveAbsolute.data.sim.error ? (
+            <p className="text-destructive wrap-break-word text-xs">
+              Sim move: {moveAbsolute.data.sim.error}
+            </p>
+          ) : null}
+        </>
+      ) : moveAbsolute.data &&
+        !("real" in moveAbsolute.data) &&
+        !moveAbsolute.data.ok &&
+        moveAbsolute.data.error ? (
         <p className="text-destructive wrap-break-word text-xs">{moveAbsolute.data.error}</p>
       ) : null}
     </Card>

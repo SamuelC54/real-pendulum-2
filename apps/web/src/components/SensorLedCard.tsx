@@ -7,10 +7,13 @@ import {
   Usb,
 } from "lucide-react";
 import { useState } from "react";
+import { useAtomValue } from "jotai";
 import { Card } from "@/components/ui/card";
 import { EncoderDial } from "@/components/EncoderDial";
 import { LimitSwitchIndicators } from "@/components/LimitSwitchIndicators";
 import { Button } from "@/components/ui/button";
+import { grpcBackendModeAtom } from "@/stores/grpcBackendMode";
+import { useSensorStatusQuery } from "@/services/useMotorStatusQuery";
 import { trpc } from "@/trpc";
 
 function portLabel(p: {
@@ -24,6 +27,7 @@ function portLabel(p: {
 }
 
 export function SensorLedCard() {
+  const mode = useAtomValue(grpcBackendModeAtom);
   const utils = trpc.useUtils();
   const [serialPort, setSerialPort] = useState("");
 
@@ -31,28 +35,52 @@ export function SensorLedCard() {
     retry: 1,
   });
 
-  const status = trpc.sensor.status.get.useQuery(undefined, {
-    refetchInterval: (query) =>
-      query.state.data?.connected ? 80 : 1500,
+  const status = useSensorStatusQuery();
+
+  const invalidateSensorQueries = () => {
+    void utils.sensor.status.get.invalidate();
+    void utils.twin.sensor.status.get.invalidate();
+  };
+
+  const connectSingle = trpc.sensor.connection.connect.useMutation({
+    onSuccess: invalidateSensorQueries,
   });
-  const connect = trpc.sensor.connection.connect.useMutation({
-    onSuccess: () => void utils.sensor.status.get.invalidate(),
+  const connectTwin = trpc.twin.sensor.connection.connect.useMutation({
+    onSuccess: invalidateSensorQueries,
   });
-  const disconnect = trpc.sensor.connection.disconnect.useMutation({
-    onSuccess: () => void utils.sensor.status.get.invalidate(),
+  const connect = mode === "twin" ? connectTwin : connectSingle;
+
+  const disconnectSingle = trpc.sensor.connection.disconnect.useMutation({
+    onSuccess: invalidateSensorQueries,
   });
-  const toggleLed = trpc.sensor.led.toggle.useMutation({
-    onSuccess: () => void utils.sensor.status.get.invalidate(),
+  const disconnectTwin = trpc.twin.sensor.connection.disconnect.useMutation({
+    onSuccess: invalidateSensorQueries,
   });
+  const disconnect = mode === "twin" ? disconnectTwin : disconnectSingle;
+
+  const toggleSingle = trpc.sensor.led.toggle.useMutation({
+    onSuccess: invalidateSensorQueries,
+  });
+  const toggleTwin = trpc.twin.sensor.led.toggle.useMutation({
+    onSuccess: invalidateSensorQueries,
+  });
+  const toggleLed = mode === "twin" ? toggleTwin : toggleSingle;
+
   const flashFirmware = trpc.sensor.firmware.flash.useMutation({
     onSuccess: async () => {
       await utils.sensor.status.get.invalidate();
+      await utils.twin.sensor.status.get.invalidate();
       await utils.sensor.serial.list.invalidate();
     },
   });
-  const resetEncoder = trpc.sensor.encoder.reset.useMutation({
-    onSuccess: () => void utils.sensor.status.get.invalidate(),
+
+  const resetSingle = trpc.sensor.encoder.reset.useMutation({
+    onSuccess: invalidateSensorQueries,
   });
+  const resetTwin = trpc.twin.sensor.encoder.reset.useMutation({
+    onSuccess: invalidateSensorQueries,
+  });
+  const resetEncoder = mode === "twin" ? resetTwin : resetSingle;
 
   const ports = portsQuery.data ?? [];
   const busy =
@@ -71,9 +99,16 @@ export function SensorLedCard() {
 
   const connectError =
     connect.error?.message ??
-    (connect.isSuccess && connect.data && !connect.data.ok
-      ? connect.data.error
-      : undefined);
+    (connect.isSuccess && connect.data && "real" in connect.data
+      ? [
+          !connect.data.real.ok ? connect.data.real.error : null,
+          !connect.data.sim.ok ? connect.data.sim.error : null,
+        ]
+          .filter(Boolean)
+          .join(" · ")
+      : connect.isSuccess && connect.data && "ok" in connect.data && !connect.data.ok
+        ? connect.data.error
+        : undefined);
 
   const flashPort =
     portToConnect.trim() || status.data?.serialPort?.trim() || "";
@@ -110,6 +145,14 @@ export function SensorLedCard() {
           D5 right): connect to see switch state and where the cart is against the stops.
         </div>
       )}
+      {connected && status.data && "twinSimSensor" in status.data && status.data.twinSimSensor ? (
+        <p className="text-muted-foreground text-[10px] leading-snug">
+          <span className="font-medium text-sky-900 dark:text-sky-200">Simulation</span> (same command
+          mirrored): encoder {status.data.twinSimSensor.encoderTicks} ticks · limits L
+          {status.data.twinSimSensor.limitLeftPressed ? " on" : " off"} · R
+          {status.data.twinSimSensor.limitRightPressed ? " on" : " off"}
+        </p>
+      ) : null}
       {!connected ? (
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
           <label className="flex min-w-[200px] flex-1 flex-col gap-1 text-xs">
@@ -229,6 +272,20 @@ export function SensorLedCard() {
       ) : null}
       {resetEncoder.isSuccess &&
       resetEncoder.data &&
+      "real" in resetEncoder.data &&
+      (!resetEncoder.data.real.ok || !resetEncoder.data.sim.ok) ? (
+        <p className="text-destructive text-xs">
+          {!resetEncoder.data.real.ok && resetEncoder.data.real.error
+            ? resetEncoder.data.real.error
+            : null}
+          {!resetEncoder.data.sim.ok && resetEncoder.data.sim.error
+            ? `${!resetEncoder.data.real.ok ? " · " : ""}Sim: ${resetEncoder.data.sim.error}`
+            : null}
+        </p>
+      ) : null}
+      {resetEncoder.isSuccess &&
+      resetEncoder.data &&
+      !("real" in resetEncoder.data) &&
       !resetEncoder.data.ok &&
       resetEncoder.data.error ? (
         <p className="text-destructive text-xs">{resetEncoder.data.error}</p>
