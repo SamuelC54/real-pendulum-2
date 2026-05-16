@@ -32,6 +32,8 @@ message DisconnectReply {
 
 message SetJogVelocityRequest {
   double rpm = 1;
+  // Caps Motion.AccLimit (RPM/s) for this jog. Omit or non-positive to use compile-time default.
+  optional double max_acceleration_rpm_per_sec = 2;
 }
 
 message SetJogVelocityReply {

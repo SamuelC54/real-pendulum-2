@@ -146,7 +146,7 @@ __declspec(dllexport) void __cdecl teknic_shutdown(void) {
   g_teknic_detail.clear();
 }
 
-__declspec(dllexport) int __cdecl teknic_set_velocity_rpm(double rpm) {
+__declspec(dllexport) int __cdecl teknic_set_velocity_rpm(double rpm, double acc_limit_rpm_per_sec) {
   std::lock_guard<std::recursive_mutex> lock(g_teknic_mu);
   if (!g_teknic_initialized || !g_teknic_node) {
     return -1;
@@ -163,6 +163,22 @@ __declspec(dllexport) int __cdecl teknic_set_velocity_rpm(double rpm) {
   try {
     if (!g_teknic_node->Motion.IsReady()) {
       return -5;
+    }
+
+    double acc_lim = static_cast<double>(TeknicCfg::kAccLimitRpmPerSec);
+    if (std::isfinite(acc_limit_rpm_per_sec) && acc_limit_rpm_per_sec > 0) {
+      acc_lim = std::min(
+          acc_limit_rpm_per_sec,
+          static_cast<double>(TeknicCfg::kPositionMoveAccCeilingRpmPerSec));
+    }
+
+    try {
+      g_teknic_node->AccUnit(INode::RPM_PER_SEC);
+    } catch (mnErr&) {
+    }
+    try {
+      g_teknic_node->Motion.AccLimit = acc_lim;
+    } catch (mnErr&) {
     }
 
     try {
@@ -187,7 +203,7 @@ __declspec(dllexport) int __cdecl teknic_set_velocity_rpm(double rpm) {
 }
 
 __declspec(dllexport) int __cdecl teknic_stop(void) {
-  return teknic_set_velocity_rpm(0.0);
+  return teknic_set_velocity_rpm(0.0, NAN);
 }
 
 /**

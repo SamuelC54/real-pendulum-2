@@ -63,8 +63,16 @@ export async function disconnectMotor(): Promise<{ ok: boolean; error: string }>
   return { ok: r.ok, error: r.errorMessage ?? "" };
 }
 
-export async function setJogVelocityRpm(rpm: number): Promise<{ ok: boolean; error: string }> {
-  const r = await getClient().setJogVelocity({ rpm });
+export async function setJogVelocityRpm(
+  rpm: number,
+  options?: { maxAccelerationRpmPerSec?: number },
+): Promise<{ ok: boolean; error: string }> {
+  const r = await getClient().setJogVelocity({
+    rpm,
+    ...(options?.maxAccelerationRpmPerSec !== undefined
+      ? { maxAccelerationRpmPerSec: options.maxAccelerationRpmPerSec }
+      : {}),
+  });
   return { ok: r.ok, error: r.errorMessage ?? "" };
 }
 

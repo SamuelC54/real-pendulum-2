@@ -57,7 +57,10 @@ function routes(router: ConnectRouter): void {
     },
     async setJogVelocity(req: SetJogVelocityRequest) {
       const rpm = req.rpm ?? 0;
-      const code = teknic.setVelocityRpm(rpm);
+      const ma = req.maxAccelerationRpmPerSec;
+      const acc =
+        ma !== undefined && Number.isFinite(ma) && ma > 0 ? ma : Number.NaN;
+      const code = teknic.setVelocityRpm(rpm, acc);
       if (code !== 0) {
         return create(SetJogVelocityReplySchema, {
           ok: false,

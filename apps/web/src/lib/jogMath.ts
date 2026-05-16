@@ -1,5 +1,11 @@
-/** Commanded jog magnitude used by the rail UI (rpm); sign comes from direction. */
-export const JOG_RPM = 120;
+/** Default jog speed magnitude (rpm); sign comes from direction. */
+export const JOG_RPM_DEFAULT = 120;
+
+/** @deprecated Use {@link JOG_RPM_DEFAULT} */
+export const JOG_RPM = JOG_RPM_DEFAULT;
+
+/** Software clamp on Teknic jog (`TeknicCfg::kJogVelLimitRpm`). */
+export const JOG_RPM_SLIDER_MAX = 500;
 
 /**
  * Default host **`Motion.AccLimit`** (RPM/s with `AccUnit` RPM_PER_SEC) for move-to-position UI — matches
@@ -19,8 +25,9 @@ import { displayCountsPerCm } from "@/lib/railPositionCm";
 export const POSITION_TARGET_SLIDER_MIN_CM = -1000 / displayCountsPerCm();
 export const POSITION_TARGET_SLIDER_MAX_CM = 1000 / displayCountsPerCm();
 
-export function jogRpmForDirection(dir: "left" | "right"): number {
-  return dir === "left" ? JOG_RPM : -JOG_RPM;
+export function jogRpmForDirection(dir: "left" | "right", magnitudeRpm = JOG_RPM_DEFAULT): number {
+  const mag = Math.abs(magnitudeRpm);
+  return dir === "left" ? mag : -mag;
 }
 
 export type TravelLimitSwitchState = {

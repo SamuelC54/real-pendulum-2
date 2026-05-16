@@ -43,9 +43,13 @@ export function guardMoveAbsolutePositionCm(
 
 export async function setJogVelocityRpmRespectingTravelLimits(
   rpm: number,
+  options?: { maxAccelerationRpmPerSec?: number },
 ): Promise<{ ok: boolean; error: string }> {
   const limits = await sensor.getSensorStatus();
   const effective = clampJogRpmForTravelLimits(rpm, limits);
+  if (options?.maxAccelerationRpmPerSec !== undefined) {
+    return motor.setJogVelocityRpm(effective, options);
+  }
   return motor.setJogVelocityRpm(effective);
 }
 

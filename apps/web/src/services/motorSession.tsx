@@ -9,7 +9,7 @@ import {
 } from "react";
 import { useAtomValue, useSetAtom } from "jotai";
 import { jogRpmForDirection, shouldReleaseJogHoldForTravelLimit } from "@/lib/jogMath";
-import { holdingAtom, type JogHold } from "@/stores/jog";
+import { holdingAtom, jogAccelRpmPerSecAtom, jogRpmAtom, type JogHold } from "@/stores/jog";
 import { trpc } from "@/trpc";
 import { useConnectMotorMutation } from "./useConnectMotorMutation";
 import { useDisconnectMotorMutation } from "./useDisconnectMotorMutation";
@@ -34,6 +34,8 @@ export const MotorSessionContext = createContext<MotorSessionValue | null>(null)
 export function MotorSessionProvider({ children }: { children: ReactNode }) {
   const { data: connected = false } = useMotorStatusConnected();
   const holding = useAtomValue(holdingAtom);
+  const jogRpm = useAtomValue(jogRpmAtom);
+  const jogAccelRpmPerSec = useAtomValue(jogAccelRpmPerSecAtom);
   const sensor = useSensorStatusQuery();
   const utils = trpc.useUtils();
   const connect = useConnectMotorMutation();
@@ -60,10 +62,13 @@ export function MotorSessionProvider({ children }: { children: ReactNode }) {
         invalidateMotorQueries();
         return;
       }
-      await setVelocity.mutateAsync({ rpm: jogRpmForDirection(dir) });
+      await setVelocity.mutateAsync({
+        rpm: jogRpmForDirection(dir, jogRpm),
+        maxAccelerationRpmPerSec: jogAccelRpmPerSec,
+      });
       invalidateMotorQueries();
     },
-    [connected, setHolding, stop, setVelocity, invalidateMotorQueries],
+    [connected, setHolding, stop, setVelocity, invalidateMotorQueries, jogRpm, jogAccelRpmPerSec],
   );
 
   applyHoldRef.current = applyHold;

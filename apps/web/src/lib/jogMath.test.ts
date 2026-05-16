@@ -17,6 +17,11 @@ describe("jogMath", () => {
     expect(jogRpmForDirection("right")).toBe(-JOG_RPM);
   });
 
+  it("uses custom magnitude from sliders", () => {
+    expect(jogRpmForDirection("left", 80)).toBe(80);
+    expect(jogRpmForDirection("right", 80)).toBe(-80);
+  });
+
   it("shouldReleaseJogHoldForTravelLimit when hold direction hits a switch", () => {
     const limits = { connected: true, limitLeftPressed: true, limitRightPressed: false };
     expect(shouldReleaseJogHoldForTravelLimit("left", limits)).toBe(true);

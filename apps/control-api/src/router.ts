@@ -168,10 +168,17 @@ export const appRouter = t.router({
   }),
   jog: t.router({
     setVelocity: publicProcedure
-      .input(z.object({ rpm: z.number().finite() }))
+      .input(
+        z.object({
+          rpm: z.number().finite(),
+          maxAccelerationRpmPerSec: z.number().finite().positive().optional(),
+        }),
+      )
       .mutation(async ({ input }) => {
         try {
-          return await setJogVelocityRpmRespectingTravelLimits(input.rpm);
+          return await setJogVelocityRpmRespectingTravelLimits(input.rpm, {
+            maxAccelerationRpmPerSec: input.maxAccelerationRpmPerSec,
+          });
         } catch (e) {
           throw new Error(`motor: ${friendlyMotorError(e)}`);
         }
@@ -338,18 +345,24 @@ export const appRouter = t.router({
     }),
     jog: t.router({
       setVelocity: baseProcedure
-        .input(z.object({ rpm: z.number().finite() }))
+        .input(
+          z.object({
+            rpm: z.number().finite(),
+            maxAccelerationRpmPerSec: z.number().finite().positive().optional(),
+          }),
+        )
         .mutation(async ({ input }) => {
+          const opts = { maxAccelerationRpmPerSec: input.maxAccelerationRpmPerSec };
           const real = await withHardwareGrpc(async () => {
             try {
-              return await setJogVelocityRpmRespectingTravelLimits(input.rpm);
+              return await setJogVelocityRpmRespectingTravelLimits(input.rpm, opts);
             } catch (e) {
               throw new Error(`motor: ${friendlyMotorError(e)}`);
             }
           });
           const sim = await withSimGrpc(async () => {
             try {
-              return await setJogVelocityRpmRespectingTravelLimits(input.rpm);
+              return await setJogVelocityRpmRespectingTravelLimits(input.rpm, opts);
             } catch (e) {
               return { ok: false as const, error: friendlyMotorError(e) };
             }

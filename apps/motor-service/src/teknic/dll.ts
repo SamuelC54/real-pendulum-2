@@ -10,7 +10,7 @@ import koffi from "koffi";
 export type TeknicNative = {
   init(): number;
   shutdown(): void;
-  setVelocityRpm(rpm: number): number;
+  setVelocityRpm(rpm: number, accLimitRpmPerSec: number): number;
   stop(): number;
   getCommandedRpm(): number;
   /** `Motion.PosnMeasured` counts, or NaN if unavailable. */
@@ -59,7 +59,9 @@ export function loadTeknic(pkgRoot: string): TeknicNative {
 
   const teknic_init = lib.func("int teknic_init(void)");
   const teknic_shutdown = lib.func("void teknic_shutdown(void)");
-  const teknic_set_velocity_rpm = lib.func("int teknic_set_velocity_rpm(double rpm)");
+  const teknic_set_velocity_rpm = lib.func(
+    "int teknic_set_velocity_rpm(double rpm, double acc_limit_rpm_per_sec)",
+  );
   const teknic_stop = lib.func("int teknic_stop(void)");
   const teknic_get_commanded_rpm = lib.func("double teknic_get_commanded_rpm(void)");
   const teknic_get_posn_measured = lib.func("double teknic_get_posn_measured(void)");
@@ -76,7 +78,8 @@ export function loadTeknic(pkgRoot: string): TeknicNative {
   return {
     init: () => teknic_init() as number,
     shutdown: () => teknic_shutdown(),
-    setVelocityRpm: (rpm: number) => teknic_set_velocity_rpm(rpm) as number,
+    setVelocityRpm: (rpm: number, accLimitRpmPerSec: number) =>
+      teknic_set_velocity_rpm(rpm, accLimitRpmPerSec) as number,
     stop: () => teknic_stop() as number,
     getCommandedRpm: () => teknic_get_commanded_rpm() as number,
     getPosnMeasured: () => teknic_get_posn_measured() as number,
