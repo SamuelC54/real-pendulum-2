@@ -60,10 +60,7 @@ export type AppConfig = {
     coupledGrpcPort: number;
     motorSimGrpcUrl?: string;
     sensorSimGrpcUrl?: string;
-    metersPerDisplayCount: number;
-    mpsPerRpm: number;
-    limitLeftXM: number;
-    limitRightXM: number;
+    /** Plant tuning lives in `config/coupled-sim.parameters.json` (see `@real-pendulum/app-config/coupled-sim-parameters`). */
   };
 
   flash: {
@@ -137,10 +134,6 @@ export const config: AppConfig = {
     coupledGrpcPort: 58870,
     motorSimGrpcUrl: undefined,
     sensorSimGrpcUrl: undefined,
-    metersPerDisplayCount: 1e-4,
-    mpsPerRpm: 5e-5,
-    limitLeftXM: -0.4,
-    limitRightXM: 0.4,
   },
 
   flash: {

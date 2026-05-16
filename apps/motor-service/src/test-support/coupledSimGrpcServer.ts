@@ -34,7 +34,10 @@ import {
   SerialPortInfoSchema,
   ToggleLedReplySchema,
 } from "@real-pendulum/motor-proto/gen/sensor_pb.js";
-import { config } from "@real-pendulum/app-config";
+import {
+  loadCoupledSimParametersForStartup,
+  type CoupledSimParameters,
+} from "@real-pendulum/app-config/coupled-sim-parameters";
 
 export type CoupledSimGrpcOptions = {
   port?: number;
@@ -163,23 +166,36 @@ function handleAdminConfig(
   res.end("GET or PATCH only");
 }
 
-export function createCoupledSimGrpcModel(
-  partial?: Partial<CoupledSimGrpcOptions> & { plant?: CartPendulumPlant },
-): CoupledSimGrpcModel {
-  const sim = config.sim;
-  const metersPerDisplayCount = partial?.metersPerDisplayCount ?? sim.metersPerDisplayCount;
-  const mpsPerRpm = partial?.mpsPerRpm ?? sim.mpsPerRpm;
-  const limitLeftXM = partial?.limitLeftXM ?? sim.limitLeftXM;
-  const limitRightXM = partial?.limitRightXM ?? sim.limitRightXM;
-  const plant =
-    partial?.plant ??
-    createCartPendulumPlant(undefined, {
+function plantFromParameters(file: CoupledSimParameters): CartPendulumPlant {
+  const { plant } = file;
+  return createCartPendulumPlant(
+    {
+      gravity: plant.gravity,
+      pendulumLengthM: plant.pendulumLengthM,
+      cartVelocityTrackingPerSec: plant.cartVelocityTrackingPerSec,
+      angularDampingPerSec: plant.angularDampingPerSec,
+      encoderTicksPerRadian: plant.encoderTicksPerRadian,
+      ...(plant.maxInternalStepSec != null ? { maxInternalStepSec: plant.maxInternalStepSec } : {}),
+    },
+    {
       xM: 0,
       vMps: 0,
       thetaRad: 0.05,
       omegaRps: 0,
       vCmdMps: 0,
-    });
+    },
+  );
+}
+
+export function createCoupledSimGrpcModel(
+  partial?: Partial<CoupledSimGrpcOptions> & { plant?: CartPendulumPlant },
+): CoupledSimGrpcModel {
+  const file = loadCoupledSimParametersForStartup();
+  const metersPerDisplayCount = partial?.metersPerDisplayCount ?? file.metersPerDisplayCount;
+  const mpsPerRpm = partial?.mpsPerRpm ?? file.mpsPerRpm;
+  const limitLeftXM = partial?.limitLeftXM ?? file.limitLeftXM;
+  const limitRightXM = partial?.limitRightXM ?? file.limitRightXM;
+  const plant = partial?.plant ?? plantFromParameters(file);
   return {
     plant,
     motorConnected: false,

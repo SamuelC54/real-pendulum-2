@@ -126,7 +126,10 @@ export function TuningPage() {
     retry: 1,
   });
   const patchSim = trpc.tuning.simConfig.patch.useMutation({
-    onSuccess: () => void simConfigQuery.refetch(),
+    onSuccess: (data) => {
+      void simConfigQuery.refetch();
+      if (data.ok && data.config) setForm(configToForm(data.config));
+    },
   });
 
   const [form, setForm] = useState<SimConfigForm | null>(null);
@@ -387,6 +390,18 @@ export function TuningPage() {
 
       <Card className="p-4">
         <h2 className="text-sm font-medium">Coupled simulation parameters</h2>
+        <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
+          Stored in{" "}
+          <code className="text-foreground">config/coupled-sim.parameters.json</code>
+          {simConfigQuery.data?.path ? (
+            <>
+              {" "}
+              (<span className="break-all font-mono text-[10px]">{simConfigQuery.data.path}</span>)
+            </>
+          ) : null}
+          . Read/write via <code className="text-foreground">tuning.simConfig.get</code>,{" "}
+          <code className="text-foreground">patch</code>, or <code className="text-foreground">put</code>.
+        </p>
         {simConfigQuery.data && !simConfigQuery.data.ok ? (
           <p className="text-destructive mt-2 text-xs">{simConfigQuery.data.error}</p>
         ) : null}
@@ -443,7 +458,7 @@ export function TuningPage() {
             </div>
             <div className="mt-4 flex flex-wrap gap-2">
               <Button type="button" size="sm" disabled={patchSim.isPending} onClick={applyForm}>
-                Apply to running sim
+                Save JSON & apply to sim
               </Button>
               <Button
                 type="button"
@@ -451,10 +466,12 @@ export function TuningPage() {
                 variant="outline"
                 onClick={() => {
                   setSavedProfile(form);
-                  void navigator.clipboard.writeText(formToConfigSnippet(form));
+                  void navigator.clipboard.writeText(
+                    formToConfigSnippet(form, simConfigQuery.data?.path),
+                  );
                 }}
               >
-                Save profile & copy config snippet
+                Copy JSON
               </Button>
               {savedProfile ? (
                 <Button type="button" size="sm" variant="ghost" onClick={() => setForm(savedProfile)}>
@@ -465,8 +482,15 @@ export function TuningPage() {
             {patchSim.error ? (
               <p className="text-destructive mt-2 text-xs">{patchSim.error.message}</p>
             ) : null}
-            {patchSim.isSuccess ? (
-              <p className="text-muted-foreground mt-2 text-xs">Parameters applied to coupled sim plant.</p>
+            {patchSim.isSuccess && patchSim.data?.ok ? (
+              <p className="text-muted-foreground mt-2 text-xs">
+                Saved to JSON
+                {patchSim.data.runtimeApplied
+                  ? " and applied to the running coupled sim."
+                  : patchSim.data.runtimeWarning
+                    ? ` (${patchSim.data.runtimeWarning})`
+                    : "."}
+              </p>
             ) : null}
           </>
         ) : (

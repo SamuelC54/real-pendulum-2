@@ -1,6 +1,10 @@
 import { config } from "@real-pendulum/app-config";
 import { initTRPC } from "@trpc/server";
 import superjson from "superjson";
+import {
+  coupledSimParametersPatchSchema,
+  coupledSimParametersSchema,
+} from "@real-pendulum/app-config/coupled-sim-parameters";
 import { z } from "zod";
 import { friendlyMotorGrpcError } from "./motorErrors.js";
 import { friendlySensorGrpcError } from "./sensorErrors.js";
@@ -24,10 +28,10 @@ import {
 } from "./railLimitGuards.js";
 import { withHardwareGrpc, withSimGrpc } from "./twinGrpc.js";
 import {
-  fetchCoupledSimConfig,
-  patchCoupledSimConfig,
-  type CoupledSimConfigSnapshot,
-} from "./tuningSimAdmin.js";
+  getCoupledSimConfigFromFile,
+  patchCoupledSimConfigFile,
+  putCoupledSimConfigFile,
+} from "./coupledSimConfigFile.js";
 
 function friendlyMotorError(err: unknown): string {
   return friendlyMotorGrpcError(motor.motorConnectBaseUrl(), err);
@@ -544,26 +548,14 @@ export const appRouter = t.router({
       },
     })),
     simConfig: t.router({
-      get: baseProcedure.query(() => fetchCoupledSimConfig()),
+      /** Read `config/coupled-sim.parameters.json` (strict — all fields required). */
+      get: baseProcedure.query(() => getCoupledSimConfigFromFile()),
       patch: baseProcedure
-        .input(
-          z.object({
-            metersPerDisplayCount: z.number().finite().positive().optional(),
-            mpsPerRpm: z.number().finite().optional(),
-            limitLeftXM: z.number().finite().optional(),
-            limitRightXM: z.number().finite().optional(),
-            plant: z
-              .object({
-                gravity: z.number().finite().positive().optional(),
-                pendulumLengthM: z.number().finite().positive().optional(),
-                cartVelocityTrackingPerSec: z.number().finite().positive().optional(),
-                angularDampingPerSec: z.number().finite().nonnegative().optional(),
-                encoderTicksPerRadian: z.number().finite().positive().optional(),
-              })
-              .optional(),
-          }),
-        )
-        .mutation(async ({ input }) => patchCoupledSimConfig(input as Partial<CoupledSimConfigSnapshot>)),
+        .input(coupledSimParametersPatchSchema)
+        .mutation(async ({ input }) => patchCoupledSimConfigFile(input)),
+      put: baseProcedure
+        .input(coupledSimParametersSchema)
+        .mutation(async ({ input }) => putCoupledSimConfigFile(input)),
     }),
   }),
 });

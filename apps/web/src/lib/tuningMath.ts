@@ -478,13 +478,22 @@ export function formToPatch(form: SimConfigForm) {
   };
 }
 
-export function formToConfigSnippet(form: SimConfigForm): string {
-  return [
-    `// packages/app-config/src/config.ts — sim section`,
-    `metersPerDisplayCount: ${form.metersPerDisplayCount},`,
-    `mpsPerRpm: ${form.mpsPerRpm},`,
-    `limitLeftXM: ${form.limitLeftXM},`,
-    `limitRightXM: ${form.limitRightXM},`,
-    `// Plant params: applied live via tuning UI PATCH; restart serve:coupled-sim after edits.`,
-  ].join("\n");
+export function formToConfigSnippet(form: SimConfigForm, jsonPath = "config/coupled-sim.parameters.json"): string {
+  return JSON.stringify(
+    {
+      metersPerDisplayCount: form.metersPerDisplayCount,
+      mpsPerRpm: form.mpsPerRpm,
+      limitLeftXM: form.limitLeftXM,
+      limitRightXM: form.limitRightXM,
+      plant: {
+        gravity: form.gravity,
+        pendulumLengthM: form.pendulumLengthM,
+        cartVelocityTrackingPerSec: form.cartVelocityTrackingPerSec,
+        angularDampingPerSec: form.angularDampingPerSec,
+        encoderTicksPerRadian: form.encoderTicksPerRadian,
+      },
+    },
+    null,
+    2,
+  ).concat(`\n// Save as ${jsonPath} or use tuning.simConfig.patch / put via control-api.\n`);
 }

@@ -6,6 +6,10 @@
   "exports": {
     ".": "./src/config.ts",
     "./cli": "./src/cli.ts",
-    "./node": "./src/node.ts"
+    "./node": "./src/node.ts",
+    "./coupled-sim-parameters": "./src/coupledSimParameters.ts"
+  },
+  "dependencies": {
+    "zod": "^3.24.4"
   }
 }

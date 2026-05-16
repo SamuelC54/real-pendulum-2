@@ -19,30 +19,8 @@ function adminConfigUrl(): string {
   return `${base}/admin/config`;
 }
 
-export async function fetchCoupledSimConfig(): Promise<{
-  ok: boolean;
-  config?: CoupledSimConfigSnapshot;
-  error?: string;
-}> {
-  try {
-    const res = await fetch(adminConfigUrl(), { method: "GET" });
-    if (!res.ok) {
-      return {
-        ok: false,
-        error: `Coupled sim admin GET ${res.status} — is serve:coupled-sim running at ${adminConfigUrl()}?`,
-      };
-    }
-    const config = (await res.json()) as CoupledSimConfigSnapshot;
-    return { ok: true, config };
-  } catch (e) {
-    return {
-      ok: false,
-      error: e instanceof Error ? e.message : String(e),
-    };
-  }
-}
-
-export async function patchCoupledSimConfig(
+/** Push parameters to the running coupled sim process (in-memory). */
+export async function applyCoupledSimRuntimePatch(
   patch: Partial<CoupledSimConfigSnapshot> & { plant?: Partial<CoupledSimConfigSnapshot["plant"]> },
 ): Promise<{ ok: boolean; config?: CoupledSimConfigSnapshot; error?: string }> {
   try {

@@ -1,0 +1,14 @@
+{
+  "metersPerDisplayCount": 0.0002,
+  "mpsPerRpm": 0.00005,
+  "limitLeftXM": -0.4,
+  "limitRightXM": 0.4,
+  "plant": {
+    "gravity": 9.80665,
+    "pendulumLengthM": 0.35,
+    "cartVelocityTrackingPerSec": 12,
+    "angularDampingPerSec": 0.04,
+    "encoderTicksPerRadian": 381.9718714062765,
+    "maxInternalStepSec": 0.004166666666666667
+  }
+}
