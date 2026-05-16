@@ -78,7 +78,10 @@ export function MotorStatusBlocks() {
               ) : null}
             </div>
           </div>
-          {status.data?.connected ? <CartRailVisualizer /> : null}
+          {status.data?.connected ||
+          (status.data && "twinSimMotor" in status.data && status.data.twinSimMotor?.connected) ? (
+            <CartRailVisualizer />
+          ) : null}
           <div className="flex flex-wrap gap-2">
             {!connected && mode === "sim" ? (
               <p className="text-muted-foreground text-xs leading-relaxed">
