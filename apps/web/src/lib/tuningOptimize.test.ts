@@ -19,22 +19,14 @@ function synthesizeSamples(form: SimConfigForm, n: number, rpm: number): TuningS
     simMotorCm: null,
     realEncoderTicks: 0,
     simEncoderTicks: 0,
-    realLimitLeft: false,
-    realLimitRight: false,
-    simLimitLeft: false,
-    simLimitRight: false,
   }));
   const trace = replayTwinTrace(template, form);
   return template.map((s, i) => ({
     ...s,
     realMotorCm: trace[i]!.motorCm,
     realEncoderTicks: trace[i]!.encoderTicks,
-    realLimitLeft: trace[i]!.limitLeft,
-    realLimitRight: trace[i]!.limitRight,
     simMotorCm: trace[i]!.motorCm + 0.5,
     simEncoderTicks: trace[i]!.encoderTicks,
-    simLimitLeft: trace[i]!.limitLeft,
-    simLimitRight: trace[i]!.limitRight,
   }));
 }
 

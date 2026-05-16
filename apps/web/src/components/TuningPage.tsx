@@ -8,9 +8,9 @@ import {
   configToForm,
   formToConfigSnippet,
   formToPatch,
-  samplesToCsv,
   summarizeTuningError,
   type SimConfigForm,
+  type TuningSample,
 } from "@/lib/tuningMath";
 import {
   applyOptimizedToForm,
@@ -19,7 +19,7 @@ import {
   type TuningParamChange,
 } from "@/lib/tuningOptimize";
 import { grpcBackendModeAtom } from "@/stores/grpcBackendMode";
-import { tuningRecordingAtom, tuningSamplesAtom } from "@/stores/tuningSession";
+import { TUNING_COMPARE_POLL_IDLE_MS } from "@/stores/tuningSession";
 import { tuningErrorWeightsAtom, tuningProfileAtom } from "@/stores/tuningProfile";
 import {
   encoderCountsPerRevolution,
@@ -96,12 +96,42 @@ export function TuningPage() {
   const [weights] = useAtom(tuningErrorWeightsAtom);
   const [savedProfile, setSavedProfile] = useAtom(tuningProfileAtom);
 
-  const [recording, setRecording] = useAtom(tuningRecordingAtom);
-  const [samples, setSamples] = useAtom(tuningSamplesAtom);
+  const utils = trpc.useUtils();
+
+  const recordStatus = trpc.tuning.record.status.useQuery(undefined, {
+    enabled: mode === "twin",
+    refetchInterval: (q) => (q.state.data?.recording ? 400 : 2000),
+  });
+  const recording = recordStatus.data?.recording ?? false;
+
+  const samplesQuery = trpc.tuning.record.samples.useQuery(undefined, {
+    enabled: mode === "twin",
+    refetchInterval: recording ? 500 : false,
+  });
+  const samples: TuningSample[] = samplesQuery.data ?? [];
+
+  const startRecord = trpc.tuning.record.start.useMutation({
+    onSuccess: () => {
+      void utils.tuning.record.status.invalidate();
+      void utils.tuning.record.samples.invalidate();
+    },
+  });
+  const stopRecord = trpc.tuning.record.stop.useMutation({
+    onSuccess: () => {
+      void utils.tuning.record.status.invalidate();
+      void utils.tuning.record.samples.invalidate();
+    },
+  });
+  const clearRecord = trpc.tuning.record.clear.useMutation({
+    onSuccess: () => {
+      void utils.tuning.record.status.invalidate();
+      void utils.tuning.record.samples.invalidate();
+    },
+  });
 
   const compare = trpc.tuning.compare.useQuery(undefined, {
     enabled: mode === "twin",
-    refetchInterval: recording ? 120 : 400,
+    refetchInterval: TUNING_COMPARE_POLL_IDLE_MS,
   });
 
   const simConfigQuery = trpc.tuning.simConfig.get.useQuery(undefined, {
@@ -139,15 +169,16 @@ export function TuningPage() {
   const realPos = live?.real.motor.positionCm;
   const simPos = live?.sim.motor.positionCm;
 
-  const exportCsv = useCallback(() => {
-    const blob = new Blob([samplesToCsv(samples)], { type: "text/csv;charset=utf-8" });
+  const exportCsv = useCallback(async () => {
+    const csv = await utils.client.tuning.record.exportCsv.query();
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
     a.download = `twin-tuning-${new Date().toISOString().replace(/[:.]/g, "-")}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [samples]);
+  }, [utils.client.tuning.record.exportCsv]);
 
   const applyForm = () => {
     if (!form) return;
@@ -183,17 +214,28 @@ export function TuningPage() {
           <p className="text-muted-foreground mt-1 text-sm leading-relaxed">
             Record traces while jogging from the left column. Tune plant physics and apply patches live to
             the coupled sim (requires <code className="text-foreground">serve:coupled-sim</code>).
-            Recording continues if you switch to Control.
+            Samples are captured on control-api while recording (continues on the Control tab).
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           {!recording ? (
-            <Button type="button" size="sm" onClick={() => setRecording(true)}>
+            <Button
+              type="button"
+              size="sm"
+              disabled={startRecord.isPending}
+              onClick={() => startRecord.mutate()}
+            >
               <Play className="mr-2 h-4 w-4" aria-hidden />
               Record
             </Button>
           ) : (
-            <Button type="button" size="sm" variant="secondary" onClick={() => setRecording(false)}>
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              disabled={stopRecord.isPending}
+              onClick={() => stopRecord.mutate()}
+            >
               <CircleStop className="mr-2 h-4 w-4" aria-hidden />
               Stop
             </Button>
@@ -203,7 +245,7 @@ export function TuningPage() {
             size="sm"
             variant="outline"
             disabled={samples.length === 0}
-            onClick={exportCsv}
+            onClick={() => void exportCsv()}
           >
             <Download className="mr-2 h-4 w-4" aria-hidden />
             Export CSV
@@ -212,8 +254,8 @@ export function TuningPage() {
             type="button"
             size="sm"
             variant="ghost"
-            disabled={samples.length === 0}
-            onClick={() => setSamples([])}
+            disabled={samples.length === 0 || clearRecord.isPending}
+            onClick={() => clearRecord.mutate()}
           >
             <Trash2 className="mr-2 h-4 w-4" aria-hidden />
             Clear
@@ -263,24 +305,6 @@ export function TuningPage() {
                     real={live?.real.sensor.encoderTicks ?? null}
                     sim={live?.sim.sensor.encoderTicks ?? null}
                   />
-                </td>
-              </tr>
-              <tr>
-                <td className="py-2 pr-4 font-sans">Limits L / R</td>
-                <td className="py-2 pr-4">
-                  {live?.real.sensor.limitLeftPressed ? "L" : "·"} /{" "}
-                  {live?.real.sensor.limitRightPressed ? "R" : "·"}
-                </td>
-                <td className="py-2 pr-4">
-                  {live?.sim.sensor.limitLeftPressed ? "L" : "·"} /{" "}
-                  {live?.sim.sensor.limitRightPressed ? "R" : "·"}
-                </td>
-                <td className="py-2 text-muted-foreground font-sans text-[11px]">
-                  {live &&
-                  (live.real.sensor.limitLeftPressed !== live.sim.sensor.limitLeftPressed ||
-                    live.real.sensor.limitRightPressed !== live.sim.sensor.limitRightPressed)
-                    ? "mismatch"
-                    : "match"}
                 </td>
               </tr>
             </tbody>

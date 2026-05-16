@@ -10,10 +10,8 @@ import { friendlyMotorGrpcError } from "./motorErrors.js";
 import { friendlySensorGrpcError } from "./sensorErrors.js";
 import { withGrpcBackendMode, type GrpcBackendMode } from "./grpcRequestContext.js";
 import {
-  getTravelLimitDisplays,
   recordTravelLimitFromTeknicMeasured,
   setTravelLimitsSymmetricAboutCm,
-  syncTravelLimitsFromMotorConnection,
 } from "./railTravelLimits.js";
 import { runLedToggleFlash } from "./runFlashScript.js";
 import * as motor from "@real-pendulum/motor-service/sdk";
@@ -21,7 +19,17 @@ import * as sensor from "@real-pendulum/sensor-service/sdk";
 import { defaultCoupledSimGrpcUrl, resolveSimMotorGrpcUrl, resolveSimSensorGrpcUrl } from "./grpcSimDefaults.js";
 import { runRailHoming } from "./homing.js";
 import { homingResultForClient } from "./homingApi.js";
-import { motorStatusForClient, type MotorStatusForClient } from "./motorStatusApi.js";
+import type { MotorStatusForClient } from "./motorStatusApi.js";
+import { readMotorStatusPayload, readSensorStatusPayload, type SensorStatusPayload } from "./statusPayload.js";
+import { fetchTuningCompare } from "./tuningCompare.js";
+import {
+  clearTuningSamples,
+  exportTuningSamplesCsv,
+  getTuningRecordStatus,
+  getTuningSamples,
+  startTuningRecord,
+  stopTuningRecord,
+} from "./tuningRecord.js";
 import { displayCountsPerCm, teknicMeasuredToCm } from "./railPositionCm.js";
 import {
   moveToPositionCmRespectingTravelLimits,
@@ -61,52 +69,6 @@ function symmetricTravelLimitsFromMotorStatus(halfSpanCm: number) {
     const limits = setTravelLimitsSymmetricAboutCm(teknicMeasuredToCm(p), halfSpanCm);
     return { ok: true as const, ...limits };
   };
-}
-
-async function readMotorStatusPayload(): Promise<MotorStatusForClient> {
-  try {
-    const st = await motor.getMotorStatus();
-    syncTravelLimitsFromMotorConnection(st.connected);
-    return motorStatusForClient({
-      ...st,
-      travelLimits: getTravelLimitDisplays(),
-    });
-  } catch (e) {
-    syncTravelLimitsFromMotorConnection(false);
-    return motorStatusForClient({
-      connected: false,
-      commandedRpm: 0,
-      detail: friendlyMotorError(e),
-      measuredPosition: undefined,
-      travelLimits: { left: null, right: null },
-    });
-  }
-}
-
-type SensorStatusPayload = {
-  connected: boolean;
-  ledOn: boolean;
-  detail: string;
-  serialPort: string;
-  encoderTicks: number;
-  limitLeftPressed: boolean;
-  limitRightPressed: boolean;
-};
-
-async function readSensorStatusPayload(): Promise<SensorStatusPayload> {
-  try {
-    return await sensor.getSensorStatus();
-  } catch (e) {
-    return {
-      connected: false,
-      ledOn: false,
-      detail: friendlySensorError(e),
-      serialPort: "",
-      encoderTicks: 0,
-      limitLeftPressed: false,
-      limitRightPressed: false,
-    };
-  }
 }
 
 type MotorWireResult = { ok: boolean; error: string };
@@ -645,16 +607,15 @@ export const appRouter = t.router({
   }),
   tuning: t.router({
     /** Live hardware vs simulation snapshot for the tuning UI (Twin backends). */
-    compare: baseProcedure.query(async () => ({
-      real: {
-        motor: await withHardwareGrpc(() => readMotorStatusPayload()),
-        sensor: await withHardwareGrpc(() => readSensorStatusPayload()),
-      },
-      sim: {
-        motor: await withSimGrpc(() => readMotorStatusPayload()),
-        sensor: await withSimGrpc(() => readSensorStatusPayload()),
-      },
-    })),
+    compare: baseProcedure.query(() => fetchTuningCompare()),
+    record: t.router({
+      status: baseProcedure.query(() => getTuningRecordStatus()),
+      samples: baseProcedure.query(() => [...getTuningSamples()]),
+      exportCsv: baseProcedure.query(() => exportTuningSamplesCsv()),
+      start: baseProcedure.mutation(() => startTuningRecord()),
+      stop: baseProcedure.mutation(() => stopTuningRecord()),
+      clear: baseProcedure.mutation(() => clearTuningSamples()),
+    }),
     simConfig: t.router({
       /** Read `config/coupled-sim.parameters.json` (strict — all fields required). */
       get: baseProcedure.query(() => getCoupledSimConfigFromFile()),

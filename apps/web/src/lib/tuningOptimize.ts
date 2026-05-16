@@ -29,7 +29,6 @@ export type TuningOptimizationDiagnostics = {
   scoreImprovement: number;
   meanPositionDeltaCm: number | null;
   meanEncoderDelta: number;
-  limitMismatchRate: number;
 };
 
 export type TuningOptimizationResult = {
@@ -201,7 +200,6 @@ export function optimizeSimTuning(
       scoreImprovement: baselineScore - optimizedScore,
       meanPositionDeltaCm,
       meanEncoderDelta: summary.meanAbsEncoder,
-      limitMismatchRate: summary.limitMismatchRate,
     },
   };
 }

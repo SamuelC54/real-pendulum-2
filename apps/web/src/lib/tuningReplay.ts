@@ -140,8 +140,6 @@ export function samplesWithReplayAsSim(
     ...s,
     simMotorCm: trace[i]?.motorCm ?? null,
     simEncoderTicks: trace[i]?.encoderTicks ?? s.simEncoderTicks,
-    simLimitLeft: trace[i]?.limitLeft ?? s.simLimitLeft,
-    simLimitRight: trace[i]?.limitRight ?? s.simLimitRight,
   }));
 }
 

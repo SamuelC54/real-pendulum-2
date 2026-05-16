@@ -9,9 +9,8 @@ import { SensorLedCard } from "@/components/SensorLedCard";
 import { BackendAutoConnect } from "@/components/BackendAutoConnect";
 import { KeyboardJogListener } from "@/components/KeyboardJogListener";
 import { TuningPage } from "@/components/TuningPage";
-import { TuningRecorder } from "@/components/TuningRecorder";
 import { grpcBackendModeAtom } from "@/stores/grpcBackendMode";
-import { tuningRecordingAtom } from "@/stores/tuningSession";
+import { trpc } from "@/trpc";
 import { cn } from "@/lib/utils";
 
 export type AppPage = "control" | "tuning";
@@ -58,8 +57,12 @@ function NavTab({
 }
 
 function TuningRecordingBanner() {
-  const recording = useAtomValue(tuningRecordingAtom);
   const mode = useAtomValue(grpcBackendModeAtom);
+  const recordStatus = trpc.tuning.record.status.useQuery(undefined, {
+    enabled: mode === "twin",
+    refetchInterval: (q) => (q.state.data?.recording ? 400 : false),
+  });
+  const recording = recordStatus.data?.recording ?? false;
   if (!recording || mode !== "twin") return null;
   return (
     <p
@@ -74,13 +77,17 @@ function TuningRecordingBanner() {
 
 export function AppShell() {
   const [page, setPage] = useState<AppPage>("control");
-  const recording = useAtomValue(tuningRecordingAtom);
+  const mode = useAtomValue(grpcBackendModeAtom);
+  const recordStatus = trpc.tuning.record.status.useQuery(undefined, {
+    enabled: mode === "twin",
+    refetchInterval: (q) => (q.state.data?.recording ? 400 : false),
+  });
+  const recording = recordStatus.data?.recording ?? false;
 
   return (
     <div className="min-h-dvh bg-background text-foreground">
       <BackendAutoConnect />
       <KeyboardJogListener />
-      <TuningRecorder />
       <AppHeader
         nav={
           <nav
