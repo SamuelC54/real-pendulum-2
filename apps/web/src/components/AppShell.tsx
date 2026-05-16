@@ -18,15 +18,15 @@ export type AppPage = "control" | "tuning";
 function ControlPage() {
   return (
     <div className="grid grid-cols-1 gap-5 lg:grid-cols-3 lg:items-start lg:gap-5">
-      <div className="flex flex-col gap-5">
-        <MotorStatusBlocks />
-        <JogControls />
-      </div>
+      <JogControls />
       <div className="flex flex-col gap-5">
         <HomingControls />
         <PositionMoveControls />
       </div>
-      <SensorLedCard />
+      <div className="flex flex-col gap-5">
+        <MotorStatusBlocks />
+        <SensorLedCard />
+      </div>
     </div>
   );
 }
