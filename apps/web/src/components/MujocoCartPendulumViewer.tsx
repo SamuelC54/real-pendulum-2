@@ -1,10 +1,15 @@
-import { OrbitControls } from "@react-three/drei";
+import { Grid, OrbitControls, Sky } from "@react-three/drei";
 import { useFrame } from "@react-three/fiber";
 import { memo, Suspense, useState } from "react";
 import { MujocoCanvas, useMujoco, useMujocoWasm } from "mujoco-react";
 import { encoderTicksPerRadian } from "@/lib/pendulumEncoder";
 import { mujocoCartPendulumSceneConfig } from "@/lib/mujocoCartPendulumScene";
 import { cn } from "@/lib/utils";
+
+/** MuJoCo Z-up: pendulum swings in X–Z; hinge axis is Y — view from +Y (front). */
+const CAMERA_UP: [number, number, number] = [0, 0, 1];
+const CAMERA_TARGET: [number, number, number] = [0, 0, -0.06];
+const CAMERA_POSITION: [number, number, number] = [0, 1.55, 0.12];
 
 type ViewerProps = {
   /** Cart position along rail (display cm, same sign as motor status). */
@@ -46,6 +51,41 @@ function SyncCartPendulumState({
   return null;
 }
 
+/** Z-up floor + procedural sky (MuJoCo coords: rail in XY, gravity −Z). */
+function ViewerEnvironment() {
+  const floorZ = -0.42;
+
+  return (
+    <>
+      <Sky
+        distance={450000}
+        sunPosition={[5, 3, 4]}
+        inclination={0.49}
+        azimuth={0.22}
+        mieCoefficient={0.004}
+        mieDirectionalG={0.75}
+        rayleigh={0.55}
+        turbidity={6}
+      />
+      <mesh position={[0, 0, floorZ]} receiveShadow>
+        <planeGeometry args={[10, 10]} />
+        <meshStandardMaterial color="#141b24" roughness={0.92} metalness={0.04} />
+      </mesh>
+      <Grid
+        infiniteGrid
+        fadeDistance={10}
+        fadeStrength={1.1}
+        cellSize={0.1}
+        sectionSize={0.5}
+        cellColor="#243040"
+        sectionColor="#3a4d62"
+        position={[0, 0, floorZ + 0.001]}
+        rotation={[Math.PI / 2, 0, 0]}
+      />
+    </>
+  );
+}
+
 function MujocoCartPendulumScene({
   positionCm,
   encoderTicks,
@@ -60,13 +100,40 @@ function MujocoCartPendulumScene({
         paused
         shadows
         style={{ width: "100%", height: "100%" }}
-        camera={{ position: [0.9, 0.55, 0.4], fov: 48, near: 0.01, far: 20 }}
+        camera={{
+          position: CAMERA_POSITION,
+          up: CAMERA_UP,
+          fov: 42,
+          near: 0.01,
+          far: 20,
+        }}
         onError={(err) => setLoadError(err.message)}
       >
-        <color attach="background" args={["#0f1419"]} />
-        <ambientLight intensity={0.55} />
-        <directionalLight position={[2, 4, 3]} intensity={1.1} castShadow />
-        <OrbitControls makeDefault enableDamping dampingFactor={0.08} target={[0, 0, 0.05]} />
+        <ViewerEnvironment />
+        <ambientLight intensity={0.35} />
+        <directionalLight
+          position={[1.2, 2.5, 3.5]}
+          intensity={1.15}
+          castShadow
+          shadow-mapSize={[1024, 1024]}
+          shadow-camera-far={12}
+          shadow-camera-left={-3}
+          shadow-camera-right={3}
+          shadow-camera-top={3}
+          shadow-camera-bottom={-3}
+        />
+        <OrbitControls
+          makeDefault
+          enableDamping
+          dampingFactor={0.08}
+          target={CAMERA_TARGET}
+          minDistance={0.75}
+          maxDistance={3.2}
+          minAzimuthAngle={-0.55}
+          maxAzimuthAngle={0.55}
+          minPolarAngle={1.05}
+          maxPolarAngle={1.62}
+        />
         <SyncCartPendulumState
           positionCm={positionCm}
           encoderTicks={encoderTicks}
