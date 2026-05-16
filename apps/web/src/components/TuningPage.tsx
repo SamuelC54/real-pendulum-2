@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   configToForm,
-  formToEnvSnippet,
+  formToConfigSnippet,
   formToPatch,
   sampleFromCompare,
   samplesToCsv,
@@ -371,10 +371,10 @@ export function TuningPage() {
                 variant="outline"
                 onClick={() => {
                   setSavedProfile(form);
-                  void navigator.clipboard.writeText(formToEnvSnippet(form));
+                  void navigator.clipboard.writeText(formToConfigSnippet(form));
                 }}
               >
-                Save profile & copy .env snippet
+                Save profile & copy config snippet
               </Button>
               {savedProfile ? (
                 <Button type="button" size="sm" variant="ghost" onClick={() => setForm(savedProfile)}>

@@ -20,6 +20,8 @@ import type {
   MoveToPositionRequest,
   SetJogVelocityRequest,
 } from "@real-pendulum/motor-proto/gen/motor_pb.js";
+import { config } from "@real-pendulum/app-config";
+import { cliPort } from "@real-pendulum/app-config/cli";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadTeknic, type TeknicNative } from "./teknic/dll.js";
@@ -138,7 +140,7 @@ function routes(router: ConnectRouter): void {
   });
 }
 
-const port = Number(process.env.MOTOR_GRPC_PORT ?? "50051");
+const port = cliPort("--port", config.motor.grpcPort);
 const bindHost = "0.0.0.0";
 const server = http.createServer(
   connectNodeAdapter({

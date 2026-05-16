@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { connectTimeoutMs, isRealMotorE2E } from "./env";
+import { connectTimeoutMs, isRealMotorE2E } from "./playwright";
 import { assertMotorUiConnected } from "./wait-for-connect";
 
 test.describe(

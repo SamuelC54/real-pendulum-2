@@ -1,18 +1,13 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
+import { resolveRepoRoot } from "@real-pendulum/app-config/node";
 
 const MAX_LOG = 48_000;
 
-/** Repo root: **`REPO_ROOT`** env, else three levels up from this file (`apps/control-api/src`). */
+/** Repo root for locating `scripts/flash-sensor-firmware.ts`. */
 export function sensorFirmwareRepoRoot(): string {
-  const fromEnv = process.env.REPO_ROOT?.trim();
-  if (fromEnv) {
-    return resolve(fromEnv);
-  }
-  const here = dirname(fileURLToPath(import.meta.url));
-  return resolve(here, "../../..");
+  return resolveRepoRoot(import.meta.url);
 }
 
 export type FlashScriptResult = {
@@ -22,24 +17,23 @@ export type FlashScriptResult = {
 };
 
 /**
- * Runs **`scripts/flash-sensor-firmware.mjs`** with the given serial port (requires Arduino CLI on the API machine).
+ * Runs **`scripts/flash-sensor-firmware.ts`** with the given serial port (requires Arduino CLI on the API machine).
  */
 export function runLedToggleFlash(serialPort: string): Promise<FlashScriptResult> {
   const root = sensorFirmwareRepoRoot();
-  const script = join(root, "scripts", "flash-sensor-firmware.mjs");
+  const script = join(root, "scripts", "flash-sensor-firmware.ts");
   if (!existsSync(script)) {
     return Promise.resolve({
       ok: false,
-      log: `Flash script not found at ${script}. Set REPO_ROOT to your repo root if control-api runs elsewhere.`,
+      log: `Flash script not found at ${script}. Set config.repoRoot if control-api runs outside the monorepo.`,
     });
   }
 
   return new Promise((resolvePromise) => {
     const chunks: Buffer[] = [];
-    const child = spawn(process.execPath, [script, serialPort], {
+    const child = spawn("npx", ["tsx", script, serialPort], {
       cwd: root,
-      env: process.env,
-      shell: false,
+      shell: process.platform === "win32",
     });
 
     child.stdout?.on("data", (d: Buffer) => {

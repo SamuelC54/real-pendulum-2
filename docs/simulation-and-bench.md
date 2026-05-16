@@ -20,7 +20,7 @@ This document extends the stack overview in [`TECHDOC.md`](./TECHDOC.md). It des
 
 **Keep one tRPC contract; vary what sits behind gRPC.**
 
-- Today, **`apps/control-api`** calls **`@real-pendulum/motor-service/sdk`** and **`@real-pendulum/sensor-service/sdk`** (see `router.ts`, `homing.ts`). URLs are typically set via environment (e.g. `MOTOR_GRPC_URL`, `SENSOR_GRPC_URL`).
+- Today, **`apps/control-api`** calls **`@real-pendulum/motor-service/sdk`** and **`@real-pendulum/sensor-service/sdk`** (see `router.ts`, `homing.ts`). URLs come from **`packages/app-config/src/config.ts`** (hardware) and **`config.sim`** (simulator).
 - **Simulation** should implement the **same protos and RPCs** as production (or a documented subset), so **homing, limits, jog, and UI-facing procedures stay identical** whether the backend is real hardware or a fake. **You do not branch business logic** (“if sim then … else …”) inside **`control-api`** for behavior that already exists behind the motor/sensor SDK — only the **target URL** (or an extra bench client) changes.
 - The repo already includes a **fake motor gRPC** entrypoint: `apps/control-api/scripts/serve-fake-motor-grpc.ts` → `motor-service/test-support/fake-motor-server`. For **solo coupled simulation** (motor + sensor, one plant), use **`serve-coupled-sim-grpc.ts`** / **`test-support/coupled-sim-server`** (see **§3.5**, implementation pointers).
 
@@ -153,9 +153,9 @@ This repeats **§2.2** for readers who jump straight here: if motor and sensor f
 
 - **From motor-service:** `npm run serve:coupled-sim -w @real-pendulum/motor-service`
 - **From control-api (re-exports same server):** `npm run serve:coupled-sim -w @real-pendulum/control-api`
-- Set **`MOTOR_GRPC_URL`** and **`SENSOR_GRPC_URL`** to the **hardware** motor and sensor services (defaults **50051** / **50052**).
-- **Web “Simulator”** mode targets **`MOTOR_SIM_GRPC_URL`** / **`SENSOR_SIM_GRPC_URL`** when set; otherwise it defaults to **`http://127.0.0.1:`** + **`SIM_COUPLED_GRPC_PORT`** (**58870**, chosen to avoid Windows **50xxx** bind **`EACCES`**), matching **`serve:coupled-sim`**. Override the port with **`SIM_COUPLED_GRPC_PORT`** if needed. The browser sends **`x-pendulum-backend: sim`** on each tRPC batch; **Hardware** uses the primary env URLs.
-- Tunables: **`SIM_METERS_PER_DISPLAY_COUNT`**, **`SIM_MPS_PER_RPM`**, **`SIM_LIMIT_LEFT_X_M`**, **`SIM_LIMIT_RIGHT_X_M`**.
+- Hardware URLs: **`motorGrpcBaseUrl()`** / **`sensorGrpcBaseUrl()`** (defaults **50051** / **50052**).
+- **Web “Simulator”** mode uses **`resolveSimMotorGrpcUrl()`** / **`resolveSimSensorGrpcUrl()`** (default coupled sim **58870** on **`config.sim.coupledGrpcPort`**). The browser sends **`x-pendulum-backend: sim`**; **Hardware** uses config hardware URLs.
+- Tunables: **`config.sim`** (`metersPerDisplayCount`, `mpsPerRpm`, `limitLeftXM`, `limitRightXM`).
 
 ---
 
@@ -171,22 +171,22 @@ Pick one pattern (or evolve from A → B):
 
 | Pattern | Pros | Cons |
 |--------|------|------|
-| **A — Dual env, dual tabs** | Two `control-api` instances (real vs sim URLs); zero router changes. | Two browsers / two URLs; awkward UX. |
-| **B — Dual gRPC clients in one API** | One UI; explicit `bench.snapshot` or `sim.*` procedures. | `control-api` holds two motor + two sensor clients when env vars set. |
+| **A — Dual config, dual tabs** | Two `control-api` instances (real vs sim URLs); zero router changes. | Two browsers / two URLs; awkward UX. |
+| **B — Dual gRPC clients in one API** | One UI; explicit `bench.snapshot` or `sim.*` procedures. | `control-api` holds two motor + two sensor clients when sim URLs are set in config. |
 | **C — Mirror router** | `sim.status.get`, `sim.jog.setVelocity`, … clear naming. | More procedures to maintain. |
 
 **Safety default:** **writes** (jog, home, move) should target **either** real **or** sim per explicit operator mode. **Read-only** bench queries can always return `{ real, sim }` when both backends are configured.
 
-### 4.3 Suggested environment variables (illustrative)
+### 4.3 Suggested `config` fields (illustrative)
 
-| Variable | Role |
-|----------|------|
-| `MOTOR_GRPC_URL` | Primary motor backend (real or fake). |
-| `SENSOR_GRPC_URL` | Primary sensor backend. |
-| `MOTOR_SIM_GRPC_URL` | Optional sim motor URL; if unset, control-api defaults to **`http://127.0.0.1:`** + **`SIM_COUPLED_GRPC_PORT`** (default **58870**). |
-| `SENSOR_SIM_GRPC_URL` | Optional sim sensor URL; if unset, uses `MOTOR_SIM_GRPC_URL` or the same default as motor sim. |
-| `SIM_COUPLED_GRPC_PORT` | Port baked into that default (same as `serve:coupled-sim`). |
-| `BENCH_COMMAND_TARGET` | `real` \| `sim` \| `both` (if `both` is ever allowed, document hazards). |
+| Field | Role |
+|-------|------|
+| `motor.grpcUrl` / `motor.grpcPort` | Primary motor backend (real or fake). |
+| `sensor.grpcUrl` / `sensor.grpcPort` | Primary sensor backend. |
+| `sim.motorSimGrpcUrl` | Optional sim motor URL; if unset, coupled sim default (**58870**). |
+| `sim.sensorSimGrpcUrl` | Optional sim sensor URL; if unset, uses motor sim URL or coupled default. |
+| `sim.coupledGrpcPort` | Coupled sim listen port (`serve:coupled-sim`). |
+| `BENCH_COMMAND_TARGET` (future) | `real` \| `sim` \| `both` (if `both` is ever allowed, document hazards). |
 
 ### 4.4 Web UX
 

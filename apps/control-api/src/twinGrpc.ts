@@ -3,10 +3,10 @@ import * as sensor from "@real-pendulum/sensor-service/sdk";
 import { withGrpcBackendMode } from "./grpcRequestContext.js";
 import { resolveSimMotorGrpcUrl, resolveSimSensorGrpcUrl } from "./grpcSimDefaults.js";
 
-/** Production motor + sensor gRPC targets from env (same as single-backend hardware mode). */
+/** Production motor + sensor gRPC targets from `config` (hardware mode). */
 export function withHardwareGrpc<T>(fn: () => T | Promise<T>): T | Promise<T> {
-  const motorUrl = motor.defaultMotorGrpcUrlFromEnv();
-  const sensorUrl = sensor.defaultSensorGrpcUrlFromEnv();
+  const motorUrl = motor.defaultMotorGrpcUrl();
+  const sensorUrl = sensor.defaultSensorGrpcUrl();
   return motor.withMotorGrpcBaseUrl(motorUrl, () =>
     sensor.withSensorGrpcBaseUrl(sensorUrl, () => fn()),
   );

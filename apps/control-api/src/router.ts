@@ -1,3 +1,4 @@
+import { config } from "@real-pendulum/app-config";
 import { initTRPC } from "@trpc/server";
 import superjson from "superjson";
 import { z } from "zod";
@@ -118,9 +119,9 @@ const t = initTRPC.context<RouterContext>().create({
 const grpcWireMiddleware = t.middleware(async ({ ctx, next }) => {
   const mode: GrpcBackendMode = ctx.grpcBackendMode ?? "hardware";
   const motorUrl =
-    mode === "sim" ? resolveSimMotorGrpcUrl() : motor.defaultMotorGrpcUrlFromEnv();
+    mode === "sim" ? resolveSimMotorGrpcUrl() : motor.defaultMotorGrpcUrl();
   const sensorUrl =
-    mode === "sim" ? resolveSimSensorGrpcUrl() : sensor.defaultSensorGrpcUrlFromEnv();
+    mode === "sim" ? resolveSimSensorGrpcUrl() : sensor.defaultSensorGrpcUrl();
 
   const run = () =>
     motor.withMotorGrpcBaseUrl(motorUrl, () =>
@@ -145,7 +146,7 @@ export const appRouter = t.router({
       simDefaultUrl: defaultCoupledSimGrpcUrl(),
     })),
     rail: baseProcedure.query(() => ({
-      /** Display motor counts per cm (`RAIL_DISPLAY_COUNTS_PER_CM`, default 232.8). */
+      /** Display motor counts per cm (`config.rail.displayCountsPerCm`, default 232.8). */
       displayCountsPerCm: displayCountsPerCm(),
     })),
   }),
@@ -298,7 +299,7 @@ export const appRouter = t.router({
             await sensor.disconnectSensor().catch(() => {
               /* ignore if sensor service is down or already disconnected */
             });
-            const pauseMs = Number(process.env.FLASH_AFTER_DISCONNECT_MS ?? "2000");
+            const pauseMs = config.controlApi.flashAfterDisconnectMs;
             if (Number.isFinite(pauseMs) && pauseMs > 0) {
               await sleep(pauseMs);
             }

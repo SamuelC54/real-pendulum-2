@@ -8,8 +8,8 @@ Monorepo for inverted-pendulum hardware control: Teknic ClearPath motor over gRP
 
 - **Node.js** (npm workspaces).
 - **Windows**, **Teknic ClearView SDK**, SC4-HUB, and a ClearPath-SC motor for real motion.
-- **CMake** and a **Visual Studio** install with the **C++ desktop** workload (the native build script tries VS 2022 then VS 2026; override with **`CMAKE_GENERATOR`** in **`.env.local`** if needed) to build **`teknic_motor.dll`**.  
-  You do **not** need CMake on `PATH`: `npm run build:native` runs a helper that looks for `cmake.exe` under Visual Studio, standalone CMake installs, or you can set **`CMAKE_BIN`** to your `cmake.exe` path.
+- **CMake** and a **Visual Studio** install with the **C++ desktop** workload (the native build script tries VS 2022 then VS 2026; override **`motor.cmakeGenerator`** in **`packages/app-config/src/config.ts`** if needed) to build **`teknic_motor.dll`**.  
+  You do **not** need CMake on `PATH`: `npm run build:native` runs a helper that looks for `cmake.exe` under Visual Studio, standalone CMake installs, or set **`motor.cmakeBin`** in config.
 - Teknic **sFoundation** libraries: build `sFoundation20.sln` from the SDK (Release **x64**) so `sFoundation20.lib` / `sFoundation20.dll` exist under the SDK’s `sFoundation Source\sFoundation\win\Release\x64` (or matching Debug paths). Without this, linking the native DLL fails.
 - **Vendor C++ examples** (MotionVelocity, PositionMoves, etc.):  
   `C:\Program Files (x86)\Teknic\ClearView\sdk\beta-cpp-examples-windows`  
@@ -38,24 +38,22 @@ Runs **Vitest** for **`@real-pendulum/control-api`** (unit tests, **in-process f
 | Command | Stack |
 |---------|--------|
 | **`npm run test:e2e`** | Fake **MotorService** + **control-api** + **Vite** on isolated ports (**50552** / **14001** / **4174**, see **`playwright.config.cjs`**) — default CI/local smoke, no hardware. |
-| **`npm run test:e2e:real`** | Real **motor service** (Teknic DLL) + **control-api** + **Vite** on dev ports from **`.env`** (defaults **50051** / **4000** / **5173**). Build native first: **`npm run build:native -w @real-pendulum/motor-service`**, ClearView closed, same as a normal bench run. Extra spec **`e2e/motor-api-real.spec.ts`** (skipped in fake E2E) runs connect → status → short jog + stop → disconnect. |
+| **`npm run test:e2e:real`** | Real **motor service** (Teknic DLL) + **control-api** + **Vite** on dev ports from **`config`** (defaults **50051** / **4000** / **5173**). Uses **`playwright.real.config.cjs`**. Build native first: **`npm run build:native -w @real-pendulum/motor-service`**, ClearView closed. Extra spec **`e2e/motor-api-real.spec.ts`** (skipped in fake E2E). |
 
-UI mode: **`npm run test:e2e:ui`**, **`npm run test:e2e:real:ui`** — or **`npx playwright test --ui`** (Playwright is local to **`node_modules`**, not on PATH globally).
+UI mode: **`npm run test:e2e:ui`**, **`npm run test:e2e:real:ui`** — or **`npx playwright test --ui`**.
 
-Optional env: **`E2E_USE_REAL_MOTOR=1`** selects the real stack (same as **`test:e2e:real`** scripts via **`cross-env`**).
-
-**CI** (GitHub Actions): Ubuntu — **`npm test`**, **`npm run build`**, **`npm run test:e2e`** (Chromium); Windows — optional **`teknic_motor.dll`** build when the Teknic SDK is present — see [`.github/workflows/ci.yml`](.github/workflows/ci.yml) and [`docs/testing-strategy.md`](docs/testing-strategy.md).
+**CI** (GitHub Actions): Ubuntu — **`npm test`**, **`npm run build`**, **`npm run test:e2e:ci`** (Chromium); Windows — optional **`teknic_motor.dll`** build — see [`.github/workflows/ci.yml`](.github/workflows/ci.yml) and [`docs/testing-strategy.md`](docs/testing-strategy.md).
 
 **Manual bench pass** after native/motion changes: [`docs/hardware-smoke-checklist.md`](docs/hardware-smoke-checklist.md).
 
 **Windows optional DLL smoke** (after building `teknic_motor.dll`):  
 `npm run check:dll -w @real-pendulum/motor-service`
 
-### Environment variables (repository root)
+### Configuration
 
-Copy **`.env.example`** to **`.env`** in the **repository root** (same directory as the root `package.json`). Put ports (**`MOTOR_GRPC_PORT`**, **`CONTROL_API_PORT`**, **`VITE_DEV_PORT`**), optional **`TEKNIC_DLL`** (custom **`teknic_motor.dll`** path), and optional **`VITE_*`** there. **Teknic motion limits are not env-driven** — edit **`TeknicCfg`** in `apps/motor-service/native/teknic_motor/teknic_cfg.h` and rebuild the DLL. **`FindComHubPorts`** only sees the **SC4-HUB** USB adapter; **motor diagnostic USB** uses a different COM — set **`TeknicCfg::kManualComWhenDiscoveryEmpty`** ≥ 1 to **`ComHubPort(0, n)`** and skip discovery (Windows), same pattern as **`SCNetworkReport.exe`** with a COM number.
+Edit **`packages/app-config/src/config.ts`** for ports, homing, coupled-sim tuning, Teknic native build paths, flash options, and E2E fake-stack ports (`config.e2e`). Services accept optional CLI overrides (`--port`, `--motor-grpc-url`) when spawned by scripts.
 
-**`npm run dev`** and **`npm run dev:no-kill`** load **`.env`** then **`.env.local`** (override) via **`scripts/run-with-root-env.mjs`**. The motor, API, and web apps also read those files when started from a workspace so a single file covers the monorepo. **`.env`** and **`.env.local`** are gitignored.
+**Teknic motion limits** are in **`TeknicCfg`** (`apps/motor-service/native/teknic_motor/teknic_cfg.h`) — rebuild the DLL after changes. **`FindComHubPorts`** only sees the **SC4-HUB** USB adapter; for motor diagnostic USB set **`TeknicCfg::kManualComWhenDiscoveryEmpty`** ≥ 1.
 
 ---
 
@@ -68,15 +66,15 @@ Layout:
 | Path | Purpose |
 |------|---------|
 | **`native/teknic_motor/`** | CMake → **`teknic_motor.dll`** (Teknic ClearPath / SC4-HUB). |
-| **`src/server.ts`** | Node **`motor.v1.MotorService`** via [**Connect**](https://connectrpc.com/) (**`@connectrpc/connect-node`**, HTTP on **`MOTOR_GRPC_PORT`**). |
+| **`src/server.ts`** | Node **`motor.v1.MotorService`** via [**Connect**](https://connectrpc.com/) (HTTP on **`config.motor.grpcPort`**). |
 | **`src/teknic/`** | **koffi** bindings (**`dll.ts`**) for **`teknic_motor.dll`**. |
 | **`scripts/`** | **`build-native.mjs`** configures and builds **`teknic_motor.dll`**. |
 
 **`npm run dev`** runs the motor **Connect** server (**`tsx`**); **`predev`** only builds **`teknic_motor.dll`** (**`npm run build:native`**).
 
-**Control API** talks to the motor over Connect using **`MOTOR_GRPC_URL`** (default **`http://127.0.0.1:50051`** if you only set host/port, see **`motorConnectBaseUrl()`** in **`@real-pendulum/motor-service/sdk`**).
+**Control API** talks to the motor over Connect (default **`motorGrpcBaseUrl()`** from config).
 
-The **sensor service** (**`@real-pendulum/sensor-service`**, Connect on **`SENSOR_GRPC_PORT`** default **50052**) talks to an Arduino over USB serial ( **`sensorConnectBaseUrl()`** / **`SENSOR_GRPC_URL`**). The web UI lists serial ports (via **`ListSerialPorts`**) so you can pick the board before **Connect**; optionally set **`SENSOR_SERIAL_PORT`** as a fallback when nothing is selected. Baud: **`SENSOR_SERIAL_BAUD`** (**115200**). Firmware sketch: **`apps/sensor-service/firmware/led_toggle`** (on-board LED + quadrature encoder on **D2/D3**, **`ENC:`** lines over serial). Flash from the repo root with **`npm run flash:sensor-firmware -- COM3`** after installing [**Arduino CLI**](https://arduino.github.io/arduino-cli/) and **`arduino-cli core install arduino:avr`** (see script header in **`scripts/flash-sensor-firmware.mjs`**). On Windows, **`avrdude: can't set com-state`** usually means the COM port is still busy — disconnect the Arduino in the UI (or stop **sensor-service**), wait a few seconds, then flash again; the UI flash action waits **`FLASH_AFTER_DISCONNECT_MS`** (default **2000**) and the script retries upload once after **`FLASH_UPLOAD_RETRY_MS`**.
+The **sensor service** (**`@real-pendulum/sensor-service`**, default port **50052** in config) talks to Arduino over USB serial. The web UI lists serial ports before **Connect**; optional fallback **`config.sensor.serialPort`**. Flash: **`npm run flash:sensor-firmware -- COM3`** (Arduino CLI; options in **`config.flash`**). UI flash waits **`config.controlApi.flashAfterDisconnectMs`** before upload.
 
 **Build the DLL** (from **`apps/motor-service`** or repo root **`-w @real-pendulum/motor-service`**):
 
@@ -86,7 +84,7 @@ npm run build:native
 
 Output: **`native/build/Release/teknic_motor.dll`**.
 
-**Native configuration (no `TEKNIC_*` environment variables for hub motion):** Edit the **`TeknicCfg`** namespace at the top of  
+**Native configuration (hub motion in C++, not config.ts):** Edit the **`TeknicCfg`** namespace at the top of  
 `apps/motor-service/native/teknic_motor/teknic_cfg.h` (and related `.cpp` modules under that folder) — **`kEnableReqOnConnect`** (1 = enable axis for jog, 0 = read-only node info, no motion), **`WaitForOnline`** timeout, accel limit (**`kAccLimitRpmPerSec`**), jog clamp (**`kJogVelLimitRpm`**), enable retries, optional **`kManualComWhenDiscoveryEmpty`** (Windows: if ≥1, **`ComHubPort(0, n)`** and **skip** **`FindComHubPorts`**). If discovery is empty and manual is 0, **`kComPortScanMin`** / **`kComPortScanMax`** (default **1..25**) **probe each COM** until a port reports a ClearPath node (same as **`SCNetworkReport`** manual COM per index). Set **`kComPortScanMin = 0`** and **`kComPortScanMax = 0`** to disable COM scanning. Jog uses **`Ports(0)`** only. Rebuild **`teknic_motor.dll`** after any change.
 
 **ClearView and this app cannot share the hub.** Quit ClearView completely before starting the **motor service**. Only one process may open the SC4-HUB serial port.

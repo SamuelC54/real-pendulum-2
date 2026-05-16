@@ -1,16 +1,27 @@
 import { AsyncLocalStorage } from "node:async_hooks";
+import { sensorGrpcBaseUrl } from "@real-pendulum/app-config";
 
 const als = new AsyncLocalStorage<{ baseUrl: string }>();
 
+let testDefaultSensorGrpcUrl: string | undefined;
+
+/** Overrides default sensor gRPC URL for integration tests. */
+export function setDefaultSensorGrpcUrlForTests(url: string | undefined): void {
+  testDefaultSensorGrpcUrl = url;
+}
+
 export function normalizeSensorGrpcBaseUrl(raw: string): string {
   const t = raw.trim();
-  if (!t) return "http://127.0.0.1:50052";
+  if (!t) return sensorGrpcBaseUrl();
   if (/^https?:\/\//i.test(t)) return t;
   return `http://${t}`;
 }
 
-export function defaultSensorGrpcUrlFromEnv(): string {
-  return normalizeSensorGrpcBaseUrl(process.env.SENSOR_GRPC_URL ?? "127.0.0.1:50052");
+export function defaultSensorGrpcUrl(): string {
+  if (testDefaultSensorGrpcUrl) {
+    return normalizeSensorGrpcBaseUrl(testDefaultSensorGrpcUrl);
+  }
+  return normalizeSensorGrpcBaseUrl(sensorGrpcBaseUrl());
 }
 
 /** Runs **`fn`** with Connect **`baseUrl`** fixed to **`baseUrl`** (per-request override). */

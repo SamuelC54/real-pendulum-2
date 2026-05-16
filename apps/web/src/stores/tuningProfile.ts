@@ -7,5 +7,5 @@ export const tuningErrorWeightsAtom = atomWithStorage<TuningErrorWeights>(
   DEFAULT_TUNING_WEIGHTS,
 );
 
-/** Saved target profile (reference / copy to .env); not auto-applied on load. */
+/** Saved target profile (reference / copy to config); not auto-applied on load. */
 export const tuningProfileAtom = atomWithStorage<SimConfigForm | null>("rp-tuning-profile", null);

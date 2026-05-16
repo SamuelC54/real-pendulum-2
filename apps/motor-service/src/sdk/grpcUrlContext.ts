@@ -1,16 +1,27 @@
 import { AsyncLocalStorage } from "node:async_hooks";
+import { motorGrpcBaseUrl } from "@real-pendulum/app-config";
 
 const als = new AsyncLocalStorage<{ baseUrl: string }>();
 
+let testDefaultMotorGrpcUrl: string | undefined;
+
+/** Overrides default motor gRPC URL for integration tests. */
+export function setDefaultMotorGrpcUrlForTests(url: string | undefined): void {
+  testDefaultMotorGrpcUrl = url;
+}
+
 export function normalizeMotorGrpcBaseUrl(raw: string): string {
   const t = raw.trim();
-  if (!t) return "http://127.0.0.1:50051";
+  if (!t) return motorGrpcBaseUrl();
   if (/^https?:\/\//i.test(t)) return t;
   return `http://${t}`;
 }
 
-export function defaultMotorGrpcUrlFromEnv(): string {
-  return normalizeMotorGrpcBaseUrl(process.env.MOTOR_GRPC_URL ?? "127.0.0.1:50051");
+export function defaultMotorGrpcUrl(): string {
+  if (testDefaultMotorGrpcUrl) {
+    return normalizeMotorGrpcBaseUrl(testDefaultMotorGrpcUrl);
+  }
+  return normalizeMotorGrpcBaseUrl(motorGrpcBaseUrl());
 }
 
 /** Runs **`fn`** with Connect **`baseUrl`** fixed to **`baseUrl`** (per-request override). */

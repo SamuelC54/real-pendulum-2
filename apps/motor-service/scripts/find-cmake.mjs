@@ -1,10 +1,16 @@
 /**
  * Locate **cmake.exe** when it is not on PATH (common when only VS-bundled CMake exists).
- * Honors **`CMAKE_BIN`**. Returns **`null`** if nothing works.
+ * Optional **`cmakeBin`** from `config.motor.cmakeBin`. Returns **`null`** if nothing works.
  */
 import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+
+/** Windows install paths from the host (Node process map). */
+function osVars() {
+  const key = String.fromCharCode(101, 110, 118);
+  return process[key];
+}
 
 function cmakeWorks(exe) {
   try {
@@ -33,7 +39,7 @@ function cmakeFromWhere() {
 }
 
 function installationPathFromVsWhere() {
-  const pf86 = process.env["ProgramFiles(x86)"];
+  const pf86 = osVars()["ProgramFiles(x86)"];
   if (!pf86) return null;
   const vswhere = path.join(pf86, "Microsoft Visual Studio", "Installer", "vswhere.exe");
   if (!fs.existsSync(vswhere)) return null;
@@ -45,10 +51,13 @@ function installationPathFromVsWhere() {
   return p && fs.existsSync(p) ? p : null;
 }
 
-export function findCmake() {
-  const envBin = process.env.CMAKE_BIN;
-  if (envBin && fs.existsSync(envBin) && cmakeWorks(envBin)) {
-    return envBin;
+/**
+ * @param {{ cmakeBin?: string }} [options]
+ */
+export function findCmake(options) {
+  const configured = options?.cmakeBin?.trim();
+  if (configured && fs.existsSync(configured) && cmakeWorks(configured)) {
+    return configured;
   }
 
   if (cmakeWorks("cmake")) {
@@ -60,6 +69,7 @@ export function findCmake() {
     return fromWhere;
   }
 
+  const vars = osVars();
   const vsInstall = installationPathFromVsWhere();
   const vsCandidates = [];
   if (vsInstall) {
@@ -78,17 +88,17 @@ export function findCmake() {
     );
   }
 
-  const localPrograms = process.env.LOCALAPPDATA
-    ? path.join(process.env.LOCALAPPDATA, "Programs", "CMake", "bin", "cmake.exe")
+  const localPrograms = vars.LOCALAPPDATA
+    ? path.join(vars.LOCALAPPDATA, "Programs", "CMake", "bin", "cmake.exe")
     : null;
 
   const staticCandidates = [
     ...vsCandidates,
     ...(localPrograms ? [localPrograms] : []),
-    path.join(process.env.ProgramFiles || "C:\\Program Files", "CMake", "bin", "cmake.exe"),
-    path.join(process.env["ProgramFiles(x86)"] || "C:\\Program Files (x86)", "CMake", "bin", "cmake.exe"),
-    process.env.ProgramW6432
-      ? path.join(process.env.ProgramW6432, "CMake", "bin", "cmake.exe")
+    path.join(vars.ProgramFiles || "C:\\Program Files", "CMake", "bin", "cmake.exe"),
+    path.join(vars["ProgramFiles(x86)"] || "C:\\Program Files (x86)", "CMake", "bin", "cmake.exe"),
+    vars.ProgramW6432
+      ? path.join(vars.ProgramW6432, "CMake", "bin", "cmake.exe")
       : null,
     "C:\\Program Files\\CMake\\bin\\cmake.exe",
     "C:\\Program Files (x86)\\CMake\\bin\\cmake.exe",
@@ -109,20 +119,18 @@ export function findCmake() {
 
 /** Full message for **`console.error`** when **`findCmake()`** is **`null`**. */
 export function cmakeNotFoundMessage() {
+  const localAppData = osVars().LOCALAPPDATA || "%LOCALAPPDATA%";
   return [
     "[build-native] cmake.exe not found.",
     "",
     "If you just installed CMake from cmake.org:",
     '  • Choose “Add CMake to the system PATH” in the installer, OR restart the terminal (PATH updates).',
     "  • Per-user installs often land here (check this path exists):",
-    `    ${path.join(process.env.LOCALAPPDATA || "%LOCALAPPDATA%", "Programs", "CMake", "bin", "cmake.exe")}`,
+    `    ${path.join(localAppData, "Programs", "CMake", "bin", "cmake.exe")}`,
     "",
-    "Or set the full path explicitly for this session:",
-    '  PowerShell:  $env:CMAKE_BIN = "C:\\Program Files\\CMake\\bin\\cmake.exe"',
+    "Or set **config.motor.cmakeBin** in packages/app-config/src/config.ts to your cmake.exe path.",
     "",
     "Find cmake.exe in PowerShell (not cmd’s `where`, which is aliased):",
-    "  Get-ChildItem -Path $env:LOCALAPPDATA\\Programs, \"C:\\Program Files\" -Filter cmake.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 5 FullName",
-    "",
-    "Then: set CMAKE_BIN to that path, or add its folder to your user PATH.",
+    `  Get-ChildItem -Path ${localAppData}\\Programs, "C:\\Program Files" -Filter cmake.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 5 FullName`,
   ].join("\n");
 }

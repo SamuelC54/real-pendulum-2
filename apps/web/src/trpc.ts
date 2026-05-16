@@ -1,3 +1,9 @@
+import {
+  config,
+  e2eFakeControlApiTrpcUrl,
+  e2eRealControlApiTrpcUrl,
+  webControlApiBaseUrl,
+} from "@real-pendulum/app-config";
 import { httpBatchLink } from "@trpc/client";
 import { createTRPCReact } from "@trpc/react-query";
 import superjson from "superjson";
@@ -8,9 +14,13 @@ import { jotaiStore } from "./stores/jotaiStore";
 export const trpc = createTRPCReact<AppRouter>();
 
 function trpcUrl() {
-  const fromEnv = import.meta.env.VITE_CONTROL_API_URL;
-  if (fromEnv) return fromEnv;
-  return `${window.location.origin}/trpc`;
+  if (__PENDULUM_VITE_MODE__ === "e2e") return e2eFakeControlApiTrpcUrl();
+  if (__PENDULUM_VITE_MODE__ === "e2e-real") return e2eRealControlApiTrpcUrl();
+  if (config.web.controlApiUrl?.trim()) return config.web.controlApiUrl.trim();
+  if (typeof window !== "undefined") {
+    return `${window.location.origin}/trpc`;
+  }
+  return `${webControlApiBaseUrl()}/trpc`;
 }
 
 export function createTrpcClient() {

@@ -2,8 +2,8 @@ node_modules/
 dist/
 *.log
 .DS_Store
-.env
-.env.local
+# Legacy local overrides (unused; see packages/app-config/src/config.ts)
+local-config.override
 tools/protoc/
 # Native CMake output (may include old vcpkg_installed/ from past experiments)
 apps/motor-service/native/build/

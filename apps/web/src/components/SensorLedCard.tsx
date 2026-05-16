@@ -201,7 +201,7 @@ export function SensorLedCard() {
                   {portsQuery.isPending
                     ? "Loading ports…"
                     : ports.length === 0
-                      ? "No devices detected — use .env on server"
+                      ? "No devices detected — set config.sensor.serialPort"
                       : "Choose serial port…"}
                 </option>
                 {serialPort &&

@@ -1,9 +1,8 @@
-/** Display motor counts per cm — keep in sync with control-api `RAIL_DISPLAY_COUNTS_PER_CM`. */
+import { config } from "@real-pendulum/app-config";
+
+/** Display motor counts per cm — keep in sync with control-api `config.rail`. */
 export function displayCountsPerCm(): number {
-  const raw = import.meta.env.VITE_RAIL_DISPLAY_COUNTS_PER_CM?.trim();
-  if (!raw) return 232.8;
-  const n = Number(raw);
-  return Number.isFinite(n) && n > 0 ? n : 232.8;
+  return config.rail.displayCountsPerCm;
 }
 
 /** Slider / rail span when both switch-side travel limits are known (`travelLimits` in cm). */

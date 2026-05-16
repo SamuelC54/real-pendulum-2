@@ -1,11 +1,9 @@
+import { config } from "@real-pendulum/app-config";
 import { teknicMeasuredToDisplayCounts } from "./teknicDisplayCounts.js";
 
 /** Display motor counts per centimeter along the rail (`1 cm = N counts`). */
 export function displayCountsPerCm(): number {
-  const raw = process.env.RAIL_DISPLAY_COUNTS_PER_CM?.trim();
-  if (!raw) return 232.8;
-  const n = Number(raw);
-  return Number.isFinite(n) && n > 0 ? n : 232.8;
+  return config.rail.displayCountsPerCm;
 }
 
 export function displayCountsToCm(displayCounts: number): number {

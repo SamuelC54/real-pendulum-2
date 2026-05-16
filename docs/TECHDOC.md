@@ -100,7 +100,7 @@ Defined by **`proto/motor.proto`** — **Connect**, **Disconnect**, **SetJogVelo
 ### 4.3 Native build notes
 
 - Configure **`TEKNIC_SDK_ROOT`** (see **`apps/motor-service/native/README.md`**) so CMake finds Teknic headers and **`sFoundation20`** import libs / DLL copy rules.
-- **`npm run build:native -w @real-pendulum/motor-service`** runs **`scripts/build-native.mjs`** (CMake: Visual Studio 2022 then 2026 generator fallback on Windows, Release; **`CMAKE_GENERATOR`** override in **`.env.local`**). Output: **`native/build/Release/teknic_motor.dll`** next to copied **`sFoundation20.dll`**.
+- **`npm run build:native -w @real-pendulum/motor-service`** runs **`scripts/build-native.mjs`** (CMake: Visual Studio 2022 then 2026 generator fallback on Windows, Release; **`motor.cmakeGenerator`** in **`packages/app-config/src/config.ts`**). Output: **`native/build/Release/teknic_motor.dll`** next to copied **`sFoundation20.dll`**.
 
 ### 4.4 Simulation (fake gRPC + coupled plant)
 
@@ -154,7 +154,7 @@ Centralize:
 - Connect **base URL** for **motor service** (e.g. `http://127.0.0.1:<port>`; host-only values are normalized in **`control-api`** / **`MOTOR_GRPC_URL`**).
 - Hub/node selection if multiple devices exist (Phase 1 can fix node 0).
 
-Avoid committing secrets; use env files locally.
+Avoid committing secrets; keep machine-specific paths in local config overrides (gitignored) if needed.
 
 ---
 
@@ -185,7 +185,7 @@ Avoid committing secrets; use env files locally.
 
 - **[Testing strategy](./testing-strategy.md)** — Vitest layers, Playwright E2E (`e2e/`, `scripts/e2e-stack.mjs`), CI jobs (Ubuntu + Windows native), and Teknic SDK notes for **`native-windows`**.
 - **[Hardware smoke checklist](./hardware-smoke-checklist.md)** — manual verification when motion or native code changes.
-- **[Simulation & bench](./simulation-and-bench.md)** — solo simulation, real+sim comparison, **`@real-pendulum/cart-pendulum-sim`**, **§3.5** (physics → fake motor/sensor gRPC), env sketches, roadmap.
+- **[Simulation & bench](./simulation-and-bench.md)** — solo simulation, real+sim comparison, **`@real-pendulum/cart-pendulum-sim`**, **§3.5** (physics → fake motor/sensor gRPC), config sketches, roadmap.
 
 ---
 

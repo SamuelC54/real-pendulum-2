@@ -8,6 +8,7 @@ import {
   getMotorStatus,
   moveToPosition,
   resetMotorGrpcClientForTests,
+  setDefaultMotorGrpcUrlForTests,
   setJogVelocityRpm,
   stopMotor,
   zeroMeasuredPosition,
@@ -23,14 +24,12 @@ function sleep(ms: number): Promise<void> {
 }
 
 describe("Coupled sim (MotorService + SensorService, one plant)", () => {
-  let prevMotorUrl: string | undefined;
   let model: CoupledSimGrpcModel;
   let url: string;
   let close: () => Promise<void>;
   let sensor: ReturnType<typeof createClient<typeof SensorService>>;
 
   beforeAll(async () => {
-    prevMotorUrl = process.env.MOTOR_GRPC_URL;
     model = createCoupledSimGrpcModel({
       metersPerDisplayCount: 1e-4,
       mpsPerRpm: 0.001,
@@ -40,7 +39,7 @@ describe("Coupled sim (MotorService + SensorService, one plant)", () => {
     const started = await startCoupledSimGrpcServer(model, { port: 0 });
     url = started.url;
     close = started.close;
-    process.env.MOTOR_GRPC_URL = url;
+    setDefaultMotorGrpcUrlForTests(url);
     resetMotorGrpcClientForTests();
     sensor = createClient(
       SensorService,
@@ -50,8 +49,7 @@ describe("Coupled sim (MotorService + SensorService, one plant)", () => {
 
   afterAll(async () => {
     await close();
-    if (prevMotorUrl === undefined) delete process.env.MOTOR_GRPC_URL;
-    else process.env.MOTOR_GRPC_URL = prevMotorUrl;
+    setDefaultMotorGrpcUrlForTests(undefined);
     resetMotorGrpcClientForTests();
   });
 

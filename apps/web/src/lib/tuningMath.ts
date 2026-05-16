@@ -206,13 +206,13 @@ export function formToPatch(form: SimConfigForm) {
   };
 }
 
-export function formToEnvSnippet(form: SimConfigForm): string {
+export function formToConfigSnippet(form: SimConfigForm): string {
   return [
-    `# Coupled sim tuning (restart serve:coupled-sim after editing .env)`,
-    `SIM_METERS_PER_DISPLAY_COUNT=${form.metersPerDisplayCount}`,
-    `SIM_MPS_PER_RPM=${form.mpsPerRpm}`,
-    `SIM_LIMIT_LEFT_X_M=${form.limitLeftXM}`,
-    `SIM_LIMIT_RIGHT_X_M=${form.limitRightXM}`,
-    `# Plant params are applied live via tuning UI PATCH; for cold start, extend serveCoupledSim env if needed.`,
+    `// packages/app-config/src/config.ts — sim section`,
+    `metersPerDisplayCount: ${form.metersPerDisplayCount},`,
+    `mpsPerRpm: ${form.mpsPerRpm},`,
+    `limitLeftXM: ${form.limitLeftXM},`,
+    `limitRightXM: ${form.limitRightXM},`,
+    `// Plant params: applied live via tuning UI PATCH; restart serve:coupled-sim after edits.`,
   ].join("\n");
 }

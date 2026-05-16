@@ -15,6 +15,8 @@ import {
   SerialPortInfoSchema,
   ToggleLedReplySchema,
 } from "@real-pendulum/motor-proto/gen/sensor_pb.js";
+import { config } from "@real-pendulum/app-config";
+import { cliPort } from "@real-pendulum/app-config/cli";
 import { SerialPort } from "serialport";
 import { ArduinoSerialSession } from "./serial/arduinoSession.js";
 
@@ -23,16 +25,15 @@ const session = new ArduinoSerialSession();
 function routes(router: ConnectRouter): void {
   router.service(SensorService, {
     async connect(req) {
-      const path =
-        req.serialPort?.trim() || process.env.SENSOR_SERIAL_PORT?.trim();
+      const path = req.serialPort?.trim() || config.sensor.serialPort?.trim();
       if (!path) {
         return create(ConnectReplySchema, {
           ok: false,
           errorMessage:
-            "Pick a serial port in the UI or set SENSOR_SERIAL_PORT (e.g. COM3 on Windows, /dev/ttyACM0 on Linux).",
+            "Pick a serial port in the UI or set config.sensor.serialPort (e.g. COM3 on Windows, /dev/ttyACM0 on Linux).",
         });
       }
-      const baud = Number(process.env.SENSOR_SERIAL_BAUD ?? "115200");
+      const baud = config.sensor.baud;
       const r = await session.open(path, baud);
       if (!r.ok) {
         return create(ConnectReplySchema, { ok: false, errorMessage: r.error });
@@ -57,9 +58,9 @@ function routes(router: ConnectRouter): void {
       const portPath = session.getSerialPath();
       const detail = connected
         ? `Serial open (${portPath})`
-        : process.env.SENSOR_SERIAL_PORT?.trim()
+        : config.sensor.serialPort?.trim()
           ? "Serial closed"
-          : "Pick a port in the UI or set SENSOR_SERIAL_PORT";
+          : "Pick a port in the UI or set config.sensor.serialPort";
       return create(GetStatusReplySchema, {
         connected,
         ledOn: session.getLastLedOn(),
@@ -94,7 +95,7 @@ function routes(router: ConnectRouter): void {
   });
 }
 
-const port = Number(process.env.SENSOR_GRPC_PORT ?? "50052");
+const port = cliPort("--port", config.sensor.grpcPort);
 const bindHost = "0.0.0.0";
 const server = http.createServer(
   connectNodeAdapter({

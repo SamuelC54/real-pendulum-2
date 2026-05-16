@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * Smoke-check: **teknic_motor.dll** exists under native/build (no hardware access).
  * Non-Windows: exits 0 (skip).

@@ -1,6 +1,7 @@
 /**
  * **koffi** bindings for **`teknic_motor.dll`** (see **`native/teknic_motor/`** exports).
  */
+import { config } from "@real-pendulum/app-config";
 import fs from "node:fs";
 import path from "node:path";
 import koffi from "koffi";
@@ -29,9 +30,8 @@ export type TeknicNative = {
 };
 
 function resolveDll(pkgRoot: string): string {
-  const fromEnv = process.env.TEKNIC_DLL;
-  if (fromEnv) {
-    const p = path.resolve(fromEnv);
+  if (config.motor.teknicDll?.trim()) {
+    const p = path.resolve(config.motor.teknicDll.trim());
     if (!fs.existsSync(p)) {
       throw new Error(`TEKNIC_DLL not found: ${p}`);
     }

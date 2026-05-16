@@ -1,9 +1,4 @@
 /// <reference types="vite/client" />
 
-interface ImportMetaEnv {
-  readonly VITE_CONTROL_API_URL?: string;
-}
-
-interface ImportMeta {
-  readonly env: ImportMetaEnv;
-}
+/** Set in `vite.config.ts` from the active Vite mode (`e2e`, `e2e-real`, etc.). */
+declare const __PENDULUM_VITE_MODE__: string;

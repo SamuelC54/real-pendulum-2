@@ -9,22 +9,23 @@ import {
   SensorService,
 } from "@real-pendulum/motor-proto/gen/sensor_pb.js";
 import {
-  defaultSensorGrpcUrlFromEnv,
+  defaultSensorGrpcUrl,
   peekSensorGrpcBaseUrlOverride,
   withSensorGrpcBaseUrl,
 } from "./grpcUrlContext.js";
 
 export {
-  defaultSensorGrpcUrlFromEnv,
+  defaultSensorGrpcUrl,
   normalizeSensorGrpcBaseUrl,
+  setDefaultSensorGrpcUrlForTests,
   withSensorGrpcBaseUrl,
 } from "./grpcUrlContext.js";
 
-/** Normalizes active Connect **`baseUrl`** (per-request override or **`SENSOR_GRPC_URL`**). */
+/** Normalizes active Connect **`baseUrl`** (per-request override or **`config.sensor`**). */
 export function sensorConnectBaseUrl(): string {
   const override = peekSensorGrpcBaseUrlOverride();
   if (override) return override;
-  return defaultSensorGrpcUrlFromEnv();
+  return defaultSensorGrpcUrl();
 }
 
 let cachedBaseUrl: string | null = null;
@@ -49,7 +50,7 @@ function getClient() {
   return client;
 }
 
-/** Uses **`serialPort`** when set; otherwise falls back to **`SENSOR_SERIAL_PORT`**. */
+/** Uses **`serialPort`** when set; otherwise falls back to **`config.sensor.serialPort`**. */
 export async function connectSensor(serialPort?: string): Promise<{
   ok: boolean;
   error: string;

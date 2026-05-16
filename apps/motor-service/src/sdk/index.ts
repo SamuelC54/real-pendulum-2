@@ -7,28 +7,29 @@ import { createConnectTransport } from "@connectrpc/connect-node";
 import type { MotorInfo as ProtoMotorInfo } from "@real-pendulum/motor-proto/gen/motor_pb.js";
 import { MotorService } from "@real-pendulum/motor-proto/gen/motor_pb.js";
 import {
-  defaultMotorGrpcUrlFromEnv,
+  defaultMotorGrpcUrl,
   peekMotorGrpcBaseUrlOverride,
   withMotorGrpcBaseUrl,
 } from "./grpcUrlContext.js";
 
 export {
-  defaultMotorGrpcUrlFromEnv,
+  defaultMotorGrpcUrl,
   normalizeMotorGrpcBaseUrl,
+  setDefaultMotorGrpcUrlForTests,
   withMotorGrpcBaseUrl,
 } from "./grpcUrlContext.js";
 
-/** Normalizes active Connect **`baseUrl`** (per-request override or **`MOTOR_GRPC_URL`**). */
+/** Normalizes active Connect **`baseUrl`** (per-request override or **`config.motor`**). */
 export function motorConnectBaseUrl(): string {
   const override = peekMotorGrpcBaseUrlOverride();
   if (override) return override;
-  return defaultMotorGrpcUrlFromEnv();
+  return defaultMotorGrpcUrl();
 }
 
 let cachedBaseUrl: string | null = null;
 let client: Client<typeof MotorService> | null = null;
 
-/** Clears the cached Connect client so **`MOTOR_GRPC_URL`** changes take effect (tests only). */
+/** Clears the cached Connect client (tests only). */
 export function resetMotorGrpcClientForTests(): void {
   client = null;
   cachedBaseUrl = null;

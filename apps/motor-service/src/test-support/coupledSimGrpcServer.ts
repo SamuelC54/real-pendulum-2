@@ -34,11 +34,7 @@ import {
   SerialPortInfoSchema,
   ToggleLedReplySchema,
 } from "@real-pendulum/motor-proto/gen/sensor_pb.js";
-
-function envNumber(name: string, fallback: number): number {
-  const v = Number(process.env[name]);
-  return Number.isFinite(v) && v > 0 ? v : fallback;
-}
+import { config } from "@real-pendulum/app-config";
 
 export type CoupledSimGrpcOptions = {
   port?: number;
@@ -170,18 +166,11 @@ function handleAdminConfig(
 export function createCoupledSimGrpcModel(
   partial?: Partial<CoupledSimGrpcOptions> & { plant?: CartPendulumPlant },
 ): CoupledSimGrpcModel {
-  const metersPerDisplayCount = partial?.metersPerDisplayCount ?? envNumber("SIM_METERS_PER_DISPLAY_COUNT", 1e-4);
-  const mpsPerRpm = partial?.mpsPerRpm ?? envNumber("SIM_MPS_PER_RPM", 5e-5);
-  const limitLeftXM =
-    partial?.limitLeftXM ??
-    (Number.isFinite(Number(process.env.SIM_LIMIT_LEFT_X_M))
-      ? Number(process.env.SIM_LIMIT_LEFT_X_M)
-      : -0.4);
-  const limitRightXM =
-    partial?.limitRightXM ??
-    (Number.isFinite(Number(process.env.SIM_LIMIT_RIGHT_X_M))
-      ? Number(process.env.SIM_LIMIT_RIGHT_X_M)
-      : 0.4);
+  const sim = config.sim;
+  const metersPerDisplayCount = partial?.metersPerDisplayCount ?? sim.metersPerDisplayCount;
+  const mpsPerRpm = partial?.mpsPerRpm ?? sim.mpsPerRpm;
+  const limitLeftXM = partial?.limitLeftXM ?? sim.limitLeftXM;
+  const limitRightXM = partial?.limitRightXM ?? sim.limitRightXM;
   const plant =
     partial?.plant ??
     createCartPendulumPlant(undefined, {

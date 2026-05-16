@@ -1,0 +1,11 @@
+{
+  "name": "@real-pendulum/app-config",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/config.ts",
+    "./cli": "./src/cli.ts",
+    "./node": "./src/node.ts"
+  }
+}

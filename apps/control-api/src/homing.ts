@@ -1,3 +1,4 @@
+import { config } from "@real-pendulum/app-config";
 import * as motor from "@real-pendulum/motor-service/sdk";
 import * as sensor from "@real-pendulum/sensor-service/sdk";
 import { setTravelLimitsFromHoming } from "./railTravelLimits.js";
@@ -9,41 +10,6 @@ function rpmTowardLeft(homingRpm: number): number {
 
 function rpmTowardRight(homingRpm: number): number {
   return -homingRpm;
-}
-
-function envNumber(name: string, fallback: number): number {
-  const raw = process.env[name]?.trim();
-  if (!raw) return fallback;
-  const n = Number(raw);
-  return Number.isFinite(n) ? n : fallback;
-}
-
-/** Prefer **`HOMING_MID_POSITION_TOLERANCE`**, then legacy **`HOMING_MID_TICK_TOLERANCE`**. */
-function envMidTolerance(defaultTol: number): number {
-  const raw =
-    process.env.HOMING_MID_POSITION_TOLERANCE?.trim() ??
-    process.env.HOMING_MID_TICK_TOLERANCE?.trim();
-  if (!raw) return defaultTol;
-  const n = Number(raw);
-  return Number.isFinite(n) ? n : defaultTol;
-}
-
-/** Prefer **`HOMING_APPROACH_POSITION`**, then legacy **`HOMING_APPROACH_TICKS`**. */
-function envApproachThreshold(defaultTh: number): number {
-  const raw =
-    process.env.HOMING_APPROACH_POSITION?.trim() ??
-    process.env.HOMING_APPROACH_TICKS?.trim();
-  if (!raw) return defaultTh;
-  const n = Number(raw);
-  return Number.isFinite(n) ? n : defaultTh;
-}
-
-function envBool(name: string, fallback: boolean): boolean {
-  const raw = process.env[name]?.trim()?.toLowerCase();
-  if (!raw) return fallback;
-  if (raw === "1" || raw === "true" || raw === "yes") return true;
-  if (raw === "0" || raw === "false" || raw === "no") return false;
-  return fallback;
 }
 
 export type RailHomingResult = {
@@ -83,27 +49,16 @@ async function requireMotorMeasuredPosition(): Promise<number> {
 
 export async function runRailHoming(): Promise<RailHomingResult> {
   const log: string[] = [];
-  const homingRpm = Math.min(
-    120,
-    Math.max(5, envNumber("HOMING_JOG_RPM", 60)),
-  );
-  const pollMs = Math.min(200, Math.max(15, envNumber("HOMING_POLL_MS", 50)));
-  const phaseTimeoutMs = Math.min(
-    600_000,
-    Math.max(5000, envNumber("HOMING_PHASE_TIMEOUT_MS", 120_000)),
-  );
-  const midTol = Math.max(0, envMidTolerance(2));
-  const approachThreshold = Math.max(midTol + 1, envApproachThreshold(48));
-  const approachRpm = Math.min(
-    homingRpm,
-    Math.max(8, envNumber("HOMING_APPROACH_RPM", 22)),
-  );
-  const zeroMotorAtMid = envBool("HOMING_ZERO_MOTOR_POSITION_AT_MID", true);
+  const h = config.homing;
+  const homingRpm = Math.min(120, Math.max(5, h.jogRpm));
+  const pollMs = Math.min(200, Math.max(15, h.pollMs));
+  const phaseTimeoutMs = Math.min(600_000, Math.max(5000, h.phaseTimeoutMs));
+  const midTol = Math.max(0, h.midPositionTolerance);
+  const approachThreshold = Math.max(midTol + 1, h.approachPosition);
+  const approachRpm = Math.min(homingRpm, Math.max(8, h.approachRpm));
+  const zeroMotorAtMid = h.zeroMotorPositionAtMid;
   /** Ignore limit switches until measured position has moved this far from the phase start (noise / stale reads). */
-  const minTravelForLimit = Math.max(
-    0,
-    envNumber("HOMING_MIN_TRAVEL_FOR_LIMIT_COUNTS", 48),
-  );
+  const minTravelForLimit = Math.max(0, h.minTravelForLimitCounts);
 
   let motorAbsRevolutions = 0;
   let lastClock = Date.now();

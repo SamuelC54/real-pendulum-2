@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * Compile and upload `apps/sensor-service/firmware/led_toggle` via Arduino CLI.
  *
@@ -7,19 +6,14 @@
  *
  * Usage:
  *   npm run flash:sensor-firmware -- COM3
- *   ARDUINO_PORT=COM3 npm run flash:sensor-firmware
  *
- * Env (optional): ARDUINO_FQBN (default arduino:avr:uno), ARDUINO_PORT (same as arg).
- * FLASH_UPLOAD_RETRY_MS — delay before a second upload attempt on Windows (default 2500; set 0 to disable).
- * FLASH_UPLOAD_STALL_MS — after com-state failures, wait then try once more (default 5000; set 0 to skip).
- * Loads repository-root `.env` / `.env.local` when present (see run-with-root-env).
+ * Options: edit `packages/app-config/src/config.ts` (`flash` section).
  */
 import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { config } from "dotenv";
-import { setTimeout as delay } from "timers/promises";
+import { setTimeout as delay } from "node:timers/promises";
+import { config } from "@real-pendulum/app-config";
 
 const LOG = "[flash-sensor-firmware]";
 
@@ -27,27 +21,17 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, "..");
 const sketch = join(root, "apps/sensor-service/firmware/led_toggle");
 
-const envPath = join(root, ".env");
-const envLocalPath = join(root, ".env.local");
-if (existsSync(envPath)) {
-  config({ path: envPath });
-}
-if (existsSync(envLocalPath)) {
-  config({ path: envLocalPath, override: true });
-}
-
-const fqbn = process.env.ARDUINO_FQBN ?? "arduino:avr:uno";
+const fqbn = config.flash.arduinoFqbn;
 const portArg = process.argv[2]?.trim();
-const port = portArg || process.env.ARDUINO_PORT?.trim();
+const port = portArg || config.flash.arduinoPort?.trim();
 
 const shell = process.platform === "win32";
 
-function run(label, command, args) {
+function run(label: string, command: string, args: string[]) {
   const r = spawnSync(command, args, {
     cwd: root,
     stdio: "inherit",
     shell,
-    env: process.env,
   });
   if (r.error) {
     console.error(`${label}: failed to spawn ${command}:`, r.error.message);
@@ -58,8 +42,7 @@ function run(label, command, args) {
   }
 }
 
-/** Runs upload; echoes Arduino CLI output; returns exit status plus combined text for retry heuristics. */
-function uploadSketch(serialPort) {
+function uploadSketch(serialPort: string) {
   const r = spawnSync(
     "arduino-cli",
     ["upload", "-p", serialPort, "--fqbn", fqbn, sketch],
@@ -67,7 +50,6 @@ function uploadSketch(serialPort) {
       cwd: root,
       encoding: "utf8",
       shell,
-      env: process.env,
       stdio: ["ignore", "pipe", "pipe"],
     },
   );
@@ -77,7 +59,7 @@ function uploadSketch(serialPort) {
   return { status, text };
 }
 
-function looksLikeMissingComPort(log) {
+function looksLikeMissingComPort(log: string) {
   return /cannot find the file specified|No such file or directory|could not find/i.test(
     log,
   );
@@ -94,7 +76,7 @@ async function main() {
   }
 
   let upload = uploadSketch(port);
-  const retryMs = Number(process.env.FLASH_UPLOAD_RETRY_MS ?? "2500");
+  const retryMs = config.flash.uploadRetryMs;
   const shouldRetryWindows =
     upload.status !== 0 &&
     process.platform === "win32" &&
@@ -111,7 +93,7 @@ then retrying once (common after closing serial / sensor-service).
     upload = uploadSketch(port);
   }
 
-  const stallMs = Number(process.env.FLASH_UPLOAD_STALL_MS ?? "5000");
+  const stallMs = config.flash.uploadStallMs;
   const comStateStuck =
     upload.status !== 0 &&
     process.platform === "win32" &&
@@ -150,7 +132,6 @@ Ports detected right now:
       cwd: root,
       stdio: "inherit",
       shell,
-      env: process.env,
     });
     console.error(
       "\nStill stuck on COM9 with com-state? Stop `npm run dev` completely, wait 3s, run flash again.\n",

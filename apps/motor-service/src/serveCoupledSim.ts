@@ -7,16 +7,17 @@
  * Point **both** URLs at the printed address, e.g.:
  *   `MOTOR_GRPC_URL=http://127.0.0.1:58870` and `SENSOR_GRPC_URL=http://127.0.0.1:58870`
  *
- * Optional env: **`SIM_COUPLED_GRPC_PORT`**, **`SIM_METERS_PER_DISPLAY_COUNT`**, **`SIM_MPS_PER_RPM`**,
- * **`SIM_LIMIT_LEFT_X_M`**, **`SIM_LIMIT_RIGHT_X_M`**.
+ * Sim tuning: edit **`packages/app-config/src/config.ts`** (`sim` section).
  */
+import { config } from "@real-pendulum/app-config";
+import { cliPort } from "@real-pendulum/app-config/cli";
 import {
   createCoupledSimGrpcModel,
   startCoupledSimGrpcServer,
 } from "./test-support/coupledSimGrpcServer.js";
 
 /** Default avoids low **50xxx** ports often blocked on Windows (Hyper-V / excluded ranges → **EACCES**). */
-const port = Number(process.env.SIM_COUPLED_GRPC_PORT ?? "58870");
+const port = cliPort("--port", config.sim.coupledGrpcPort);
 const model = createCoupledSimGrpcModel();
 
 const { url, close } = await startCoupledSimGrpcServer(model, { port });

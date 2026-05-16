@@ -7,6 +7,7 @@ import {
   getMotorStatus,
   moveToPosition,
   resetMotorGrpcClientForTests,
+  setDefaultMotorGrpcUrlForTests,
   setJogVelocityRpm,
   stopMotor,
   zeroMeasuredPosition,
@@ -18,12 +19,10 @@ import {
 } from "../test-support/fakeMotorGrpcServer.js";
 
 describe("MotorService SDK (fake Connect server)", () => {
-  let prevUrl: string | undefined;
   let model: FakeMotorGrpcModel;
   let close: () => Promise<void>;
 
   beforeAll(async () => {
-    prevUrl = process.env.MOTOR_GRPC_URL;
     model = createFakeMotorGrpcModel({
       motor: {
         nodeIndex: 1,
@@ -37,14 +36,13 @@ describe("MotorService SDK (fake Connect server)", () => {
     });
     const { url, close: shutdown } = await startFakeMotorGrpcServer(model);
     close = shutdown;
-    process.env.MOTOR_GRPC_URL = url;
+    setDefaultMotorGrpcUrlForTests(url);
     resetMotorGrpcClientForTests();
   });
 
   afterAll(async () => {
     await close();
-    if (prevUrl === undefined) delete process.env.MOTOR_GRPC_URL;
-    else process.env.MOTOR_GRPC_URL = prevUrl;
+    setDefaultMotorGrpcUrlForTests(undefined);
     resetMotorGrpcClientForTests();
   });
 

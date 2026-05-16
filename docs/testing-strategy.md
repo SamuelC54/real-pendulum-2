@@ -86,9 +86,9 @@ Uses ephemeral HTTP (`http://127.0.0.1:<port>` from **`127.0.0.1:0`** bind), set
 | Mode | Command | Orchestrator | Ports (defaults) |
 |------|---------|--------------|------------------|
 | **Fake motor** (default, CI) | **`npm run test:e2e`** | **`scripts/e2e-stack.mjs`** — in-process fake **`MotorService`** → **`start:tsx`** control-api → **Vite dev** | **50552** / **14001** / **4174** — avoids clashing with **`npm run dev`** |
-| **Real motor** (local + hardware) | **`npm run test:e2e:real`** | **`scripts/e2e-stack-real.mjs`** — **motor service** (Node **`tsx`** + **`teknic_motor.dll`**, **`npm run start`**) → control-api → Vite | **50051** / **4000** / **5173** (or **`.env`**: **`MOTOR_GRPC_PORT`**, **`CONTROL_API_PORT`**, **`VITE_DEV_PORT`** / **`E2E_WEB_PORT`**) |
+| **Real motor** (local + hardware) | **`npm run test:e2e:real`** | **`scripts/e2e-stack-real.ts`** — motor service → control-api → Vite | **`config`** defaults **50051** / **4000** / **5173** (`playwright.real.config.cjs` sets **`config.e2e.useRealMotor`**) |
 
-Set **`E2E_USE_REAL_MOTOR=1`** (or use **`cross-env`** via **`npm run test:e2e:real`**) so **`playwright.config.cjs`** selects **`e2e-stack-real.mjs`**. Loads repo **`.env`** / **`.env.local`**. Real runs need **`teknic_motor.dll`** (**`npm run build:native -w @real-pendulum/motor-service`**), hub power, and **ClearView** closed — same as **[hardware-smoke-checklist.md](./hardware-smoke-checklist.md)**.
+**`npm run test:e2e:ci`** uses **`playwright.ci.config.cjs`** (`config.e2e.continuousIntegration`). Real runs need **`teknic_motor.dll`**, hub power, and **ClearView** closed — **[hardware-smoke-checklist.md](./hardware-smoke-checklist.md)**.
 
 Run **`npm run build`** before E2E so workspace TypeScript builds; **Vite dev** picks up **`VITE_CONTROL_API_URL`** at stack start.
 
@@ -143,4 +143,4 @@ Set repository variable **`TEKNIC_SDK_ROOT`** if the SDK is not under the defaul
 | 2026-05-02 | Initial testing strategy. |
 | 2026-05-02 | Documented Vitest, fake gRPC, fixtures, web components, CI, DLL smoke, hardware checklist. |
 | 2026-05-03 | Playwright E2E (`e2e-stack`, dedicated ports), CI `native-windows` + Teknic SDK detection. |
-| 2026-05-03 | Real-motor E2E (`e2e-stack-real`, `E2E_USE_REAL_MOTOR`); `playwright.config.cjs` (CJS + dotenv). |
+| 2026-05-03 | Real-motor E2E (`e2e-stack-real.ts`, `playwright.real.config.cjs`); config in `packages/app-config`. |

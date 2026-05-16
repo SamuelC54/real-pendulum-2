@@ -1,9 +1,11 @@
+import { config } from "@real-pendulum/app-config";
+import { cliPort } from "@real-pendulum/app-config/cli";
 import {
   createCoupledSimGrpcModel,
   startCoupledSimGrpcServer,
 } from "@real-pendulum/motor-service/test-support/coupled-sim-server";
 
-const port = Number(process.env.SIM_COUPLED_GRPC_PORT ?? "58870");
+const port = cliPort("--port", config.sim.coupledGrpcPort);
 const model = createCoupledSimGrpcModel();
 
 const { url, close } = await startCoupledSimGrpcServer(model, { port });

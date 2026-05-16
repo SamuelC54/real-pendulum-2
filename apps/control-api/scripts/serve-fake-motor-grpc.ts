@@ -1,9 +1,11 @@
+import { config } from "@real-pendulum/app-config";
+import { cliPort } from "@real-pendulum/app-config/cli";
 import {
   createFakeMotorGrpcModel,
   startFakeMotorGrpcServer,
 } from "@real-pendulum/motor-service/test-support/fake-motor-server";
 
-const port = Number(process.env.MOTOR_GRPC_PORT ?? "50051");
+const port = cliPort("--port", config.motor.grpcPort);
 const model = createFakeMotorGrpcModel();
 
 const { url, close } = await startFakeMotorGrpcServer(model, { port });

@@ -1,28 +1,24 @@
 /**
  * Configure and build **`teknic_motor.dll`** (Visual Studio generator, Release).
- * Loads repo **`.env`** / **`.env.local`** first so **`TEKNIC_SDK_ROOT`**, **`CMAKE_BIN`**, etc. apply.
+ * Native build paths: **`packages/app-config/src/config.ts`** (`motor` section).
  *
  * **Windows:** tries **`Visual Studio 17 2022`** then **`Visual Studio 18 2026`** (wipes **`native/build`**
- * between attempts). Override with **`CMAKE_GENERATOR`** (e.g. only VS 18 on your machine).
+ * between attempts). Override **`motor.cmakeGenerator`** in config.
  */
 import { spawnSync } from "node:child_process";
-import { config as loadEnv } from "dotenv";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { register } from "tsx/esm/api";
 import { cmakeNotFoundMessage, findCmake } from "./find-cmake.mjs";
+
+register();
+const { config } = await import("@real-pendulum/app-config");
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MOTOR_GRPC_ROOT = path.resolve(__dirname, "..");
-const REPO_ROOT = path.resolve(MOTOR_GRPC_ROOT, "..", "..");
-for (const name of [".env", ".env.local"]) {
-  const p = path.join(REPO_ROOT, name);
-  if (fs.existsSync(p)) {
-    loadEnv({ path: p, override: name === ".env.local" });
-  }
-}
 
-const cmake = findCmake();
+const cmake = findCmake({ cmakeBin: config.motor.cmakeBin?.trim() });
 if (!cmake) {
   console.error(cmakeNotFoundMessage());
   process.exit(1);
@@ -34,19 +30,17 @@ function runCMake(args) {
   const opts = {
     stdio: "inherit",
     cwd: MOTOR_GRPC_ROOT,
-    // Never use shell: true here — on Windows, cmd.exe splits -G "Visual Studio 17 2022"
-    // into -G Visual / Studio / 17 / 2022 and CMake sees generator "Visual" only.
     shell: false,
   };
   return spawnSync(cmake, args, opts);
 }
 
-const sdkRoot = process.env.TEKNIC_SDK_ROOT;
-const cmakePrefix = process.env.CMAKE_PREFIX_PATH;
+const sdkRoot = config.motor.teknicSdkRoot?.trim();
+const cmakePrefix = config.motor.cmakePrefixPath?.trim();
 const nativeSrc = path.join(MOTOR_GRPC_ROOT, "native");
 const nativeBuild = path.join(MOTOR_GRPC_ROOT, "native", "build");
 
-const customGen = process.env.CMAKE_GENERATOR?.trim();
+const customGen = config.motor.cmakeGenerator?.trim();
 const generators = customGen
   ? [customGen]
   : ["Visual Studio 17 2022", "Visual Studio 18 2026"];

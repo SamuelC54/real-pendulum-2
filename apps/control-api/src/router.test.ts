@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 
 vi.mock("@real-pendulum/motor-service/sdk", () => ({
   motorConnectBaseUrl: vi.fn(() => "http://127.0.0.1:50051"),
-  defaultMotorGrpcUrlFromEnv: vi.fn(() => "http://127.0.0.1:50051"),
+  defaultMotorGrpcUrl: vi.fn(() => "http://127.0.0.1:50051"),
   normalizeMotorGrpcBaseUrl: vi.fn((s: string) => s),
   withMotorGrpcBaseUrl: vi.fn((_url: string, fn: () => unknown) => fn()),
   connectMotor: vi.fn(),
@@ -19,7 +19,7 @@ vi.mock("./homing.js", () => ({
 
 vi.mock("@real-pendulum/sensor-service/sdk", () => ({
   sensorConnectBaseUrl: vi.fn(() => "http://127.0.0.1:50052"),
-  defaultSensorGrpcUrlFromEnv: vi.fn(() => "http://127.0.0.1:50052"),
+  defaultSensorGrpcUrl: vi.fn(() => "http://127.0.0.1:50052"),
   normalizeSensorGrpcBaseUrl: vi.fn((s: string) => s),
   withSensorGrpcBaseUrl: vi.fn((_url: string, fn: () => unknown) => fn()),
   connectSensor: vi.fn(),
