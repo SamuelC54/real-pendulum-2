@@ -5,6 +5,7 @@ import { ProfileSlider } from "@/components/ProfileSlider";
 import { Card } from "@/components/ui/card";
 import { RailPendulumSchematic } from "@/components/RailPendulumSchematic";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import {
   isJogBlockedByTravelLimit,
@@ -13,7 +14,12 @@ import {
 } from "@/lib/jogMath";
 import { useMotorSession } from "@/services/motorSession";
 import { useSensorStatusQuery } from "@/services/useMotorStatusQuery";
-import { holdingAtom, jogAccelRpmPerSecAtom, jogRpmAtom, type JogHold } from "@/stores/jog";
+import {
+  holdingAtom,
+  jogAccelRpmPerSecAtom,
+  jogRpmAtom,
+  keyboardJogEnabledAtom,
+} from "@/stores/jog";
 
 function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n));
@@ -29,12 +35,14 @@ const JogDirectionButton = memo(function JogDirectionButton({
   direction,
   held,
   disabled,
-  applyHold,
+  onPointerHold,
+  onPointerRelease,
 }: {
   direction: JogDirection;
   held: boolean;
   disabled: boolean;
-  applyHold: (dir: JogHold) => void | Promise<void>;
+  onPointerHold: (dir: JogDirection) => void | Promise<void>;
+  onPointerRelease: () => void | Promise<void>;
 }) {
   return (
     <Button
@@ -46,11 +54,11 @@ const JogDirectionButton = memo(function JogDirectionButton({
       aria-pressed={held}
       onPointerDown={(e) => {
         e.preventDefault();
-        void applyHold(direction);
+        void onPointerHold(direction);
       }}
-      onPointerUp={() => void applyHold(null)}
+      onPointerUp={() => void onPointerRelease()}
       onPointerLeave={(e) => {
-        if (e.buttons === 0) void applyHold(null);
+        if (e.buttons === 0) void onPointerRelease();
       }}
     >
       {direction === "left" ? (
@@ -69,10 +77,20 @@ const JogDirectionButton = memo(function JogDirectionButton({
 });
 
 export const JogControls = memo(function JogControls() {
-  const { connected, applyHold, connect, disconnect, setVelocity, stop } = useMotorSession();
+  const {
+    connected,
+    applyPointerHold,
+    applyPointerRelease,
+    applyJogStop,
+    connect,
+    disconnect,
+    setVelocity,
+    stop,
+  } = useMotorSession();
   const holding = useAtomValue(holdingAtom);
   const [jogRpm, setJogRpm] = useAtom(jogRpmAtom);
   const [jogAccelRpmPerSec, setJogAccelRpmPerSec] = useAtom(jogAccelRpmPerSecAtom);
+  const [keyboardJogEnabled, setKeyboardJogEnabled] = useAtom(keyboardJogEnabledAtom);
   const sensor = useSensorStatusQuery();
   const travelLimits = {
     connected: sensor.data?.connected ?? false,
@@ -95,6 +113,22 @@ export const JogControls = memo(function JogControls() {
   return (
     <Card className="flex flex-col gap-4 p-6" aria-label="Jog controls">
       <div className="mx-auto flex w-full max-w-md flex-col gap-3">
+        <div className="flex items-center justify-between gap-3">
+          <label
+            htmlFor="keyboard-jog"
+            className="text-muted-foreground cursor-pointer text-xs leading-snug"
+          >
+            Keyboard jog{" "}
+            <span className="font-mono text-foreground">←</span> /{" "}
+            <span className="font-mono text-foreground">→</span>
+          </label>
+          <Switch
+            id="keyboard-jog"
+            checked={keyboardJogEnabled}
+            onCheckedChange={setKeyboardJogEnabled}
+            aria-label="Enable keyboard jog with arrow keys"
+          />
+        </div>
         <ProfileSlider
           label="Jog RPM"
           min={1}
@@ -123,13 +157,15 @@ export const JogControls = memo(function JogControls() {
             direction="left"
             held={holding === "left"}
             disabled={disabled || leftBlocked}
-            applyHold={applyHold}
+            onPointerHold={applyPointerHold}
+            onPointerRelease={applyPointerRelease}
           />
           <JogDirectionButton
             direction="right"
             held={holding === "right"}
             disabled={disabled || rightBlocked}
-            applyHold={applyHold}
+            onPointerHold={applyPointerHold}
+            onPointerRelease={applyPointerRelease}
           />
         </div>
 
@@ -139,7 +175,7 @@ export const JogControls = memo(function JogControls() {
           size="lg"
           className="min-w-48"
           disabled={disabled}
-          onClick={() => void applyHold(null)}
+          onClick={() => void applyJogStop()}
         >
           <OctagonAlert aria-hidden />
           Stop

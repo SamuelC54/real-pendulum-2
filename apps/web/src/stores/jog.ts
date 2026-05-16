@@ -15,3 +15,6 @@ export const jogAccelRpmPerSecAtom = atomWithStorage(
   "rp-jog-accel-rpm-per-sec",
   DEFAULT_PROFILE_ACC_RPM_PER_SEC,
 );
+
+/** Arrow keys (← / →) jog while enabled (Control page and elsewhere). */
+export const keyboardJogEnabledAtom = atomWithStorage("rp-keyboard-jog", false);

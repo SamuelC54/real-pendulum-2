@@ -35,7 +35,11 @@ function renderWithMotorSession(ui: ReactElement, session: Partial<MotorSessionV
     stop: { isPending: false } as MotorSessionValue["stop"],
     connected: false,
     busy: false,
-    applyHold: vi.fn(),
+    connectionBusy: false,
+    applyPointerHold: vi.fn(),
+    applyPointerRelease: vi.fn(),
+    applyKeyboardJog: vi.fn(),
+    applyJogStop: vi.fn(),
     connectMotor: vi.fn(),
     disconnectMotor: vi.fn(),
     ...session,
@@ -52,7 +56,9 @@ describe("JogControls", () => {
   it("disables jog and stop when not connected", () => {
     renderWithMotorSession(<JogControls />, {
       connected: false,
-      applyHold: vi.fn(),
+      applyPointerHold: vi.fn(),
+      applyPointerRelease: vi.fn(),
+      applyJogStop: vi.fn(),
     });
     expect(screen.getByRole("button", { name: /jog left/i })).toBeDisabled();
     expect(screen.getByRole("button", { name: /jog right/i })).toBeDisabled();
@@ -62,7 +68,9 @@ describe("JogControls", () => {
   it("enables jog and stop when connected and not busy", () => {
     renderWithMotorSession(<JogControls />, {
       connected: true,
-      applyHold: vi.fn(),
+      applyPointerHold: vi.fn(),
+      applyPointerRelease: vi.fn(),
+      applyJogStop: vi.fn(),
     });
     expect(screen.getByRole("button", { name: /jog left/i })).not.toBeDisabled();
     expect(screen.getByRole("button", { name: /jog right/i })).not.toBeDisabled();
@@ -72,7 +80,9 @@ describe("JogControls", () => {
   it("disables controls while connect is pending", () => {
     renderWithMotorSession(<JogControls />, {
       connected: true,
-      applyHold: vi.fn(),
+      applyPointerHold: vi.fn(),
+      applyPointerRelease: vi.fn(),
+      applyJogStop: vi.fn(),
       connect: { isPending: true } as MotorSessionValue["connect"],
     });
     expect(screen.getByRole("button", { name: /jog left/i })).toBeDisabled();

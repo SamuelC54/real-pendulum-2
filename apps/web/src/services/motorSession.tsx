@@ -24,7 +24,14 @@ export type MotorSessionValue = {
   stop: ReturnType<typeof useJogStopMutation>;
   connected: boolean;
   busy: boolean;
-  applyHold: (dir: JogHold) => void | Promise<void>;
+  connectionBusy: boolean;
+  /** Pointer hold on jog buttons (release may keep keyboard jog active). */
+  applyPointerHold: (dir: "left" | "right") => void | Promise<void>;
+  applyPointerRelease: () => void | Promise<void>;
+  /** Arrow-key jog when keyboard jog is enabled. */
+  applyKeyboardJog: (dir: JogHold) => void | Promise<void>;
+  /** Stop motor and clear pointer + keyboard jog. */
+  applyJogStop: () => void | Promise<void>;
   connectMotor: () => Promise<void>;
   disconnectMotor: () => Promise<void>;
 };
@@ -43,35 +50,96 @@ export function MotorSessionProvider({ children }: { children: ReactNode }) {
   const setVelocity = useJogSetVelocityMutation();
   const stop = useJogStopMutation();
   const setHolding = useSetAtom(holdingAtom);
-  const applyHoldRef = useRef<(dir: JogHold) => void | Promise<void>>(() => {});
+  const pointerDirRef = useRef<JogHold>(null);
+  const keyboardDirRef = useRef<JogHold>(null);
+  const motorDirRef = useRef<JogHold>(null);
+  const syncJogRef = useRef<() => void | Promise<void>>(() => {});
+  const syncJogQueueRef = useRef(Promise.resolve());
 
   const invalidateMotorQueries = useCallback(() => {
     void utils.status.get.invalidate();
     void utils.twin.status.get.invalidate();
   }, [utils]);
 
+  const connectionBusy = connect.isPending || disconnect.isPending;
   const busy =
-    connect.isPending || disconnect.isPending || setVelocity.isPending || stop.isPending;
+    connectionBusy || setVelocity.isPending || stop.isPending;
 
-  const applyHold = useCallback(
-    async (dir: JogHold) => {
-      if (!connected && dir) return;
-      setHolding(dir);
-      if (!dir) {
-        await stop.mutateAsync();
-        invalidateMotorQueries();
-        return;
-      }
-      await setVelocity.mutateAsync({
-        rpm: jogRpmForDirection(dir, jogRpm),
-        maxAccelerationRpmPerSec: jogAccelRpmPerSec,
-      });
+  const effectiveJogDirection = useCallback((): JogHold => {
+    return pointerDirRef.current ?? keyboardDirRef.current;
+  }, []);
+
+  const syncJog = useCallback(async () => {
+    const dir = effectiveJogDirection();
+    setHolding(dir);
+    if (!connected) {
+      motorDirRef.current = null;
+      return;
+    }
+    if (dir === motorDirRef.current) return;
+
+    if (!dir) {
+      motorDirRef.current = null;
+      if (!connected) return;
+      await stop.mutateAsync();
       invalidateMotorQueries();
+      return;
+    }
+
+    motorDirRef.current = dir;
+    await setVelocity.mutateAsync({
+      rpm: jogRpmForDirection(dir, jogRpm),
+      maxAccelerationRpmPerSec: jogAccelRpmPerSec,
+    });
+    invalidateMotorQueries();
+  }, [
+    connected,
+    effectiveJogDirection,
+    setHolding,
+    stop,
+    setVelocity,
+    invalidateMotorQueries,
+    jogRpm,
+    jogAccelRpmPerSec,
+  ]);
+
+  useEffect(() => {
+    syncJogRef.current = syncJog;
+  }, [syncJog]);
+
+  const runSyncJog = useCallback(() => {
+    const next = syncJogQueueRef.current.then(() => syncJog(), () => syncJog());
+    syncJogQueueRef.current = next;
+    return next;
+  }, [syncJog]);
+
+  const applyPointerHold = useCallback(
+    async (dir: "left" | "right") => {
+      if (!connected) return;
+      pointerDirRef.current = dir;
+      await runSyncJog();
     },
-    [connected, setHolding, stop, setVelocity, invalidateMotorQueries, jogRpm, jogAccelRpmPerSec],
+    [connected, runSyncJog],
   );
 
-  applyHoldRef.current = applyHold;
+  const applyPointerRelease = useCallback(async () => {
+    pointerDirRef.current = null;
+    await runSyncJog();
+  }, [runSyncJog]);
+
+  const applyKeyboardJog = useCallback(
+    async (dir: JogHold) => {
+      keyboardDirRef.current = dir;
+      await runSyncJog();
+    },
+    [runSyncJog],
+  );
+
+  const applyJogStop = useCallback(async () => {
+    pointerDirRef.current = null;
+    keyboardDirRef.current = null;
+    await runSyncJog();
+  }, [runSyncJog]);
 
   /** Stop an in-progress jog as soon as its direction hits a travel limit (sensor poll ~80 ms). */
   useEffect(() => {
@@ -82,7 +150,9 @@ export function MotorSessionProvider({ children }: { children: ReactNode }) {
       limitRightPressed: sensor.data?.limitRightPressed ?? false,
     };
     if (!shouldReleaseJogHoldForTravelLimit(holding, limits)) return;
-    void applyHoldRef.current(null);
+    pointerDirRef.current = null;
+    keyboardDirRef.current = null;
+    void syncJogRef.current();
   }, [
     connected,
     holding,
@@ -113,6 +183,9 @@ export function MotorSessionProvider({ children }: { children: ReactNode }) {
   }, [connect, invalidateMotorQueries]);
 
   const disconnectMotor = useCallback(async () => {
+    pointerDirRef.current = null;
+    keyboardDirRef.current = null;
+    motorDirRef.current = null;
     setHolding(null);
     await disconnect.mutateAsync();
     invalidateMotorQueries();
@@ -126,7 +199,11 @@ export function MotorSessionProvider({ children }: { children: ReactNode }) {
       stop,
       connected,
       busy,
-      applyHold,
+      connectionBusy,
+      applyPointerHold,
+      applyPointerRelease,
+      applyKeyboardJog,
+      applyJogStop,
       connectMotor,
       disconnectMotor,
     }),
@@ -137,7 +214,11 @@ export function MotorSessionProvider({ children }: { children: ReactNode }) {
       stop,
       connected,
       busy,
-      applyHold,
+      connectionBusy,
+      applyPointerHold,
+      applyPointerRelease,
+      applyKeyboardJog,
+      applyJogStop,
       connectMotor,
       disconnectMotor,
     ],

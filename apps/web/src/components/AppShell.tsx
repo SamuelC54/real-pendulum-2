@@ -7,6 +7,7 @@ import { MotorStatusBlocks } from "@/components/MotorStatusBlocks";
 import { PositionMoveControls } from "@/components/PositionMoveControls";
 import { SensorLedCard } from "@/components/SensorLedCard";
 import { BackendAutoConnect } from "@/components/BackendAutoConnect";
+import { KeyboardJogListener } from "@/components/KeyboardJogListener";
 import { TuningPage } from "@/components/TuningPage";
 import { TuningRecorder } from "@/components/TuningRecorder";
 import { grpcBackendModeAtom } from "@/stores/grpcBackendMode";
@@ -78,6 +79,7 @@ export function AppShell() {
   return (
     <div className="min-h-dvh bg-background text-foreground">
       <BackendAutoConnect />
+      <KeyboardJogListener />
       <TuningRecorder />
       <AppHeader />
       <div className="mx-auto max-w-7xl px-6 pt-4">
