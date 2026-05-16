@@ -2,9 +2,16 @@
   "name": "@real-pendulum/physics-sim",
   "version": "0.0.1",
   "private": true,
+  "type": "module",
+  "exports": {
+    "./client": "./client/src/index.ts"
+  },
   "scripts": {
     "dev": "python -m cart_pendulum.server --port 58871",
     "start": "python -m cart_pendulum.server --port 58871",
     "test": "python -m pytest tests -q"
+  },
+  "dependencies": {
+    "@real-pendulum/app-config": "*"
   }
 }

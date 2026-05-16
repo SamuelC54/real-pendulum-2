@@ -69,7 +69,10 @@ class CartPendulumPlant:
         self._model.actuator_gainprm[self._act_id, 0] = cfg.cart_velocity_tracking_per_sec
         self._model.dof_damping[self._pend_qvel] = cfg.angular_damping_per_sec
         length = max(0.08, cfg.pendulum_length_m)
+        rod_gid = self._model.geom("rod").id
         bob_gid = self._model.geom(_GEOM_BOB).id
+        # Compiled capsule: size[1] = half-length along the rod axis.
+        self._model.geom_size[rod_gid, 1] = length / 2.0
         self._model.geom_pos[bob_gid, 2] = -length
 
     def sync_state_to_mujoco(self) -> None:

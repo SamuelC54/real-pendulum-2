@@ -1,7 +1,12 @@
 import { Grid, OrbitControls, Sky } from "@react-three/drei";
-import { useFrame } from "@react-three/fiber";
-import { memo, Suspense, useState } from "react";
-import { MujocoCanvas, useMujoco, useMujocoWasm } from "mujoco-react";
+import { memo, Suspense, useEffect, useRef, useState } from "react";
+import {
+  MujocoCanvas,
+  useBeforePhysicsStep,
+  useCtrl,
+  useMujoco,
+  useMujocoWasm,
+} from "mujoco-react";
 import { encoderTicksPerRadian } from "@/lib/pendulumEncoder";
 import { mujocoCartPendulumSceneConfig } from "@/lib/mujocoCartPendulumScene";
 import { cn } from "@/lib/utils";
@@ -19,7 +24,8 @@ type ViewerProps = {
   className?: string;
 };
 
-function SyncCartPendulumState({
+/** Drive cart from motor telemetry; pendulum is integrated by MuJoCo (gravity + hinge). */
+function CartPendulumPhysicsDriver({
   positionCm,
   encoderTicks,
   enabled,
@@ -30,22 +36,56 @@ function SyncCartPendulumState({
 }) {
   const sim = useMujoco();
   const { mujoco } = useMujocoWasm();
+  const cartVel = useCtrl("cart_vel");
+  const prevSample = useRef<{ xM: number; tSec: number } | null>(null);
+  const seeded = useRef(false);
 
-  useFrame(() => {
-    if (!enabled || !sim.isReady) return;
-    const xM = positionCm != null && Number.isFinite(positionCm) ? positionCm / 100 : 0;
+  useEffect(() => {
+    if (!enabled) {
+      seeded.current = false;
+      prevSample.current = null;
+    }
+  }, [enabled]);
+
+  // Align hinge angle once when connected; after that let physics run.
+  useEffect(() => {
+    if (!enabled || !sim.isReady || seeded.current) return;
     const theta = encoderTicks / encoderTicksPerRadian();
     const qpos = sim.api.getQpos();
-    if (qpos.length < 2) return;
-    qpos[0] = xM;
+    const qvel = sim.api.getQvel();
+    if (qpos.length < 2 || qvel.length < 2) return;
     qpos[1] = theta;
+    qvel[1] = 0;
     sim.api.setQpos(qpos);
-
+    sim.api.setQvel(qvel);
     const model = sim.api.mjModelRef.current;
     const data = sim.api.mjDataRef.current;
     if (model && data && mujoco) {
       mujoco.mj_forward(model, data);
     }
+    seeded.current = true;
+  }, [enabled, encoderTicks, mujoco, sim.api, sim.isReady]);
+
+  useBeforePhysicsStep(() => {
+    if (!enabled || !sim.isReady) {
+      cartVel.write(0);
+      return;
+    }
+
+    const xM = positionCm != null && Number.isFinite(positionCm) ? positionCm / 100 : 0;
+    const tSec = performance.now() / 1000;
+    let vCmd = 0;
+    const prev = prevSample.current;
+    if (prev) {
+      const dt = tSec - prev.tSec;
+      if (dt > 1e-4 && dt < 0.35) {
+        vCmd = (xM - prev.xM) / dt;
+      }
+    }
+    prevSample.current = { xM, tSec };
+
+    const [vMin, vMax] = cartVel.range;
+    cartVel.write(Math.max(vMin, Math.min(vMax, vCmd)));
   });
 
   return null;
@@ -97,7 +137,7 @@ function MujocoCartPendulumScene({
     <>
       <MujocoCanvas
         config={mujocoCartPendulumSceneConfig()}
-        paused
+        paused={!connected}
         shadows
         style={{ width: "100%", height: "100%" }}
         camera={{
@@ -134,7 +174,7 @@ function MujocoCartPendulumScene({
           minPolarAngle={1.05}
           maxPolarAngle={1.62}
         />
-        <SyncCartPendulumState
+        <CartPendulumPhysicsDriver
           positionCm={positionCm}
           encoderTicks={encoderTicks}
           enabled={connected}
@@ -164,7 +204,8 @@ function LoadingFallback() {
 
 /**
  * 3D MuJoCo view of the cart–pendulum (mujoco-js in the browser).
- * Kinematic only: qpos is driven from motor/sensor telemetry, not stepped locally.
+ * Cart velocity follows motor position; pendulum swings under gravity in the WASM sim.
+ * Encoder angle seeds the hinge on connect only (may drift from coupled-sim ticks).
  */
 export const MujocoCartPendulumViewer = memo(function MujocoCartPendulumViewer({
   positionCm,

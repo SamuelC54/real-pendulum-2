@@ -1,6 +1,6 @@
 # Simulation & bench mode — technical design
 
-This document extends the stack overview in [`TECHDOC.md`](./TECHDOC.md). It describes how to run the application **without physical motor or sensor hardware**, how to combine **live hardware with a coupled plant simulation** for comparison, **§2.2** (fake motor + fake sensor as **two facades over one plant**), how **`CartPendulumPlant`** maps onto gRPC (**§3.5**), and the **`@real-pendulum/cart-pendulum-sim`** package.
+This document extends the stack overview in [`TECHDOC.md`](./TECHDOC.md). It describes how to run the application **without physical motor or sensor hardware**, how to combine **live hardware with a coupled plant simulation** for comparison, **§2.2** (fake motor + fake sensor as **two facades over one plant**), how **`CartPendulumPlant`** maps onto gRPC (**§3.5**), and the **`@real-pendulum/physics-sim`** MuJoCo service.
 
 ---
 
@@ -83,7 +83,7 @@ In the coupled design, **fake motor** and **fake sensor** processes are **not** 
 
 ### 3.5 How physics drives fake motor and sensor gRPC
 
-When **`control-api`** is pointed at **fake** motor and/or sensor processes (instead of the DLL-backed motor service and USB-backed sensor service), the **same protobuf RPCs** apply, but **state comes from one coupled `CartPendulumPlant`** (from **`@real-pendulum/cart-pendulum-sim`**, **`cartPendulumPlant.ts`**) instead of Teknic and the Sensor Board. That plant integrates **cart motion** (velocity lagging jog commands) and **pendulum dynamics** (gravity **plus** cart horizontal acceleration coupling into \(\ddot\theta\)); see **§5** for the equations and TypeScript API.
+When **`control-api`** is pointed at **fake** motor and/or sensor processes (instead of the DLL-backed motor service and USB-backed sensor service), the **same protobuf RPCs** apply, but **state comes from one coupled `CartPendulumPlant`** (in-memory mirror synced via **`@real-pendulum/physics-sim/client`**) instead of Teknic and the Sensor Board. Physics runs in **MuJoCo** (`apps/physics-sim`); see **§5** for the HTTP API and plant mirror types.
 
 The **fake motor** and **fake sensor** handlers are **facades** over this one object (**§2.2**): **`GetStatus`** and **`GetSensorStatus`** must reflect the **same** step of physics.
 
@@ -198,7 +198,7 @@ Pick one pattern (or evolve from A → B):
 ## 5. Coupled cart–pendulum physics
 
 **Runtime engine:** [`apps/physics-sim`](../apps/physics-sim/) — **Python + MuJoCo** HTTP service (default `http://127.0.0.1:58871`).  
-**TypeScript bridge:** `packages/cart-pendulum-sim` (`physicsSimClient`, replay helpers).  
+**TypeScript bridge:** `apps/physics-sim/client` (`physicsSimClient`, replay helpers).  
 **gRPC facades:** `apps/motor-service` coupled sim (§3.5) steps the live plant over HTTP on each status poll.
 
 ### 5.1 State & parameters
@@ -241,7 +241,7 @@ Pick one pattern (or evolve from A → B):
 | Phase | Deliverable |
 |-------|-------------|
 | **1** | Documented scripts: fake motor (+ minimal status) sufficient for web smoke; CI runs control-api tests against fakes. |
-| **2** | Fake **sensor** + limit logic from sim `xM`; encoder from `cart-pendulum-sim`. |
+| **2** | Fake **sensor** + limit logic from sim `xM`; encoder from physics-sim. |
 | **3** | **Coupled** plant in one process; homing against sim limits end-to-end. |
 | **4** | **Bench:** second gRPC client pair + tRPC read (and optional guarded write) + web split view. |
 | **5** | Optional **replay / log comparison** and parameter tuning UI (L, g, damping) for education. |
@@ -269,4 +269,4 @@ Pick one pattern (or evolve from A → B):
 |------|--------|
 | 2026-05-12 | Review pass: §2 split + no branching logic; §2.2 dual facades; §3 intro; velocity table + E2E jog flow; time step callout; bench wording; §3.5 “Why” reprise. |
 | 2026-05-12 | Simulator gRPC URLs default to coupled sim host/port (**`SIM_COUPLED_GRPC_PORT`**); **`MOTOR_SIM_GRPC_URL`** optional. |
-| 2026-05-12 | Initial doc: simulation, bench mode, and `cart-pendulum-sim` integration notes. |
+| 2026-05-12 | Initial doc: simulation, bench mode, and physics-sim integration notes. |

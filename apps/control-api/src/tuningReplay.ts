@@ -1,4 +1,4 @@
-import { physicsSimReplay } from "@real-pendulum/cart-pendulum-sim";
+import { physicsSimReplay } from "@real-pendulum/physics-sim/client";
 import { encoderTicksPerRadian, plantGravityMS2 } from "./pendulumEncoder.js";
 import { simLimitLeftXM, simLimitRightXM } from "./simLimits.js";
 import type { TuningSample } from "./tuningSample.js";

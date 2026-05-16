@@ -1,6 +1,5 @@
 /**
  * In-memory cart–pendulum state mirror synced from MuJoCo (`physics-sim` HTTP).
- * Does not integrate physics locally.
  */
 
 import type { CartPendulumConfig, CartPendulumPlant, CartPendulumState } from "./cartPendulumTypes.js";
