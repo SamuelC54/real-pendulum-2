@@ -2,6 +2,7 @@ import { memo } from "react";
 import { useAtomValue } from "jotai";
 import { boundsFromTravelLimitsCm } from "@/lib/railPositionCm";
 import { cn } from "@/lib/utils";
+import { MujocoCartPendulumViewer } from "@/components/MujocoCartPendulumViewer";
 import { useMotorStatusQuery, useSensorStatusQuery } from "@/services/useMotorStatusQuery";
 import { grpcBackendModeAtom } from "@/stores/grpcBackendMode";
 
@@ -259,31 +260,41 @@ export const RailPendulumSchematic = memo(function RailPendulumSchematic() {
             limitRight={sensor.data?.limitRightPressed ?? false}
             ticks={sensor.data?.encoderTicks ?? 0}
           />
-          <RailPendulumLeg
-            legLabel="Simulator"
-            variant="simulator"
-            motorConnected={twinSim?.connected ?? false}
-            sensorConnected={twinSimSensor?.connected ?? false}
-            pos={twinSim?.positionCm}
-            travelLimits={twinSim?.travelLimits}
-            limitLeft={twinSimSensor?.limitLeftPressed ?? false}
-            limitRight={twinSimSensor?.limitRightPressed ?? false}
-            ticks={twinSimSensor?.encoderTicks ?? 0}
-          />
+          <div className="flex flex-col gap-3">
+            <RailPendulumLeg
+              legLabel="Simulator"
+              variant="simulator"
+              motorConnected={twinSim?.connected ?? false}
+              sensorConnected={twinSimSensor?.connected ?? false}
+              pos={twinSim?.positionCm}
+              travelLimits={twinSim?.travelLimits}
+              limitLeft={twinSimSensor?.limitLeftPressed ?? false}
+              limitRight={twinSimSensor?.limitRightPressed ?? false}
+              ticks={twinSimSensor?.encoderTicks ?? 0}
+            />
+            <MujocoCartPendulumViewer
+              positionCm={twinSim?.positionCm}
+              encoderTicks={twinSimSensor?.encoderTicks ?? 0}
+              connected={Boolean(twinSim?.connected && twinSimSensor?.connected)}
+            />
+          </div>
         </div>
         <p className="text-muted-foreground mt-3 text-[10px] leading-snug">
-          Twin mode: each schematic uses its own motor position, travel limits, and encoder. Hardware
-          is the physical boards; Simulator is the coupled plant gRPC backends.
+          Twin mode: hardware schematic plus a 3D MuJoCo view for the simulator (driven by coupled-sim
+          telemetry). Physics still runs in physics-sim on the backend.
         </p>
       </div>
     );
   }
 
+  const showMujoco = mode === "sim";
+  const mujocoConnected = Boolean(motor.data?.connected && sensor.data?.connected);
+
   return (
     <div className="w-full max-w-md border-t border-border pt-4">
       <RailPendulumLeg
-        legLabel="Rail & pendulum"
-        variant="hardware"
+        legLabel={showMujoco ? "Simulator" : "Rail & pendulum"}
+        variant={showMujoco ? "simulator" : "hardware"}
         motorConnected={motor.data?.connected ?? false}
         sensorConnected={sensor.data?.connected ?? false}
         pos={motor.data?.positionCm}
@@ -292,9 +303,18 @@ export const RailPendulumSchematic = memo(function RailPendulumSchematic() {
         limitRight={sensor.data?.limitRightPressed ?? false}
         ticks={sensor.data?.encoderTicks ?? 0}
       />
+      {showMujoco ? (
+        <MujocoCartPendulumViewer
+          className="mt-3"
+          positionCm={motor.data?.positionCm}
+          encoderTicks={sensor.data?.encoderTicks ?? 0}
+          connected={mujocoConnected}
+        />
+      ) : null}
       <p className="text-muted-foreground mt-2 text-[10px] leading-snug">
-        Cart follows Teknic measured position (cm: left negative, right positive). Rod and bob
-        follow the quadrature encoder on the Sensor Board (same phase as the dial card).
+        {showMujoco
+          ? "2D schematic plus browser MuJoCo view; physics runs in physics-sim on the backend."
+          : "Cart follows Teknic measured position (cm: left negative, right positive). Rod and bob follow the quadrature encoder on the Sensor Board (same phase as the dial card)."}
       </p>
     </div>
   );
