@@ -1,3 +1,4 @@
+import { useAtomValue } from "jotai";
 import { useState, type ReactNode } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { HomingControls } from "@/components/HomingControls";
@@ -7,6 +8,9 @@ import { PositionMoveControls } from "@/components/PositionMoveControls";
 import { SensorLedCard } from "@/components/SensorLedCard";
 import { BackendAutoConnect } from "@/components/BackendAutoConnect";
 import { TuningPage } from "@/components/TuningPage";
+import { TuningRecorder } from "@/components/TuningRecorder";
+import { grpcBackendModeAtom } from "@/stores/grpcBackendMode";
+import { tuningRecordingAtom } from "@/stores/tuningSession";
 import { cn } from "@/lib/utils";
 
 export type AppPage = "control" | "tuning";
@@ -52,12 +56,29 @@ function NavTab({
   );
 }
 
+function TuningRecordingBanner() {
+  const recording = useAtomValue(tuningRecordingAtom);
+  const mode = useAtomValue(grpcBackendModeAtom);
+  if (!recording || mode !== "twin") return null;
+  return (
+    <p
+      className="mb-4 flex items-center gap-2 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-800 dark:text-red-200"
+      role="status"
+    >
+      <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-red-500" aria-hidden />
+      Twin tuning recording — switch back to Tuning to stop or export.
+    </p>
+  );
+}
+
 export function AppShell() {
   const [page, setPage] = useState<AppPage>("control");
+  const recording = useAtomValue(tuningRecordingAtom);
 
   return (
     <div className="min-h-dvh bg-background text-foreground">
       <BackendAutoConnect />
+      <TuningRecorder />
       <AppHeader />
       <div className="mx-auto max-w-7xl px-6 pt-4">
         <nav
@@ -69,9 +90,18 @@ export function AppShell() {
           </NavTab>
           <NavTab active={page === "tuning"} onClick={() => setPage("tuning")}>
             Tuning
+            {recording ? (
+              <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-red-500" aria-hidden />
+            ) : null}
           </NavTab>
         </nav>
-        {page === "control" ? <ControlPage /> : <TuningPage />}
+        <TuningRecordingBanner />
+        <div className={page === "control" ? undefined : "hidden"} aria-hidden={page !== "control"}>
+          <ControlPage />
+        </div>
+        <div className={page === "tuning" ? undefined : "hidden"} aria-hidden={page !== "tuning"}>
+          <TuningPage />
+        </div>
       </div>
     </div>
   );

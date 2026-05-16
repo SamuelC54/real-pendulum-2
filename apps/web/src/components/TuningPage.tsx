@@ -1,5 +1,5 @@
 import { useAtom } from "jotai";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Activity, CircleStop, Download, Play, Trash2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,13 +7,12 @@ import {
   configToForm,
   formToConfigSnippet,
   formToPatch,
-  sampleFromCompare,
   samplesToCsv,
   summarizeTuningError,
   type SimConfigForm,
-  type TuningSample,
 } from "@/lib/tuningMath";
 import { grpcBackendModeAtom } from "@/stores/grpcBackendMode";
+import { tuningRecordingAtom, tuningSamplesAtom } from "@/stores/tuningSession";
 import { tuningErrorWeightsAtom, tuningProfileAtom } from "@/stores/tuningProfile";
 import { trpc } from "@/trpc";
 import { cn } from "@/lib/utils";
@@ -72,9 +71,8 @@ export function TuningPage() {
   const [weights] = useAtom(tuningErrorWeightsAtom);
   const [savedProfile, setSavedProfile] = useAtom(tuningProfileAtom);
 
-  const [recording, setRecording] = useState(false);
-  const [samples, setSamples] = useState<TuningSample[]>([]);
-  const lastSampleT = useRef(0);
+  const [recording, setRecording] = useAtom(tuningRecordingAtom);
+  const [samples, setSamples] = useAtom(tuningSamplesAtom);
 
   const compare = trpc.tuning.compare.useQuery(undefined, {
     enabled: mode === "twin",
@@ -96,18 +94,6 @@ export function TuningPage() {
       setForm(configToForm(simConfigQuery.data.config));
     }
   }, [simConfigQuery.data]);
-
-  useEffect(() => {
-    if (!recording || !compare.data) return;
-    const now = Date.now();
-    if (now - lastSampleT.current < 80) return;
-    lastSampleT.current = now;
-    const row = sampleFromCompare(compare.data, now);
-    setSamples((prev) => {
-      const next = [...prev, row];
-      return next.length > 5000 ? next.slice(-5000) : next;
-    });
-  }, [recording, compare.data]);
 
   const summary = useMemo(() => summarizeTuningError(samples, weights), [samples, weights]);
 
@@ -152,7 +138,7 @@ export function TuningPage() {
         <div>
           <h1 className="text-lg font-semibold">Twin tuning</h1>
           <p className="text-muted-foreground mt-1 max-w-2xl text-sm leading-relaxed">
-            Run the same jog/homing on the Control page while recording here. Tune cart scaling, limits,
+            Start recording here, switch to Control for jog/homing — recording continues across tabs. Tune
             and plant physics; apply patches live to the coupled sim (requires{" "}
             <code className="text-foreground">serve:coupled-sim</code>).
           </p>
@@ -300,7 +286,7 @@ export function TuningPage() {
             <li>Approach each limit switch slowly</li>
           </ul>
           <p className="text-muted-foreground mt-3 text-[11px]">
-            Use the Control page for jog/homing; keep this tab on Record while you move the rig.
+            Start Record on this tab, then use Control for jog/homing while the trace keeps running.
           </p>
         </Card>
       </div>
