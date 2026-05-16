@@ -3,7 +3,6 @@ import { useAtomValue } from "jotai";
 import { Home } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { motorCountsForDisplay } from "@/lib/motorPositionDisplay";
 import { grpcBackendModeAtom } from "@/stores/grpcBackendMode";
 import { trpc } from "@/trpc";
 import { useMotorStatusConnected, useSensorStatusConnected } from "@/services/useMotorStatusQuery";
@@ -11,8 +10,8 @@ import { useMotorStatusConnected, useSensorStatusConnected } from "@/services/us
 type RailHomingRow = {
   ok: boolean;
   error?: string;
-  motorSpanCounts?: number;
-  midMotorPosition?: number;
+  motorSpanCm?: number;
+  midPositionCm?: number;
   motorAbsRevolutions?: number;
   motorPositionZeroedAtMid?: boolean;
   log?: string[];
@@ -48,15 +47,16 @@ function HomingResultDetail({ title, railHomeResult }: { title: string; railHome
       </div>
       {homingDetailOpen ? (
         <>
-          {railHomeResult.motorSpanCounts != null ? (
+          {railHomeResult.motorSpanCm != null ? (
             <p>
               Motor span:{" "}
-              <span className="font-mono text-foreground">{railHomeResult.motorSpanCounts.toFixed(1)}</span>{" "}
-              counts · mid target:{" "}
+              <span className="font-mono text-foreground">{railHomeResult.motorSpanCm.toFixed(2)}</span>{" "}
+              cm · mid target:{" "}
               <span className="font-mono text-foreground">
-                {railHomeResult.midMotorPosition != null
-                  ? motorCountsForDisplay(railHomeResult.midMotorPosition)!.toFixed(1)
-                  : "—"}
+                {railHomeResult.midPositionCm != null
+                  ? railHomeResult.midPositionCm.toFixed(2)
+                  : "—"}{" "}
+                cm
               </span>
             </p>
           ) : null}

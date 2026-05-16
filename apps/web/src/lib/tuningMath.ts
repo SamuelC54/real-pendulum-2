@@ -1,9 +1,7 @@
-import { motorCountsForDisplay } from "@/lib/motorPositionDisplay";
-
 export type TuningSample = {
   t: number;
-  realMotorCounts: number | null;
-  simMotorCounts: number | null;
+  realMotorCm: number | null;
+  simMotorCm: number | null;
   realEncoderTicks: number;
   simEncoderTicks: number;
   realCommandedRpm: number;
@@ -30,7 +28,7 @@ export const DEFAULT_TUNING_WEIGHTS: TuningErrorWeights = {
 
 type ComparePayload = {
   real: {
-    motor: { connected: boolean; commandedRpm: number; measuredPosition?: number };
+    motor: { connected: boolean; commandedRpm: number; positionCm?: number };
     sensor: {
       encoderTicks: number;
       limitLeftPressed: boolean;
@@ -38,7 +36,7 @@ type ComparePayload = {
     };
   };
   sim: {
-    motor: { connected: boolean; commandedRpm: number; measuredPosition?: number };
+    motor: { connected: boolean; commandedRpm: number; positionCm?: number };
     sensor: {
       encoderTicks: number;
       limitLeftPressed: boolean;
@@ -48,13 +46,13 @@ type ComparePayload = {
 };
 
 export function sampleFromCompare(data: ComparePayload, t = Date.now()): TuningSample {
-  const realPos = motorCountsForDisplay(data.real.motor.measuredPosition);
-  const simPos = motorCountsForDisplay(data.sim.motor.measuredPosition);
+  const realPos = data.real.motor.positionCm;
+  const simPos = data.sim.motor.positionCm;
   return {
     t,
-    realMotorCounts:
+    realMotorCm:
       data.real.motor.connected && realPos !== undefined && Number.isFinite(realPos) ? realPos : null,
-    simMotorCounts:
+    simMotorCm:
       data.sim.motor.connected && simPos !== undefined && Number.isFinite(simPos) ? simPos : null,
     realEncoderTicks: data.real.sensor.encoderTicks,
     simEncoderTicks: data.sim.sensor.encoderTicks,
@@ -75,7 +73,7 @@ function meanAbs(values: number[]): number {
 export type TuningErrorSummary = {
   sampleCount: number;
   score: number;
-  meanAbsPosition: number | null;
+  meanAbsPositionCm: number | null;
   meanAbsEncoder: number;
   meanAbsRpm: number;
   limitMismatchRate: number;
@@ -91,8 +89,8 @@ export function summarizeTuningError(
   let limitMismatches = 0;
 
   for (const s of samples) {
-    if (s.realMotorCounts != null && s.simMotorCounts != null) {
-      posDeltas.push(s.realMotorCounts - s.simMotorCounts);
+    if (s.realMotorCm != null && s.simMotorCm != null) {
+      posDeltas.push(s.realMotorCm - s.simMotorCm);
     }
     encDeltas.push(s.realEncoderTicks - s.simEncoderTicks);
     rpmDeltas.push(s.realCommandedRpm - s.simCommandedRpm);
@@ -101,13 +99,13 @@ export function summarizeTuningError(
     }
   }
 
-  const meanAbsPosition = posDeltas.length > 0 ? meanAbs(posDeltas) : null;
+  const meanAbsPositionCm = posDeltas.length > 0 ? meanAbs(posDeltas) : null;
   const meanAbsEncoder = meanAbs(encDeltas);
   const meanAbsRpm = meanAbs(rpmDeltas);
   const limitMismatchRate = samples.length > 0 ? limitMismatches / samples.length : 0;
 
   const score =
-    (meanAbsPosition ?? 0) * weights.position +
+    (meanAbsPositionCm ?? 0) * weights.position +
     meanAbsEncoder * weights.encoder +
     meanAbsRpm * weights.rpm +
     limitMismatchRate * weights.limits;
@@ -115,7 +113,7 @@ export function summarizeTuningError(
   return {
     sampleCount: samples.length,
     score,
-    meanAbsPosition,
+    meanAbsPositionCm,
     meanAbsEncoder,
     meanAbsRpm,
     limitMismatchRate,
@@ -125,8 +123,8 @@ export function summarizeTuningError(
 export function samplesToCsv(samples: TuningSample[]): string {
   const header = [
     "timestamp_iso",
-    "real_motor_counts",
-    "sim_motor_counts",
+    "real_motor_cm",
+    "sim_motor_cm",
     "real_encoder_ticks",
     "sim_encoder_ticks",
     "real_commanded_rpm",
@@ -139,8 +137,8 @@ export function samplesToCsv(samples: TuningSample[]): string {
   const rows = samples.map((s) =>
     [
       new Date(s.t).toISOString(),
-      s.realMotorCounts ?? "",
-      s.simMotorCounts ?? "",
+      s.realMotorCm ?? "",
+      s.simMotorCm ?? "",
       s.realEncoderTicks,
       s.simEncoderTicks,
       s.realCommandedRpm,

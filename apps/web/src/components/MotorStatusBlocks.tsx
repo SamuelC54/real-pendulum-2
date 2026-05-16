@@ -3,12 +3,11 @@ import { Card } from "@/components/ui/card";
 import { CartRailVisualizer } from "@/components/CartRailVisualizer";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { motorCountsForDisplay } from "@/lib/motorPositionDisplay";
 import { useMotorSession } from "@/services/motorSession";
 import { useMotorStatusQuery } from "@/services/useMotorStatusQuery";
 
 /** Owns the polling status query so parent `App` does not re-render every refetch tick. */
-function formatMeasuredCounts(value: number | undefined): string {
+function formatPositionCm(value: number | undefined): string {
   if (value === undefined || !Number.isFinite(value)) {
     return "—";
   }
@@ -20,7 +19,7 @@ export function MotorStatusBlocks() {
   const status = useMotorStatusQuery();
   const { connect, connected, busy, connectMotor, disconnectMotor } = useMotorSession();
 
-  const measured = motorCountsForDisplay(status.data?.measuredPosition);
+  const positionCm = status.data?.positionCm;
 
   return (
     <Card className="flex flex-col gap-4 p-6">
@@ -53,10 +52,10 @@ export function MotorStatusBlocks() {
                 <span className="text-muted-foreground font-mono text-xs leading-tight">
                   position{" "}
                   <span className="text-foreground font-semibold tabular-nums">
-                    {formatMeasuredCounts(measured)}
+                    {formatPositionCm(positionCm)}
                   </span>{" "}
-                  <span className="font-sans font-normal">counts</span>
-                  {measured === undefined || !Number.isFinite(measured) ? (
+                  <span className="font-sans font-normal">cm</span>
+                  {positionCm === undefined || !Number.isFinite(positionCm) ? (
                     <span className="ml-1 font-sans text-[10px] font-normal opacity-80">
                       (update motor-service / DLL)
                     </span>
@@ -67,11 +66,9 @@ export function MotorStatusBlocks() {
                 <span className="text-muted-foreground block font-mono text-[10px] leading-tight">
                   Sim: {status.data.twinSimMotor.commandedRpm.toFixed(1)} rpm · pos{" "}
                   <span className="text-sky-900 dark:text-sky-200">
-                    {formatMeasuredCounts(
-                      motorCountsForDisplay(status.data.twinSimMotor.measuredPosition),
-                    )}
+                    {formatPositionCm(status.data.twinSimMotor.positionCm)}
                   </span>{" "}
-                  counts
+                  cm
                 </span>
               ) : null}
             </div>

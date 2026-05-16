@@ -53,7 +53,7 @@ describe("appRouter (motor mocked)", () => {
     const res = await caller.status.get();
     expect(res.connected).toBe(false);
     expect(res.commandedRpm).toBe(0);
-    expect(res.travelLimits).toEqual({ left: null, right: null });
+    expect(res.travelLimits).toEqual({ leftCm: null, rightCm: null });
     expect(res.detail).toContain("Motor service not reachable at http://127.0.0.1:50051");
   });
 
@@ -70,8 +70,8 @@ describe("appRouter (motor mocked)", () => {
       connected: true,
       commandedRpm: 12.5,
       detail: "ok",
-      measuredPosition: 7,
-      travelLimits: { left: null, right: null },
+      positionCm: -7 / 232.8,
+      travelLimits: { leftCm: null, rightCm: null },
     });
   });
 
@@ -104,7 +104,7 @@ describe("appRouter (motor mocked)", () => {
     const caller = appRouter.createCaller({});
     await caller.rail.limits.record({ side: "left" });
     const st = await caller.status.get();
-    expect(st.travelLimits?.left).toBe(-42);
+    expect(st.travelLimits?.leftCm).toBeCloseTo(-42 / 232.8, 6);
   });
 
   it("twin.connection.connect returns real ok when sim gRPC throws", async () => {
@@ -131,8 +131,9 @@ describe("appRouter (motor mocked)", () => {
     expect(r.real.commandedRpm).toBe(3);
     expect(r.sim.connected).toBe(true);
     expect(r.sim.commandedRpm).toBe(3);
-    expect(r.real.travelLimits).toEqual({ left: null, right: null });
-    expect(r.sim.travelLimits).toEqual({ left: null, right: null });
+    expect(r.real.travelLimits).toEqual({ leftCm: null, rightCm: null });
+    expect(r.sim.travelLimits).toEqual({ leftCm: null, rightCm: null });
+    expect(r.real.positionCm).toBeCloseTo(-9 / 232.8, 6);
   });
 });
 
@@ -151,6 +152,6 @@ describe("appRouter rail.home", () => {
     const caller = appRouter.createCaller({});
     const res = await caller.rail.home();
     expect(res.ok).toBe(true);
-    expect(res.motorSpanCounts).toBe(100);
+    expect(res.motorSpanCm).toBeCloseTo(100 / 232.8, 6);
   });
 });

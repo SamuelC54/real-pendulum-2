@@ -3,7 +3,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Activity, CircleStop, Download, Play, Trash2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { motorCountsForDisplay } from "@/lib/motorPositionDisplay";
 import {
   configToForm,
   formToEnvSnippet,
@@ -113,8 +112,8 @@ export function TuningPage() {
   const summary = useMemo(() => summarizeTuningError(samples, weights), [samples, weights]);
 
   const live = compare.data;
-  const realPos = live ? motorCountsForDisplay(live.real.motor.measuredPosition) : undefined;
-  const simPos = live ? motorCountsForDisplay(live.sim.motor.measuredPosition) : undefined;
+  const realPos = live?.real.motor.positionCm;
+  const simPos = live?.sim.motor.positionCm;
 
   const exportCsv = useCallback(() => {
     const blob = new Blob([samplesToCsv(samples)], { type: "text/csv;charset=utf-8" });
@@ -219,7 +218,7 @@ export function TuningPage() {
             </thead>
             <tbody className="font-mono text-xs">
               <tr className="border-b border-border/60">
-                <td className="py-2 pr-4 font-sans">Cart (display counts)</td>
+                <td className="py-2 pr-4 font-sans">Cart (cm)</td>
                 <td className="py-2 pr-4 tabular-nums">{fmt(realPos ?? null)}</td>
                 <td className="py-2 pr-4 tabular-nums">{fmt(simPos ?? null)}</td>
                 <td className="py-2">
@@ -280,8 +279,8 @@ export function TuningPage() {
           <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
             <dt className="text-muted-foreground">Weighted score</dt>
             <dd className="font-mono font-semibold tabular-nums">{fmt(summary.score, 2)}</dd>
-            <dt className="text-muted-foreground">Mean |Δ position|</dt>
-            <dd className="font-mono tabular-nums">{fmt(summary.meanAbsPosition, 2)}</dd>
+            <dt className="text-muted-foreground">Mean |Δ position| (cm)</dt>
+            <dd className="font-mono tabular-nums">{fmt(summary.meanAbsPositionCm, 2)}</dd>
             <dt className="text-muted-foreground">Mean |Δ encoder|</dt>
             <dd className="font-mono tabular-nums">{fmt(summary.meanAbsEncoder, 1)}</dd>
             <dt className="text-muted-foreground">Mean |Δ RPM|</dt>

@@ -1,8 +1,5 @@
 import { memo } from "react";
-import {
-  boundsFromTravelSwitchDisplays,
-  motorCountsForDisplay,
-} from "@/lib/motorPositionDisplay";
+import { boundsFromTravelLimitsCm } from "@/lib/railPositionCm";
 import { useMotorStatusQuery, useSensorStatusQuery } from "@/services/useMotorStatusQuery";
 import { cn } from "@/lib/utils";
 
@@ -15,19 +12,18 @@ export const CartRailVisualizer = memo(function CartRailVisualizer() {
   const sensor = useSensorStatusQuery();
 
   const motorConnected = motor.data?.connected ?? false;
-  const pos = motorCountsForDisplay(motor.data?.measuredPosition);
+  const pos = motor.data?.positionCm;
   const tl = motor.data?.travelLimits;
-  const bounds = boundsFromTravelSwitchDisplays(tl?.left, tl?.right);
+  const bounds = boundsFromTravelLimitsCm(tl?.leftCm, tl?.rightCm);
   const sensorConnected = sensor.data?.connected ?? false;
   const limitLeft = sensor.data?.limitLeftPressed ?? false;
   const limitRight = sensor.data?.limitRightPressed ?? false;
 
   const twinSim =
     motor.data && "twinSimMotor" in motor.data ? motor.data.twinSimMotor : undefined;
-  const simPos =
-    twinSim !== undefined ? motorCountsForDisplay(twinSim.measuredPosition) : undefined;
+  const simPos = twinSim !== undefined ? twinSim.positionCm : undefined;
   const simTl = twinSim?.travelLimits;
-  const simBounds = boundsFromTravelSwitchDisplays(simTl?.left, simTl?.right);
+  const simBounds = boundsFromTravelLimitsCm(simTl?.leftCm, simTl?.rightCm);
 
   const hasPosition = pos !== undefined && Number.isFinite(pos);
   const span = bounds ? bounds.max - bounds.min : 0;
@@ -50,7 +46,7 @@ export const CartRailVisualizer = memo(function CartRailVisualizer() {
 
   const rangeLabel =
     hasScale && bounds
-      ? `${bounds.min.toFixed(0)} → ${bounds.max.toFixed(0)} counts`
+      ? `${bounds.min.toFixed(2)} → ${bounds.max.toFixed(2)} cm`
       : null;
 
   if (!motorConnected) {
@@ -71,7 +67,7 @@ export const CartRailVisualizer = memo(function CartRailVisualizer() {
         role="img"
         aria-label={
           hasPosition && hasScale
-            ? `Cart about ${pct.toFixed(0)} percent from left along travel limits (display counts)`
+            ? `Cart about ${pct.toFixed(0)} percent from left along travel limits (cm)`
             : "Rail cart position"
         }
       >
@@ -86,10 +82,10 @@ export const CartRailVisualizer = memo(function CartRailVisualizer() {
           {hasPosition ? (
             <div
               className="pointer-events-none absolute inset-0 flex items-center justify-center px-0.5 text-center"
-              title="Left travel limit (display counts)"
+              title="Left travel limit (cm)"
             >
               <span className="text-muted-foreground font-mono text-[9px] tabular-nums">
-                {bounds && hasScale ? bounds.min.toFixed(1) : "—"}
+                {bounds && hasScale ? bounds.min.toFixed(2) : "—"}
               </span>
             </div>
           ) : null}
@@ -105,10 +101,10 @@ export const CartRailVisualizer = memo(function CartRailVisualizer() {
           {hasPosition ? (
             <div
               className="pointer-events-none absolute inset-0 flex items-center justify-center px-0.5 text-center"
-              title="Right travel limit (display counts)"
+              title="Right travel limit (cm)"
             >
               <span className="text-muted-foreground font-mono text-[9px] tabular-nums">
-                {bounds && hasScale ? bounds.max.toFixed(1) : "—"}
+                {bounds && hasScale ? bounds.max.toFixed(2) : "—"}
               </span>
             </div>
           ) : null}
@@ -118,9 +114,9 @@ export const CartRailVisualizer = memo(function CartRailVisualizer() {
           {hasPosition ? (
             <span
               className="min-w-0 truncate text-center font-mono text-[10px] text-foreground tabular-nums font-medium"
-              title="Current display count"
+              title="Current position (cm)"
             >
-              {pos.toFixed(1)}
+              {pos.toFixed(2)}
             </span>
           ) : null}
           <span className="text-muted-foreground shrink-0 select-none font-mono text-[10px]">R</span>

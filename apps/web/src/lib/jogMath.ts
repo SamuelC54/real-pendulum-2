@@ -13,9 +13,11 @@ export const POSITION_MOVE_VEL_SLIDER_MAX = 4000;
 /** Aligns with **`TeknicCfg::kPositionMoveAccCeilingRpmPerSec`**. */
 export const POSITION_MOVE_ACC_SLIDER_MAX = 50000;
 
-/** Fallback target slider span when travel-limit stops are not yet recorded. */
-export const POSITION_TARGET_SLIDER_MIN = -1000;
-export const POSITION_TARGET_SLIDER_MAX = 1000;
+import { displayCountsPerCm } from "@/lib/railPositionCm";
+
+/** Fallback target slider span (cm) when travel-limit stops are not yet recorded (~±1000 display counts). */
+export const POSITION_TARGET_SLIDER_MIN_CM = -1000 / displayCountsPerCm();
+export const POSITION_TARGET_SLIDER_MAX_CM = 1000 / displayCountsPerCm();
 
 export function jogRpmForDirection(dir: "left" | "right"): number {
   return dir === "left" ? JOG_RPM : -JOG_RPM;

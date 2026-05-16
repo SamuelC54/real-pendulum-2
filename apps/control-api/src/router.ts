@@ -13,7 +13,10 @@ import { runLedToggleFlash } from "./runFlashScript.js";
 import * as motor from "@real-pendulum/motor-service/sdk";
 import * as sensor from "@real-pendulum/sensor-service/sdk";
 import { defaultCoupledSimGrpcUrl, resolveSimMotorGrpcUrl, resolveSimSensorGrpcUrl } from "./grpcSimDefaults.js";
-import { runRailHoming, type RailHomingResult } from "./homing.js";
+import { runRailHoming } from "./homing.js";
+import { homingResultForClient } from "./homingApi.js";
+import { motorStatusForClient, type MotorStatusForClient } from "./motorStatusApi.js";
+import { cmToTeknicMeasured, displayCountsPerCm } from "./railPositionCm.js";
 import { withHardwareGrpc, withSimGrpc } from "./twinGrpc.js";
 import {
   fetchCoupledSimConfig,
@@ -33,27 +36,23 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-type MotorStatusPayload = Awaited<ReturnType<typeof motor.getMotorStatus>> & {
-  travelLimits: { left: number | null; right: number | null };
-};
-
-async function readMotorStatusPayload(): Promise<MotorStatusPayload> {
+async function readMotorStatusPayload(): Promise<MotorStatusForClient> {
   try {
     const st = await motor.getMotorStatus();
     syncTravelLimitsFromMotorConnection(st.connected);
-    return {
+    return motorStatusForClient({
       ...st,
       travelLimits: getTravelLimitDisplays(),
-    };
+    });
   } catch (e) {
     syncTravelLimitsFromMotorConnection(false);
-    return {
+    return motorStatusForClient({
       connected: false,
       commandedRpm: 0,
       detail: friendlyMotorError(e),
       measuredPosition: undefined,
       travelLimits: { left: null, right: null },
-    };
+    });
   }
 }
 
@@ -141,6 +140,10 @@ export const appRouter = t.router({
       /** Used when **`MOTOR_SIM_GRPC_URL`** / **`SENSOR_SIM_GRPC_URL`** are unset (coupled sim). */
       simDefaultUrl: defaultCoupledSimGrpcUrl(),
     })),
+    rail: baseProcedure.query(() => ({
+      /** Display motor counts per cm (`RAIL_DISPLAY_COUNTS_PER_CM`, default 232.8). */
+      displayCountsPerCm: displayCountsPerCm(),
+    })),
   }),
   connection: t.router({
     connect: publicProcedure.mutation(async () => {
@@ -179,7 +182,7 @@ export const appRouter = t.router({
   rail: t.router({
     home: publicProcedure.mutation(async () => {
       try {
-        return await runRailHoming();
+        return homingResultForClient(await runRailHoming());
       } catch (e) {
         throw new Error(
           `rail: ${e instanceof Error ? e.message : String(e)}`,
@@ -208,11 +211,11 @@ export const appRouter = t.router({
           return { ok: true as const };
         }),
     }),
-    /** Teknic `MovePosnStart` absolute move — target is UI display counts (negated to Teknic counts). */
+    /** Teknic `MovePosnStart` absolute move — target rail position in cm. */
     moveAbsolute: publicProcedure
       .input(
         z.object({
-          displayCounts: z.number().finite(),
+          positionCm: z.number().finite(),
           /** Caps profile peak RPM (`Motion.VelLimit`). Omit to use motor-service default. */
           maxVelocityRpm: z.number().finite().positive().optional(),
           /** Caps profile acceleration (`Motion.AccLimit`, RPM/s when AccUnit is RPM_PER_SEC). Omit to use motor-service default. */
@@ -221,7 +224,7 @@ export const appRouter = t.router({
       )
       .mutation(async ({ input }) => {
         try {
-          const teknicCounts = -input.displayCounts;
+          const teknicCounts = cmToTeknicMeasured(input.positionCm);
           return await motor.moveToPosition(teknicCounts, {
             maxVelocityRpm: input.maxVelocityRpm,
             maxAccelerationRpmPerSec: input.maxAccelerationRpmPerSec,
@@ -232,7 +235,7 @@ export const appRouter = t.router({
       }),
   }),
   status: t.router({
-    get: publicProcedure.query(async (): Promise<MotorStatusPayload> => readMotorStatusPayload()),
+    get: publicProcedure.query(async (): Promise<MotorStatusForClient> => readMotorStatusPayload()),
   }),
   sensor: t.router({
     serial: t.router({
@@ -370,7 +373,7 @@ export const appRouter = t.router({
           withHardwareGrpc(() => runRailHoming()),
           withSimGrpc(() => runRailHoming()),
         ]);
-        return { real, sim } satisfies { real: RailHomingResult; sim: RailHomingResult };
+        return { real: homingResultForClient(real), sim: homingResultForClient(sim) };
       }),
       limits: t.router({
         record: baseProcedure
@@ -415,13 +418,13 @@ export const appRouter = t.router({
       moveAbsolute: baseProcedure
         .input(
           z.object({
-            displayCounts: z.number().finite(),
+            positionCm: z.number().finite(),
             maxVelocityRpm: z.number().finite().positive().optional(),
             maxAccelerationRpmPerSec: z.number().finite().positive().optional(),
           }),
         )
         .mutation(async ({ input }) => {
-          const teknicCounts = -input.displayCounts;
+          const teknicCounts = cmToTeknicMeasured(input.positionCm);
           const opts = {
             maxVelocityRpm: input.maxVelocityRpm,
             maxAccelerationRpmPerSec: input.maxAccelerationRpmPerSec,

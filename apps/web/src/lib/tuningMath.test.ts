@@ -2,19 +2,19 @@ import { describe, expect, it } from "vitest";
 import { sampleFromCompare, summarizeTuningError } from "./tuningMath";
 
 describe("tuningMath", () => {
-  it("sampleFromCompare negates teknic measured to display counts", () => {
+  it("sampleFromCompare uses motor positionCm from API", () => {
     const s = sampleFromCompare({
       real: {
-        motor: { connected: true, commandedRpm: 10, measuredPosition: -100 },
+        motor: { connected: true, commandedRpm: 10, positionCm: 1.5 },
         sensor: { encoderTicks: 5, limitLeftPressed: false, limitRightPressed: false },
       },
       sim: {
-        motor: { connected: true, commandedRpm: 10, measuredPosition: -90 },
+        motor: { connected: true, commandedRpm: 10, positionCm: 1.4 },
         sensor: { encoderTicks: 6, limitLeftPressed: false, limitRightPressed: false },
       },
     });
-    expect(s.realMotorCounts).toBe(100);
-    expect(s.simMotorCounts).toBe(90);
+    expect(s.realMotorCm).toBe(1.5);
+    expect(s.simMotorCm).toBe(1.4);
     expect(s.realEncoderTicks).toBe(5);
   });
 
@@ -22,8 +22,8 @@ describe("tuningMath", () => {
     const summary = summarizeTuningError([
       {
         t: 0,
-        realMotorCounts: 100,
-        simMotorCounts: 90,
+        realMotorCm: 1,
+        simMotorCm: 0.9,
         realEncoderTicks: 0,
         simEncoderTicks: 10,
         realCommandedRpm: 0,
@@ -34,7 +34,7 @@ describe("tuningMath", () => {
         simLimitRight: false,
       },
     ]);
-    expect(summary.meanAbsPosition).toBe(10);
+    expect(summary.meanAbsPositionCm).toBeCloseTo(0.1, 5);
     expect(summary.meanAbsEncoder).toBe(10);
     expect(summary.score).toBeGreaterThan(0);
   });
