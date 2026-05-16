@@ -412,8 +412,8 @@ export function startCoupledSimGrpcServer(
       },
       async resetEncoder() {
         model.plant.state.encoderTicksFloat = 0;
-        model.plant.state.theta_rad = 0;
-        model.plant.state.omega_rps = 0;
+        model.plant.state.thetaRad = 0;
+        model.plant.state.omegaRps = 0;
         await syncPlantToPhysics(model);
         return create(ResetEncoderReplySchema, {
           ok: true,
