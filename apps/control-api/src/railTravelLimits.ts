@@ -6,6 +6,7 @@
  */
 
 import { getGrpcBackendMode } from "./grpcRequestContext.js";
+import { cmToDisplayCounts } from "./railPositionCm.js";
 import { teknicMeasuredToDisplayCounts } from "./teknicDisplayCounts.js";
 
 type TravelLimitDisplays = {
@@ -60,6 +61,29 @@ export function setTravelLimitsFromHoming(
   }
   a.left = teknicMeasuredToDisplayCounts(posAtLeftMotor);
   a.right = teknicMeasuredToDisplayCounts(posAtRightMotor);
+}
+
+export type SymmetricTravelLimitsCm = {
+  centerCm: number;
+  halfSpanCm: number;
+  leftCm: number;
+  rightCm: number;
+};
+
+/** Set left/right travel stops symmetrically about `centerCm` (display rail coordinates). */
+export function setTravelLimitsSymmetricAboutCm(
+  centerCm: number,
+  halfSpanCm: number,
+): SymmetricTravelLimitsCm {
+  if (!Number.isFinite(centerCm) || !Number.isFinite(halfSpanCm) || halfSpanCm <= 0) {
+    throw new Error("Center position and switch distance must be finite; distance must be positive.");
+  }
+  const leftCm = centerCm - halfSpanCm;
+  const rightCm = centerCm + halfSpanCm;
+  const a = activeLimits();
+  a.left = cmToDisplayCounts(leftCm);
+  a.right = cmToDisplayCounts(rightCm);
+  return { centerCm, halfSpanCm, leftCm, rightCm };
 }
 
 /** Snapshot current motor measured position into the given side (from limit switch hit). */

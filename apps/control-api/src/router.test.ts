@@ -11,6 +11,7 @@ vi.mock("@real-pendulum/motor-service/sdk", () => ({
   stopMotor: vi.fn(),
   getMotorStatus: vi.fn(),
   moveToPosition: vi.fn(),
+  zeroMeasuredPosition: vi.fn(),
 }));
 
 vi.mock("./homing.js", () => ({
@@ -132,6 +133,49 @@ describe("appRouter (motor mocked)", () => {
     await caller.rail.limits.record({ side: "left" });
     const st = await caller.status.get();
     expect(st.travelLimits?.leftCm).toBeCloseTo(-42 / 232.8, 6);
+  });
+
+  it("rail.zeroAtCurrent calls Teknic zero when motor is connected", async () => {
+    vi.mocked(motor.getMotorStatus).mockResolvedValue({
+      connected: true,
+      commandedRpm: 0,
+      detail: "ok",
+      measuredPosition: 12,
+    });
+    vi.mocked(motor.zeroMeasuredPosition).mockResolvedValue({ ok: true, error: "" });
+    const caller = appRouter.createCaller({});
+    await expect(caller.rail.zeroAtCurrent()).resolves.toEqual({ ok: true });
+    expect(motor.zeroMeasuredPosition).toHaveBeenCalledTimes(1);
+  });
+
+  it("rail.limits.setSymmetricSpan sets left/right from current position ± half span", async () => {
+    vi.mocked(motor.getMotorStatus).mockResolvedValue({
+      connected: true,
+      commandedRpm: 0,
+      detail: "ok",
+      measuredPosition: 0,
+    });
+    const caller = appRouter.createCaller({});
+    const r = await caller.rail.limits.setSymmetricSpan({ halfSpanCm: 20 });
+    expect(r.ok).toBe(true);
+    expect(r.centerCm).toBeCloseTo(0, 9);
+    expect(r.leftCm).toBeCloseTo(-20, 9);
+    expect(r.rightCm).toBeCloseTo(20, 9);
+    const st = await caller.status.get();
+    expect(st.travelLimits?.leftCm).toBeCloseTo(-20, 6);
+    expect(st.travelLimits?.rightCm).toBeCloseTo(20, 6);
+  });
+
+  it("rail.zeroAtCurrent fails when motor is not connected", async () => {
+    vi.mocked(motor.zeroMeasuredPosition).mockClear();
+    vi.mocked(motor.getMotorStatus).mockResolvedValue({
+      connected: false,
+      commandedRpm: 0,
+      detail: "",
+    });
+    const caller = appRouter.createCaller({});
+    await expect(caller.rail.zeroAtCurrent()).rejects.toThrow(/Motor is not connected/);
+    expect(motor.zeroMeasuredPosition).not.toHaveBeenCalled();
   });
 
   it("twin.connection.connect returns real ok when sim gRPC throws", async () => {

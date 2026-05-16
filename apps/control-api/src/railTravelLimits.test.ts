@@ -1,4 +1,5 @@
 import { describe, expect, it, beforeEach } from "vitest";
+import { displayCountsPerCm } from "./railPositionCm.js";
 import { withGrpcBackendMode } from "./grpcRequestContext.js";
 import {
   clearTravelLimits,
@@ -6,6 +7,7 @@ import {
   recordTravelLimitFromTeknicMeasured,
   resetTravelLimitsStateForTests,
   setTravelLimitsFromHoming,
+  setTravelLimitsSymmetricAboutCm,
   syncTravelLimitsFromMotorConnection,
 } from "./railTravelLimits.js";
 
@@ -41,6 +43,15 @@ describe("railTravelLimits", () => {
   it("without zero at mid uses raw display at each trip", () => {
     setTravelLimitsFromHoming(100, -50, false);
     expect(getTravelLimitDisplays()).toEqual({ left: -100, right: 50 });
+  });
+
+  it("setTravelLimitsSymmetricAboutCm stores left/right in display counts", () => {
+    const r = setTravelLimitsSymmetricAboutCm(5, 20);
+    expect(r).toEqual({ centerCm: 5, halfSpanCm: 20, leftCm: -15, rightCm: 25 });
+    const { left, right } = getTravelLimitDisplays();
+    const cpc = displayCountsPerCm();
+    expect(left).toBeCloseTo(-15 * cpc, 3);
+    expect(right).toBeCloseTo(25 * cpc, 3);
   });
 
   it("isolates travel limits between hardware and sim backend modes", () => {

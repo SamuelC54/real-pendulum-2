@@ -12,6 +12,7 @@ import { withGrpcBackendMode, type GrpcBackendMode } from "./grpcRequestContext.
 import {
   getTravelLimitDisplays,
   recordTravelLimitFromTeknicMeasured,
+  setTravelLimitsSymmetricAboutCm,
   syncTravelLimitsFromMotorConnection,
 } from "./railTravelLimits.js";
 import { runLedToggleFlash } from "./runFlashScript.js";
@@ -21,7 +22,7 @@ import { defaultCoupledSimGrpcUrl, resolveSimMotorGrpcUrl, resolveSimSensorGrpcU
 import { runRailHoming } from "./homing.js";
 import { homingResultForClient } from "./homingApi.js";
 import { motorStatusForClient, type MotorStatusForClient } from "./motorStatusApi.js";
-import { displayCountsPerCm } from "./railPositionCm.js";
+import { displayCountsPerCm, teknicMeasuredToCm } from "./railPositionCm.js";
 import {
   moveToPositionCmRespectingTravelLimits,
   setJogVelocityRpmRespectingTravelLimits,
@@ -43,6 +44,23 @@ function friendlySensorError(err: unknown): string {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function symmetricTravelLimitsFromMotorStatus(halfSpanCm: number) {
+  return async () => {
+    const st = await motor.getMotorStatus();
+    if (!st.connected) {
+      throw new Error("Motor is not connected.");
+    }
+    const p = st.measuredPosition;
+    if (p === undefined || !Number.isFinite(p)) {
+      throw new Error(
+        "Motor measured position unavailable — rebuild motor DLL / motor-service for PosnMeasured.",
+      );
+    }
+    const limits = setTravelLimitsSymmetricAboutCm(teknicMeasuredToCm(p), halfSpanCm);
+    return { ok: true as const, ...limits };
+  };
 }
 
 async function readMotorStatusPayload(): Promise<MotorStatusForClient> {
@@ -226,6 +244,33 @@ export const appRouter = t.router({
           recordTravelLimitFromTeknicMeasured(p, input.side);
           return { ok: true as const };
         }),
+      /**
+       * Left/right stops at `current ± halfSpanCm` (symmetric switch distance from present rail position).
+       */
+      setSymmetricSpan: publicProcedure
+        .input(z.object({ halfSpanCm: z.number().finite().positive() }))
+        .mutation(async ({ input }) => symmetricTravelLimitsFromMotorStatus(input.halfSpanCm)()),
+    }),
+    /** Teknic `ZeroMeasuredPosition` at the current location (display position becomes 0 cm). */
+    zeroAtCurrent: publicProcedure.mutation(async () => {
+      const st = await motor.getMotorStatus();
+      if (!st.connected) {
+        throw new Error("Motor is not connected.");
+      }
+      if (st.measuredPosition === undefined || !Number.isFinite(st.measuredPosition)) {
+        throw new Error(
+          "Motor measured position unavailable — rebuild motor DLL / motor-service for PosnMeasured.",
+        );
+      }
+      try {
+        const r = await motor.zeroMeasuredPosition();
+        if (!r.ok) {
+          throw new Error(r.error || "Motor zero failed.");
+        }
+        return { ok: true as const };
+      } catch (e) {
+        throw new Error(`motor: ${friendlyMotorError(e)}`);
+      }
     }),
     /** Teknic `MovePosnStart` absolute move — target rail position in cm. */
     moveAbsolute: publicProcedure
@@ -439,6 +484,69 @@ export const appRouter = t.router({
             });
             return { real: { ok: true as const }, sim };
           }),
+        setSymmetricSpan: baseProcedure
+          .input(z.object({ halfSpanCm: z.number().finite().positive() }))
+          .mutation(async ({ input }) => {
+            const real = await withHardwareGrpc(() =>
+              symmetricTravelLimitsFromMotorStatus(input.halfSpanCm)(),
+            );
+            const sim = await withSimGrpc(async () => {
+              try {
+                return await symmetricTravelLimitsFromMotorStatus(input.halfSpanCm)();
+              } catch (e) {
+                return {
+                  ok: false as const,
+                  error: e instanceof Error ? e.message : String(e),
+                };
+              }
+            });
+            return { real, sim };
+          }),
+      }),
+      zeroAtCurrent: baseProcedure.mutation(async () => {
+        const real = await withHardwareGrpc(async () => {
+          try {
+            const st = await motor.getMotorStatus();
+            if (!st.connected) {
+              throw new Error("Motor is not connected.");
+            }
+            if (st.measuredPosition === undefined || !Number.isFinite(st.measuredPosition)) {
+              throw new Error(
+                "Motor measured position unavailable — rebuild motor DLL / motor-service for PosnMeasured.",
+              );
+            }
+            const r = await motor.zeroMeasuredPosition();
+            if (!r.ok) {
+              throw new Error(r.error || "Motor zero failed.");
+            }
+            return { ok: true as const };
+          } catch (e) {
+            throw new Error(`motor: ${friendlyMotorError(e)}`);
+          }
+        });
+        const sim = await withSimGrpc(async () => {
+          try {
+            const st = await motor.getMotorStatus();
+            if (!st.connected) {
+              return { ok: false as const, error: "Motor is not connected." };
+            }
+            if (st.measuredPosition === undefined || !Number.isFinite(st.measuredPosition)) {
+              return {
+                ok: false as const,
+                error:
+                  "Motor measured position unavailable — rebuild motor DLL / motor-service for PosnMeasured.",
+              };
+            }
+            const r = await motor.zeroMeasuredPosition();
+            if (!r.ok) {
+              return { ok: false as const, error: r.error || "Motor zero failed." };
+            }
+            return { ok: true as const };
+          } catch (e) {
+            return { ok: false as const, error: friendlyMotorError(e) };
+          }
+        });
+        return { real, sim };
       }),
       moveAbsolute: baseProcedure
         .input(
