@@ -20,16 +20,13 @@ import {
 } from "./coupledSimConfigFile.js";
 
 const sampleConfig: CoupledSimParameters = {
-  metersPerDisplayCount: 1e-4,
   mpsPerRpm: 5e-5,
   limitLeftXM: -0.4,
   limitRightXM: 0.4,
   plant: {
-    gravity: 9.80665,
     pendulumLengthM: 0.35,
     cartVelocityTrackingPerSec: 12,
     angularDampingPerSec: 0.04,
-    encoderTicksPerRadian: 2400 / (2 * Math.PI),
     maxInternalStepSec: 1 / 240,
   },
 };
@@ -78,13 +75,10 @@ describe("coupledSimConfigFile", () => {
 
   it("rejects invalid JSON values", () => {
     fs.mkdirSync(path.dirname(parametersPath), { recursive: true });
-    fs.writeFileSync(
-      parametersPath,
-      JSON.stringify({ metersPerDisplayCount: "not-a-number", plant: {} }),
-    );
+    fs.writeFileSync(parametersPath, JSON.stringify({ mpsPerRpm: "not-a-number", plant: {} }));
     const r = getCoupledSimConfigFromFile(tmpDir);
     expect(r.ok).toBe(false);
-    expect(r.error).toMatch(/metersPerDisplayCount/i);
+    expect(r.error).toMatch(/mpsPerRpm/i);
   });
 
   it("put replaces the full JSON document", async () => {

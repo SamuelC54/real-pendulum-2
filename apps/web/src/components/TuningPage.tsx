@@ -23,6 +23,12 @@ import {
   tuningSuggestionsAfterSampleCountAtom,
 } from "@/stores/tuningSession";
 import { tuningErrorWeightsAtom, tuningProfileAtom } from "@/stores/tuningProfile";
+import {
+  encoderCountsPerRevolution,
+  encoderTicksPerRadian,
+  plantGravityMS2,
+} from "@/lib/pendulumEncoder";
+import { displayCountsPerCm, metersPerDisplayCount } from "@/lib/railPositionCm";
 import { trpc } from "@/trpc";
 import { cn } from "@/lib/utils";
 
@@ -403,7 +409,28 @@ export function TuningPage() {
                   <span className="font-mono tabular-nums">
                     {fmt(tuningHints.diagnostics.meanPositionDeltaCm, 2)} cm
                   </span>
-                  .
+                  {Math.abs(tuningHints.diagnostics.meanPositionDeltaCm) >= 0.25 &&
+                  tuningHints.diagnostics.positionDisplacementScale != null &&
+                  Math.abs(1 - tuningHints.diagnostics.positionDisplacementScale) < 0.02 ? (
+                    <>
+                      {" "}
+                      (offset — re-zero hardware and sim at the same place; rail scale is fixed to
+                      hardware).
+                    </>
+                  ) : (
+                    "."
+                  )}
+                </>
+              ) : null}
+              {tuningHints.diagnostics.positionDisplacementPairs > 0 &&
+              tuningHints.diagnostics.positionDisplacementScale != null ? (
+                <>
+                  {" "}
+                  Δreal/Δsim ≈{" "}
+                  <span className="font-mono tabular-nums">
+                    {fmt(tuningHints.diagnostics.positionDisplacementScale, 2)}
+                  </span>{" "}
+                  ({tuningHints.diagnostics.positionDisplacementPairs} jog steps).
                 </>
               ) : null}
             </p>
@@ -428,7 +455,20 @@ export function TuningPage() {
       <Card className="p-4">
         <h2 className="text-sm font-medium">Coupled simulation parameters</h2>
         <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
-          Stored in{" "}
+          Rail position scale is shared with hardware:{" "}
+          <span className="font-mono text-foreground">{displayCountsPerCm()}</span> display counts/cm (
+          <span className="font-mono text-foreground">{metersPerDisplayCount().toExponential(4)}</span>{" "}
+          m/count from <code className="text-foreground">config.rail.displayCountsPerCm</code>). Pendulum
+          encoder:{" "}
+          <span className="font-mono text-foreground">{encoderCountsPerRevolution()}</span> counts/rev (
+          <span className="font-mono text-foreground">{encoderTicksPerRadian().toFixed(2)}</span> ticks/rad
+          from <code className="text-foreground">config.pendulum.encoderCountsPerRevolution</code>). Gravity{" "}
+          <span className="font-mono text-foreground">{plantGravityMS2()}</span> m/s² is fixed in{" "}
+          <code className="text-foreground">config.pendulum.gravityMS2</code>. Tune cart speed, limits, and
+          plant dynamics below.
+        </p>
+        <p className="text-muted-foreground text-xs leading-relaxed">
+          Plant and sim motion values are stored in{" "}
           <code className="text-foreground">config/coupled-sim.parameters.json</code>
           {simConfigQuery.data?.path ? (
             <>
@@ -445,12 +485,6 @@ export function TuningPage() {
         {form ? (
           <>
             <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <ConfigField
-                label="SIM_METERS_PER_DISPLAY_COUNT"
-                value={form.metersPerDisplayCount}
-                onChange={(v) => setForm({ ...form, metersPerDisplayCount: v })}
-                step="0.000001"
-              />
               <ConfigField
                 label="SIM_MPS_PER_RPM"
                 value={form.mpsPerRpm}
@@ -481,16 +515,6 @@ export function TuningPage() {
                 label="Angular damping (1/s)"
                 value={form.angularDampingPerSec}
                 onChange={(v) => setForm({ ...form, angularDampingPerSec: v })}
-              />
-              <ConfigField
-                label="Encoder ticks / radian"
-                value={form.encoderTicksPerRadian}
-                onChange={(v) => setForm({ ...form, encoderTicksPerRadian: v })}
-              />
-              <ConfigField
-                label="Gravity (m/s²)"
-                value={form.gravity}
-                onChange={(v) => setForm({ ...form, gravity: v })}
               />
             </div>
             <div className="mt-4 flex flex-wrap gap-2">

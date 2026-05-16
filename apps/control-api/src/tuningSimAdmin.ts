@@ -1,7 +1,8 @@
 import { resolveSimMotorGrpcUrl } from "./grpcSimDefaults.js";
 
 export type CoupledSimConfigSnapshot = {
-  metersPerDisplayCount: number;
+  /** Read-only: derived from `config.rail.displayCountsPerCm` (same as hardware). */
+  metersPerDisplayCount?: number;
   mpsPerRpm: number;
   limitLeftXM: number;
   limitRightXM: number;

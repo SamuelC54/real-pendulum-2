@@ -141,6 +141,11 @@ export type TuningSuggestionDiagnostics = {
   limitMismatchRate: number;
   simLeftLimitEarlyCount: number;
   simRightLimitEarlyCount: number;
+  /** OLS slope Δreal/Δsim on motion segments (1 = scale matched). */
+  positionDisplacementScale: number | null;
+  positionDisplacementPairs: number;
+  /** Median sim/real at paired samples with |real| above noise floor. */
+  positionLevelRatioMedian: number | null;
 };
 
 export type TuningSuggestionResult = {
@@ -154,6 +159,10 @@ const MAX_RELATIVE_ADJUST = 0.12;
 const MIN_POSITION_BIAS_CM = 0.25;
 const MIN_ENCODER_BIAS = 8;
 const MIN_LIMIT_EARLY_EVENTS = 2;
+/** Ignore tiny steps dominated by poll noise. */
+const MIN_DISPLACEMENT_CM = 0.04;
+const MIN_DISPLACEMENT_PAIRS = 6;
+const MIN_SCALE_ERROR = 0.015;
 
 function mean(values: number[]): number {
   if (values.length === 0) return 0;
@@ -185,6 +194,63 @@ function clampSuggested(current: number, raw: number): number {
   const factor = raw / current;
   const clamped = Math.max(1 - MAX_RELATIVE_ADJUST, Math.min(1 + MAX_RELATIVE_ADJUST, factor));
   return current * clamped;
+}
+
+/** OLS Δreal/Δsim while jogging (1 = matched motion; offset does not affect). */
+function estimatePositionDisplacementScale(samples: TuningSample[]): {
+  slope: number;
+  pairCount: number;
+  residualStdCm: number | null;
+} | null {
+  const paired = samples.filter(
+    (s): s is TuningSample & { realMotorCm: number; simMotorCm: number } =>
+      s.realMotorCm != null && s.simMotorCm != null,
+  );
+  if (paired.length < 2) return null;
+
+  let sumDsDr = 0;
+  let sumDs2 = 0;
+  const residuals: number[] = [];
+  let pairCount = 0;
+
+  for (let i = 1; i < paired.length; i += 1) {
+    const prev = paired[i - 1]!;
+    const cur = paired[i]!;
+    const dr = cur.realMotorCm - prev.realMotorCm;
+    const ds = cur.simMotorCm - prev.simMotorCm;
+    const moving =
+      Math.abs(cur.commandedRpm) >= JOG_RPM_THRESHOLD ||
+      Math.abs(prev.commandedRpm) >= JOG_RPM_THRESHOLD;
+    if (!moving) continue;
+    if (Math.abs(ds) < MIN_DISPLACEMENT_CM && Math.abs(dr) < MIN_DISPLACEMENT_CM) continue;
+
+    sumDsDr += ds * dr;
+    sumDs2 += ds * ds;
+    pairCount += 1;
+  }
+
+  if (pairCount < MIN_DISPLACEMENT_PAIRS || sumDs2 <= 1e-12) return null;
+  const slope = sumDsDr / sumDs2;
+  if (!Number.isFinite(slope) || slope <= 0.2 || slope >= 5) return null;
+
+  for (let i = 1; i < paired.length; i += 1) {
+    const prev = paired[i - 1]!;
+    const cur = paired[i]!;
+    const dr = cur.realMotorCm - prev.realMotorCm;
+    const ds = cur.simMotorCm - prev.simMotorCm;
+    const moving =
+      Math.abs(cur.commandedRpm) >= JOG_RPM_THRESHOLD ||
+      Math.abs(prev.commandedRpm) >= JOG_RPM_THRESHOLD;
+    if (!moving) continue;
+    if (Math.abs(ds) < MIN_DISPLACEMENT_CM && Math.abs(dr) < MIN_DISPLACEMENT_CM) continue;
+    residuals.push(dr - slope * ds);
+  }
+
+  return {
+    slope,
+    pairCount,
+    residualStdCm: residuals.length > 1 ? stdDev(residuals) : null,
+  };
 }
 
 function pushSuggestion(
@@ -235,6 +301,16 @@ export function suggestSimTuning(
   const meanMovingPos = movingPositionDeltas.length > 0 ? mean(movingPositionDeltas) : null;
   const limitMismatchRate = samples.length > 0 ? limitMismatches / samples.length : 0;
 
+  const displacementMotion = estimatePositionDisplacementScale(samples);
+  const levelRatiosForDiag: number[] = [];
+  for (const s of samples) {
+    if (s.realMotorCm == null || s.simMotorCm == null) continue;
+    if (Math.abs(s.realMotorCm) < MIN_POSITION_BIAS_CM * 4 || Math.abs(s.simMotorCm) < 1e-6) continue;
+    const r = s.simMotorCm / s.realMotorCm;
+    if (Number.isFinite(r) && r > 0.2 && r < 5) levelRatiosForDiag.push(r);
+  }
+  levelRatiosForDiag.sort((a, b) => a - b);
+
   const diagnostics: TuningSuggestionDiagnostics = {
     sampleCount: samples.length,
     pairedPositionCount: positionDeltas.length,
@@ -246,37 +322,21 @@ export function suggestSimTuning(
     limitMismatchRate,
     simLeftLimitEarlyCount: simLeftEarly,
     simRightLimitEarlyCount: simRightEarly,
+    positionDisplacementScale: displacementMotion?.slope ?? null,
+    positionDisplacementPairs: displacementMotion?.pairCount ?? 0,
+    positionLevelRatioMedian:
+      levelRatiosForDiag.length > 0
+        ? levelRatiosForDiag[Math.floor(levelRatiosForDiag.length / 2)]!
+        : null,
   };
 
   if (samples.length < MIN_SAMPLES) {
     return { suggestions, diagnostics };
   }
 
-  const meanSimCm =
-    positionDeltas.length > 0
-      ? mean(samples.filter((s) => s.simMotorCm != null).map((s) => s.simMotorCm as number))
-      : null;
-
-  if (meanPos != null && Math.abs(meanPos) >= MIN_POSITION_BIAS_CM && meanSimCm != null && meanSimCm !== 0) {
-    const targetMeters = current.metersPerDisplayCount * (meanSimCm / (meanSimCm + meanPos));
-    const suggested = clampSuggested(current.metersPerDisplayCount, targetMeters);
-    pushSuggestion(suggestions, {
-      param: "metersPerDisplayCount",
-      label: "SIM_METERS_PER_DISPLAY_COUNT",
-      currentValue: current.metersPerDisplayCount,
-      suggestedValue: suggested,
-      confidence: confidenceFromSignal(
-        positionDeltas.length,
-        Math.abs(meanPos),
-        MIN_POSITION_BIAS_CM,
-        stdPos ?? 0,
-      ),
-      reason:
-        meanPos > 0
-          ? `Hardware cart reads ~${fmtDelta(meanPos)} cm ahead of sim on average — lower this to raise sim position.`
-          : `Sim cart reads ~${fmtDelta(-meanPos)} cm ahead of hardware on average — raise this to lower sim position.`,
-    });
-  }
+  const displacementScale = displacementMotion?.slope ?? null;
+  const scaleMismatch =
+    displacementScale != null && Math.abs(1 - displacementScale) >= MIN_SCALE_ERROR;
 
   if (
     meanMovingPos != null &&
@@ -301,28 +361,38 @@ export function suggestSimTuning(
           ? "While jogging, sim cart lags hardware — increase sim speed per RPM."
           : "While jogging, sim cart leads hardware — decrease sim speed per RPM.",
     });
+  } else if (
+    scaleMismatch &&
+    displacementMotion != null &&
+    !suggestions.some((s) => s.param === "mpsPerRpm")
+  ) {
+    const slope = displacementScale!;
+    const factor = slope > 1 ? 1.05 : 0.95;
+    const pct = Math.round(Math.abs(1 - slope) * 100);
+    let reason =
+      slope > 1
+        ? `While jogging, hardware moves ~${pct}% more per step than sim (Δreal/Δsim ≈ ${slope.toFixed(2)}). Rail cm scale is fixed to hardware — increase SIM_MPS_PER_RPM.`
+        : `While jogging, sim moves ~${pct}% more per step than hardware (Δreal/Δsim ≈ ${slope.toFixed(2)}). Rail cm scale is fixed to hardware — decrease SIM_MPS_PER_RPM.`;
+    if (displacementMotion.residualStdCm != null && displacementMotion.residualStdCm > 0.4) {
+      reason += ` Step residual ~${displacementMotion.residualStdCm.toFixed(2)} cm — also re-zero both sides if needed.`;
+    }
+    pushSuggestion(suggestions, {
+      param: "mpsPerRpm",
+      label: "SIM_MPS_PER_RPM",
+      currentValue: current.mpsPerRpm,
+      suggestedValue: clampSuggested(current.mpsPerRpm, current.mpsPerRpm * factor),
+      confidence: confidenceFromSignal(
+        displacementMotion.pairCount,
+        Math.abs(1 - slope),
+        MIN_SCALE_ERROR,
+        displacementMotion.residualStdCm ?? 0,
+      ),
+      reason,
+    });
   }
 
   if (meanEnc != null && Math.abs(meanEnc) >= MIN_ENCODER_BIAS) {
-    const encFactor = meanEnc > 0 ? 1.05 : 0.95;
     const posSmall = meanPos == null || Math.abs(meanPos) < MIN_POSITION_BIAS_CM;
-    pushSuggestion(suggestions, {
-      param: "encoderTicksPerRadian",
-      label: "Encoder ticks / radian",
-      currentValue: current.encoderTicksPerRadian,
-      suggestedValue: clampSuggested(current.encoderTicksPerRadian, current.encoderTicksPerRadian * encFactor),
-      confidence: confidenceFromSignal(
-        encoderDeltas.length,
-        Math.abs(meanEnc),
-        MIN_ENCODER_BIAS,
-        stdEnc ?? 0,
-      ),
-      reason:
-        meanEnc > 0
-          ? `Encoder on hardware leads sim by ~${Math.round(Math.abs(meanEnc))} ticks on average${posSmall ? " (cart position looks aligned)" : ""}.`
-          : `Sim encoder leads hardware by ~${Math.round(Math.abs(meanEnc))} ticks on average${posSmall ? " (cart position looks aligned)" : ""}.`,
-    });
-
     if (posSmall && Math.abs(meanEnc) >= MIN_ENCODER_BIAS * 2) {
       pushSuggestion(suggestions, {
         param: "angularDampingPerSec",
@@ -333,8 +403,17 @@ export function suggestSimTuning(
           meanEnc > 0 ? current.angularDampingPerSec * 1.08 : current.angularDampingPerSec * 0.92,
         ),
         confidence: "low",
-        reason:
-          "Large encoder mismatch with small cart error — pendulum dynamics may need damping or length tuning; try encoder scale first.",
+        reason: `Encoder mismatch ~${Math.round(Math.abs(meanEnc))} ticks with aligned cart — ticks/radian is fixed to hardware (config.pendulum.encoderCountsPerRevolution); tune pendulum damping or length.`,
+      });
+    } else if (Math.abs(meanEnc) >= MIN_ENCODER_BIAS * 3) {
+      const lenFactor = meanEnc > 0 ? 1.03 : 0.97;
+      pushSuggestion(suggestions, {
+        param: "pendulumLengthM",
+        label: "Pendulum length (m)",
+        currentValue: current.pendulumLengthM,
+        suggestedValue: clampSuggested(current.pendulumLengthM, current.pendulumLengthM * lenFactor),
+        confidence: "low",
+        reason: `Mean encoder Δ ~${Math.round(meanEnc)} ticks — shaft scale matches hardware; try pendulum length or angular damping.`,
       });
     }
   }
@@ -384,11 +463,6 @@ export function suggestSimTuning(
   return { suggestions, diagnostics };
 }
 
-function fmtDelta(cm: number): string {
-  const r = Math.round(cm * 10) / 10;
-  return `${r >= 0 ? "+" : ""}${r}`;
-}
-
 /** Apply one suggestion onto a form copy (caller sets state / patches). */
 export function applySuggestionToForm(form: SimConfigForm, suggestion: TuningSuggestion): SimConfigForm {
   return { ...form, [suggestion.param]: suggestion.suggestedValue };
@@ -425,32 +499,25 @@ export function samplesToCsv(samples: TuningSample[]): string {
 }
 
 export type SimConfigForm = {
-  metersPerDisplayCount: number;
   mpsPerRpm: number;
   limitLeftXM: number;
   limitRightXM: number;
-  gravity: number;
   pendulumLengthM: number;
   cartVelocityTrackingPerSec: number;
   angularDampingPerSec: number;
-  encoderTicksPerRadian: number;
 };
 
 export function configToForm(c: {
-  metersPerDisplayCount: number;
   mpsPerRpm: number;
   limitLeftXM: number;
   limitRightXM: number;
   plant: {
-    gravity: number;
     pendulumLengthM: number;
     cartVelocityTrackingPerSec: number;
     angularDampingPerSec: number;
-    encoderTicksPerRadian: number;
   };
 }): SimConfigForm {
   return {
-    metersPerDisplayCount: c.metersPerDisplayCount,
     mpsPerRpm: c.mpsPerRpm,
     limitLeftXM: c.limitLeftXM,
     limitRightXM: c.limitRightXM,
@@ -458,22 +525,18 @@ export function configToForm(c: {
     pendulumLengthM: c.plant.pendulumLengthM,
     cartVelocityTrackingPerSec: c.plant.cartVelocityTrackingPerSec,
     angularDampingPerSec: c.plant.angularDampingPerSec,
-    encoderTicksPerRadian: c.plant.encoderTicksPerRadian,
   };
 }
 
 export function formToPatch(form: SimConfigForm) {
   return {
-    metersPerDisplayCount: form.metersPerDisplayCount,
     mpsPerRpm: form.mpsPerRpm,
     limitLeftXM: form.limitLeftXM,
     limitRightXM: form.limitRightXM,
     plant: {
-      gravity: form.gravity,
       pendulumLengthM: form.pendulumLengthM,
       cartVelocityTrackingPerSec: form.cartVelocityTrackingPerSec,
       angularDampingPerSec: form.angularDampingPerSec,
-      encoderTicksPerRadian: form.encoderTicksPerRadian,
     },
   };
 }
@@ -481,16 +544,13 @@ export function formToPatch(form: SimConfigForm) {
 export function formToConfigSnippet(form: SimConfigForm, jsonPath = "config/coupled-sim.parameters.json"): string {
   return JSON.stringify(
     {
-      metersPerDisplayCount: form.metersPerDisplayCount,
       mpsPerRpm: form.mpsPerRpm,
       limitLeftXM: form.limitLeftXM,
       limitRightXM: form.limitRightXM,
       plant: {
-        gravity: form.gravity,
         pendulumLengthM: form.pendulumLengthM,
         cartVelocityTrackingPerSec: form.cartVelocityTrackingPerSec,
         angularDampingPerSec: form.angularDampingPerSec,
-        encoderTicksPerRadian: form.encoderTicksPerRadian,
       },
     },
     null,

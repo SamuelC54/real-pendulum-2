@@ -31,7 +31,6 @@ describe("Coupled sim (MotorService + SensorService, one plant)", () => {
 
   beforeAll(async () => {
     model = createCoupledSimGrpcModel({
-      metersPerDisplayCount: 1e-4,
       mpsPerRpm: 0.001,
       limitLeftXM: -0.01,
       limitRightXM: 0.4,

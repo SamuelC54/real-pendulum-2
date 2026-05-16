@@ -5,6 +5,12 @@ export function displayCountsPerCm(): number {
   return config.rail.displayCountsPerCm;
 }
 
+/** Teknic/display m per count — same formula as `@real-pendulum/app-config/rail` and coupled sim. */
+export function metersPerDisplayCount(): number {
+  const cpc = displayCountsPerCm();
+  return 1 / (cpc * 100);
+}
+
 /** Slider / rail span when both switch-side travel limits are known (`travelLimits` in cm). */
 export function boundsFromTravelLimitsCm(
   leftCm: number | null | undefined,

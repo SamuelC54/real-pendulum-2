@@ -38,11 +38,11 @@ import {
   loadCoupledSimParametersForStartup,
   type CoupledSimParameters,
 } from "@real-pendulum/app-config/coupled-sim-parameters";
+import { encoderTicksPerRadian, plantGravityMS2 } from "@real-pendulum/app-config/pendulum";
+import { metersPerDisplayCount } from "@real-pendulum/app-config/rail";
 
 export type CoupledSimGrpcOptions = {
   port?: number;
-  /** Display counts = `xM / meters` (positive cart → positive display, UI convention). */
-  metersPerDisplayCount: number;
   /** `vCmdMps = -rpm * mpsPerRpm` when jogging (matches Teknic/display: +rpm → display counts decrease). */
   mpsPerRpm: number;
   /** Cart position (m) at or below which the left limit switch is pressed. */
@@ -58,7 +58,6 @@ export type CoupledSimGrpcModel = {
   ledOn: boolean;
   /** Last jog RPM from `SetJogVelocity` (echoed in motor `GetStatus`). */
   lastCommandedRpm: number;
-  metersPerDisplayCount: number;
   mpsPerRpm: number;
   limitLeftXM: number;
   limitRightXM: number;
@@ -82,16 +81,16 @@ export type CoupledSimConfigSnapshot = {
 export function getCoupledSimConfigSnapshot(model: CoupledSimGrpcModel): CoupledSimConfigSnapshot {
   const c = model.plant.config;
   return {
-    metersPerDisplayCount: model.metersPerDisplayCount,
+    metersPerDisplayCount: metersPerDisplayCount(),
     mpsPerRpm: model.mpsPerRpm,
     limitLeftXM: model.limitLeftXM,
     limitRightXM: model.limitRightXM,
     plant: {
-      gravity: c.gravity,
+      gravity: plantGravityMS2(),
       pendulumLengthM: c.pendulumLengthM,
       cartVelocityTrackingPerSec: c.cartVelocityTrackingPerSec,
       angularDampingPerSec: c.angularDampingPerSec,
-      encoderTicksPerRadian: c.encoderTicksPerRadian,
+      encoderTicksPerRadian: encoderTicksPerRadian(),
     },
   };
 }
@@ -100,9 +99,6 @@ export function patchCoupledSimConfig(
   model: CoupledSimGrpcModel,
   patch: Partial<CoupledSimConfigSnapshot> & { plant?: Partial<CoupledSimConfigSnapshot["plant"]> },
 ): void {
-  if (patch.metersPerDisplayCount != null && Number.isFinite(patch.metersPerDisplayCount)) {
-    model.metersPerDisplayCount = patch.metersPerDisplayCount;
-  }
   if (patch.mpsPerRpm != null && Number.isFinite(patch.mpsPerRpm)) {
     model.mpsPerRpm = patch.mpsPerRpm;
   }
@@ -128,9 +124,6 @@ export function patchCoupledSimConfig(
     }
     if (patch.plant.angularDampingPerSec != null && Number.isFinite(patch.plant.angularDampingPerSec)) {
       cfg.angularDampingPerSec = patch.plant.angularDampingPerSec;
-    }
-    if (patch.plant.encoderTicksPerRadian != null && Number.isFinite(patch.plant.encoderTicksPerRadian)) {
-      cfg.encoderTicksPerRadian = patch.plant.encoderTicksPerRadian;
     }
   }
 }
@@ -170,11 +163,11 @@ function plantFromParameters(file: CoupledSimParameters): CartPendulumPlant {
   const { plant } = file;
   return createCartPendulumPlant(
     {
-      gravity: plant.gravity,
+      gravity: plantGravityMS2(),
       pendulumLengthM: plant.pendulumLengthM,
       cartVelocityTrackingPerSec: plant.cartVelocityTrackingPerSec,
       angularDampingPerSec: plant.angularDampingPerSec,
-      encoderTicksPerRadian: plant.encoderTicksPerRadian,
+      encoderTicksPerRadian: encoderTicksPerRadian(),
       ...(plant.maxInternalStepSec != null ? { maxInternalStepSec: plant.maxInternalStepSec } : {}),
     },
     {
@@ -191,7 +184,6 @@ export function createCoupledSimGrpcModel(
   partial?: Partial<CoupledSimGrpcOptions> & { plant?: CartPendulumPlant },
 ): CoupledSimGrpcModel {
   const file = loadCoupledSimParametersForStartup();
-  const metersPerDisplayCount = partial?.metersPerDisplayCount ?? file.metersPerDisplayCount;
   const mpsPerRpm = partial?.mpsPerRpm ?? file.mpsPerRpm;
   const limitLeftXM = partial?.limitLeftXM ?? file.limitLeftXM;
   const limitRightXM = partial?.limitRightXM ?? file.limitRightXM;
@@ -202,7 +194,6 @@ export function createCoupledSimGrpcModel(
     sensorConnected: false,
     ledOn: false,
     lastCommandedRpm: 0,
-    metersPerDisplayCount,
     mpsPerRpm,
     limitLeftXM,
     limitRightXM,
@@ -213,7 +204,7 @@ export function createCoupledSimGrpcModel(
 /** Teknic `PosnMeasured` counts: UI display = `-measuredPosition` → `measured = -display = -xM / metersPerDisplay`. */
 function teknicMeasuredFromPlant(model: CoupledSimGrpcModel): number {
   const x = model.plant.state.xM;
-  return -x / model.metersPerDisplayCount;
+  return -x / metersPerDisplayCount();
 }
 
 /** Stop velocity commands that would drive further into an active limit switch. */
@@ -328,7 +319,7 @@ export function startCoupledSimGrpcServer(
         model.lastCommandedRpm = 0;
         const teknic = req.positionCounts ?? 0;
         const display = -teknic;
-        model.plant.state.xM = display * model.metersPerDisplayCount;
+        model.plant.state.xM = display * metersPerDisplayCount();
         model.plant.state.vMps = 0;
         return create(MoveToPositionReplySchema, { ok: true, errorMessage: "" });
       },

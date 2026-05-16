@@ -4,16 +4,13 @@ import { z } from "zod";
 import { resolveRepoRoot } from "./node.js";
 
 export const coupledSimPlantSchema = z.object({
-  gravity: z.number().finite().positive(),
   pendulumLengthM: z.number().finite().positive(),
   cartVelocityTrackingPerSec: z.number().finite().positive(),
   angularDampingPerSec: z.number().finite().nonnegative(),
-  encoderTicksPerRadian: z.number().finite().positive(),
   maxInternalStepSec: z.number().finite().positive().optional(),
 });
 
 export const coupledSimParametersSchema = z.object({
-  metersPerDisplayCount: z.number().finite().positive(),
   mpsPerRpm: z.number().finite(),
   limitLeftXM: z.number().finite(),
   limitRightXM: z.number().finite(),

@@ -155,7 +155,7 @@ This repeats **§2.2** for readers who jump straight here: if motor and sensor f
 - **From control-api (re-exports same server):** `npm run serve:coupled-sim -w @real-pendulum/control-api`
 - Hardware URLs: **`motorGrpcBaseUrl()`** / **`sensorGrpcBaseUrl()`** (defaults **50051** / **50052**).
 - **Web “Simulator”** mode uses **`resolveSimMotorGrpcUrl()`** / **`resolveSimSensorGrpcUrl()`** (default coupled sim **58870** on **`config.sim.coupledGrpcPort`**). The browser sends **`x-pendulum-backend: sim`**; **Hardware** uses config hardware URLs.
-- Tunables: **`config.sim`** (`metersPerDisplayCount`, `mpsPerRpm`, `limitLeftXM`, `limitRightXM`).
+- Tunables: **`config/coupled-sim.parameters.json`** (`mpsPerRpm`, `limitLeftXM`, `limitRightXM`, plant). Rail cm scale comes from **`config.rail.displayCountsPerCm`** (shared with hardware).
 
 ---
 
@@ -203,7 +203,7 @@ Pick one pattern (or evolve from A → B):
 ### 5.1 State & parameters
 
 - **State:** `xM` (cart position, m, +right), `vMps`, `thetaRad` (angle CCW from straight down), `omegaRps`, `vCmdMps` (commanded cart velocity from motor/jog model), `encoderTicksFloat` (continuous integral for quadrature ticks).
-- **Config:** `gravity`, `pendulumLengthM`, `cartVelocityTrackingPerSec` (α in ẍ = α·(v_cmd − v)), `angularDampingPerSec`, `encoderTicksPerRadian`, `maxInternalStepSec`.
+- **Config:** `gravity`, `pendulumLengthM`, `cartVelocityTrackingPerSec` (α in ẍ = α·(v_cmd − v)), `angularDampingPerSec`, `maxInternalStepSec`. Encoder ticks/radian comes from **`config.pendulum.encoderCountsPerRevolution`** (shared with hardware).
 
 ### 5.2 Equations (implemented)
 

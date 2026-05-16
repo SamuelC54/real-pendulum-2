@@ -8,15 +8,12 @@ import {
 } from "./tuningMath";
 
 const baseForm: SimConfigForm = {
-  metersPerDisplayCount: 0.004292,
   mpsPerRpm: 0.0001,
   limitLeftXM: -0.45,
   limitRightXM: 0.45,
-  gravity: 9.81,
   pendulumLengthM: 0.3,
   cartVelocityTrackingPerSec: 12,
   angularDampingPerSec: 0.1,
-  encoderTicksPerRadian: 381.97,
 };
 
 function sample(overrides: Partial<ReturnType<typeof sampleFromCompare>> = {}) {
@@ -98,22 +95,48 @@ describe("suggestSimTuning", () => {
     expect(r.suggestions).toHaveLength(0);
   });
 
-  it("suggests lowering metersPerDisplayCount when hardware reads ahead", () => {
+  it("does not suggest metersPerDisplayCount (tied to hardware rail config)", () => {
     const r = suggestSimTuning(many(20, { realMotorCm: 10.5, simMotorCm: 10 }), baseForm);
-    const m = r.suggestions.find((s) => s.param === "metersPerDisplayCount");
-    expect(m).toBeDefined();
-    expect(m!.suggestedValue).toBeLessThan(baseForm.metersPerDisplayCount);
-    expect(m!.direction).toBe("decrease");
+    expect(r.suggestions.find((s) => s.param === "metersPerDisplayCount")).toBeUndefined();
   });
 
-  it("suggests raising encoderTicksPerRadian when hardware encoder leads", () => {
+  it("does not suggest encoderTicksPerRadian (tied to hardware pendulum config)", () => {
     const r = suggestSimTuning(
       many(20, { realMotorCm: 10, simMotorCm: 10, realEncoderTicks: 120, simEncoderTicks: 100 }),
       baseForm,
     );
-    const enc = r.suggestions.find((s) => s.param === "encoderTicksPerRadian");
-    expect(enc).toBeDefined();
-    expect(enc!.suggestedValue).toBeGreaterThan(baseForm.encoderTicksPerRadian);
+    expect(r.suggestions.find((s) => s.param === "encoderTicksPerRadian")).toBeUndefined();
+  });
+
+  it("suggests mpsPerRpm when jog motion scale mismatches", () => {
+    const samples = Array.from({ length: 24 }, (_, i) =>
+      sample({
+        t: i,
+        commandedRpm: 50,
+        realMotorCm: i * 0.35,
+        simMotorCm: i * 0.35 * 0.92,
+        realEncoderTicks: 0,
+        simEncoderTicks: 0,
+      }),
+    );
+    const r = suggestSimTuning(samples, baseForm);
+    const mps = r.suggestions.find((s) => s.param === "mpsPerRpm");
+    expect(mps).toBeDefined();
+    expect(mps!.suggestedValue).toBeGreaterThan(baseForm.mpsPerRpm);
+    expect(r.diagnostics.positionDisplacementScale).toBeCloseTo(1 / 0.92, 2);
+  });
+
+  it("does not suggest mpsPerRpm when motion scale already matches", () => {
+    const samples = Array.from({ length: 24 }, (_, i) =>
+      sample({
+        t: i,
+        commandedRpm: 50,
+        realMotorCm: i * 0.4 + 0.3,
+        simMotorCm: i * 0.4 + 0.3,
+      }),
+    );
+    const r = suggestSimTuning(samples, baseForm);
+    expect(r.suggestions.find((s) => s.param === "mpsPerRpm")).toBeUndefined();
   });
 
   it("suggests moving sim left limit when sim triggers early", () => {

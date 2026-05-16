@@ -44,6 +44,13 @@ export type AppConfig = {
     displayCountsPerCm: number;
   };
 
+  pendulum: {
+    /** Shaft encoder quadrature counts per revolution (Arduino + coupled sim). */
+    encoderCountsPerRevolution: number;
+    /** Gravity for coupled cart–pendulum plant (m/s²). */
+    gravityMS2: number;
+  };
+
   homing: {
     jogRpm: number;
     pollMs: number;
@@ -117,6 +124,11 @@ export const config: AppConfig = {
 
   rail: {
     displayCountsPerCm: 232.8,
+  },
+
+  pendulum: {
+    encoderCountsPerRevolution: 2400,
+    gravityMS2: 9.80665,
   },
 
   homing: {
