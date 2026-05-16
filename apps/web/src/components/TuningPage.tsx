@@ -1,6 +1,7 @@
 import { useAtom } from "jotai";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Activity, CircleStop, Download, Play, Trash2 } from "lucide-react";
+import { Activity, CircleStop, Download, LineChart, Play, Trash2 } from "lucide-react";
+import { TuningRecordChart } from "@/components/TuningRecordChart";
 import { JogControls } from "@/components/JogControls";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -310,6 +311,19 @@ export function TuningPage() {
             </tbody>
           </table>
         </div>
+      </Card>
+
+      <Card className="p-4">
+        <div className="mb-3 flex items-center gap-2 text-sm font-medium">
+          <LineChart className="h-4 w-4 text-violet-600" aria-hidden />
+          Record trace
+          {recording ? (
+            <span className="rounded bg-red-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-red-700 dark:text-red-300">
+              LIVE
+            </span>
+          ) : null}
+        </div>
+        <TuningRecordChart samples={samples} recording={recording} />
       </Card>
 
       <div className="grid gap-5 lg:grid-cols-2">

@@ -18,6 +18,11 @@
   --color-border: var(--border);
   --radius-lg: var(--radius);
   --ring-color: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
 }
 
 :root {
@@ -38,4 +43,9 @@
   --border: oklch(0.922 0 0);
   --radius: 0.5rem;
   --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.55 0.22 303);
+  --chart-2: oklch(0.55 0.14 245);
+  --chart-3: oklch(0.65 0.12 200);
+  --chart-4: oklch(0.65 0.16 55);
+  --chart-5: oklch(0.6 0.18 40);
 }
