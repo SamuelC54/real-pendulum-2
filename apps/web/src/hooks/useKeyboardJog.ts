@@ -3,6 +3,7 @@ import { useAtomValue } from "jotai";
 import {
   isArrowKey,
   isKeyboardJogBlockedTarget,
+  JOG_FORCE_STOP_EVENT,
   jogDirectionFromArrowKeys,
   type ArrowKeyState,
 } from "@/lib/keyboardJog";
@@ -79,6 +80,7 @@ export function useKeyboardJog() {
     window.addEventListener("keydown", onKeyDown, opts);
     window.addEventListener("keyup", onKeyUp, opts);
     window.addEventListener("blur", releaseAllKeys);
+    window.addEventListener(JOG_FORCE_STOP_EVENT, releaseAllKeys);
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "hidden") releaseAllKeys();
     });
@@ -86,6 +88,7 @@ export function useKeyboardJog() {
       window.removeEventListener("keydown", onKeyDown, opts);
       window.removeEventListener("keyup", onKeyUp, opts);
       window.removeEventListener("blur", releaseAllKeys);
+      window.removeEventListener(JOG_FORCE_STOP_EVENT, releaseAllKeys);
       keysRef.current = { left: false, right: false };
       void applyKeyboardJogRef.current(null);
     };

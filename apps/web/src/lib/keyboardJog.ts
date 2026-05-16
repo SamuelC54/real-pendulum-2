@@ -1,5 +1,12 @@
 import type { JogHold } from "@/stores/jog";
 
+/** Clears keyboard jog key state in `useKeyboardJog` when Stop is pressed. */
+export const JOG_FORCE_STOP_EVENT = "pendulum:jog-force-stop";
+
+export function dispatchJogForceStop(): void {
+  window.dispatchEvent(new CustomEvent(JOG_FORCE_STOP_EVENT));
+}
+
 export type ArrowKeyState = { left: boolean; right: boolean };
 
 /** Jog direction from arrow keys (left wins if both are down). */

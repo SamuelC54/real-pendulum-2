@@ -203,7 +203,39 @@ __declspec(dllexport) int __cdecl teknic_set_velocity_rpm(double rpm, double acc
 }
 
 __declspec(dllexport) int __cdecl teknic_stop(void) {
-  return teknic_set_velocity_rpm(0.0, NAN);
+  std::lock_guard<std::recursive_mutex> lock(g_teknic_mu);
+  if (!g_teknic_initialized || !g_teknic_node) {
+    return -1;
+  }
+  if (!g_teknic_motion_enabled) {
+    g_teknic_detail =
+        "Info-only link (TeknicCfg::kEnableReqOnConnect=0); motor data only — enable motion to stop.";
+    return -12;
+  }
+
+  try {
+    if (!g_teknic_node->Motion.IsReady()) {
+      return -5;
+    }
+
+    try {
+      g_teknic_node->VelUnit(INode::RPM);
+    } catch (mnErr&) {
+    }
+
+    // Halt velocity jog and abort in-flight profile moves (MovePosnStart).
+    g_teknic_node->Motion.MoveVelStart(0);
+    g_teknic_node->Motion.NodeStop(STOP_TYPE_ABRUPT);
+    g_teknic_commanded_rpm = 0.0;
+    return 0;
+  } catch (mnErr& theErr) {
+    std::ostringstream os;
+    os << "Stop mnErr 0x" << std::hex << std::uppercase
+       << static_cast<unsigned>(theErr.ErrorCode) << std::nouppercase << std::dec << ": "
+       << (theErr.ErrorMsg ? theErr.ErrorMsg : "");
+    g_teknic_detail = os.str();
+    return -100;
+  }
 }
 
 /**

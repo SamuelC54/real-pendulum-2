@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { useAtomValue, useSetAtom } from "jotai";
+import { dispatchJogForceStop } from "@/lib/keyboardJog";
 import { jogRpmForDirection, shouldReleaseJogHoldForTravelLimit } from "@/lib/jogMath";
 import { holdingAtom, jogAccelRpmPerSecAtom, jogRpmAtom, type JogHold } from "@/stores/jog";
 import { trpc } from "@/trpc";
@@ -53,6 +54,8 @@ export function MotorSessionProvider({ children }: { children: ReactNode }) {
   const pointerDirRef = useRef<JogHold>(null);
   const keyboardDirRef = useRef<JogHold>(null);
   const motorDirRef = useRef<JogHold>(null);
+  /** Bumped on Stop so in-flight `setVelocity` cannot restart motion after a stop. */
+  const jogEpochRef = useRef(0);
   const syncJogRef = useRef<() => void | Promise<void>>(() => {});
   const syncJogQueueRef = useRef(Promise.resolve());
 
@@ -69,28 +72,56 @@ export function MotorSessionProvider({ children }: { children: ReactNode }) {
     return pointerDirRef.current ?? keyboardDirRef.current;
   }, []);
 
+  /** Issue `jog.stop` immediately (do not wait for in-flight jog RPCs). */
+  const applyMotorStopNow = useCallback(async () => {
+    motorDirRef.current = null;
+    if (!connected) return;
+    await stop.mutateAsync();
+    invalidateMotorQueries();
+  }, [connected, stop, invalidateMotorQueries]);
+
+  /** After queued jog work, stop again so a late `setVelocity` cannot restart motion. */
+  const chainMotorStopOnQueue = useCallback(() => {
+    const task = syncJogQueueRef.current
+      .then(() => applyMotorStopNow())
+      .catch(() => applyMotorStopNow());
+    syncJogQueueRef.current = task;
+    return task;
+  }, [applyMotorStopNow]);
+
   const syncJog = useCallback(async () => {
+    const epoch = jogEpochRef.current;
     const dir = effectiveJogDirection();
     setHolding(dir);
     if (!connected) {
       motorDirRef.current = null;
       return;
     }
-    if (dir === motorDirRef.current) return;
+    if (dir === motorDirRef.current && dir !== null) return;
 
     if (!dir) {
+      const hadActiveJog = motorDirRef.current !== null;
       motorDirRef.current = null;
-      if (!connected) return;
-      await stop.mutateAsync();
-      invalidateMotorQueries();
+      if (hadActiveJog) {
+        await stop.mutateAsync();
+        invalidateMotorQueries();
+      }
       return;
     }
 
     motorDirRef.current = dir;
+    if (jogEpochRef.current !== epoch) return;
+
     await setVelocity.mutateAsync({
       rpm: jogRpmForDirection(dir, jogRpm),
       maxAccelerationRpmPerSec: jogAccelRpmPerSec,
     });
+    if (jogEpochRef.current !== epoch) {
+      motorDirRef.current = null;
+      await stop.mutateAsync();
+      invalidateMotorQueries();
+      return;
+    }
     invalidateMotorQueries();
   }, [
     connected,
@@ -136,10 +167,15 @@ export function MotorSessionProvider({ children }: { children: ReactNode }) {
   );
 
   const applyJogStop = useCallback(async () => {
+    jogEpochRef.current += 1;
     pointerDirRef.current = null;
     keyboardDirRef.current = null;
+    setHolding(null);
+    dispatchJogForceStop();
+    await applyMotorStopNow();
+    void chainMotorStopOnQueue();
     await runSyncJog();
-  }, [runSyncJog]);
+  }, [applyMotorStopNow, chainMotorStopOnQueue, runSyncJog, setHolding]);
 
   /** Stop an in-progress jog as soon as its direction hits a travel limit (sensor poll ~80 ms). */
   useEffect(() => {
@@ -150,12 +186,20 @@ export function MotorSessionProvider({ children }: { children: ReactNode }) {
       limitRightPressed: sensor.data?.limitRightPressed ?? false,
     };
     if (!shouldReleaseJogHoldForTravelLimit(holding, limits)) return;
+    jogEpochRef.current += 1;
     pointerDirRef.current = null;
     keyboardDirRef.current = null;
+    setHolding(null);
+    dispatchJogForceStop();
+    void applyMotorStopNow();
+    void chainMotorStopOnQueue();
     void syncJogRef.current();
   }, [
     connected,
     holding,
+    applyMotorStopNow,
+    chainMotorStopOnQueue,
+    setHolding,
     sensor.data?.connected,
     sensor.data?.limitLeftPressed,
     sensor.data?.limitRightPressed,

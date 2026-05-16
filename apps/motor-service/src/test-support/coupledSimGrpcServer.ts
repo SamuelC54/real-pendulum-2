@@ -272,6 +272,7 @@ export function startCoupledSimGrpcServer(
           return create(StopReplySchema, { ok: false, errorMessage: "not connected" });
         }
         model.plant.state.vCmdMps = 0;
+        model.plant.state.vMps = 0;
         model.lastCommandedRpm = 0;
         return create(StopReplySchema, { ok: true, errorMessage: "" });
       },
