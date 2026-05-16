@@ -1,6 +1,7 @@
 import { useAtom } from "jotai";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Activity, CircleStop, Download, LineChart, Play, Trash2 } from "lucide-react";
+import { LiveTwinCalibrationCard } from "@/components/LiveTwinCalibrationCard";
 import { TuningRecordChart } from "@/components/TuningRecordChart";
 import { JogControls } from "@/components/JogControls";
 import { Card } from "@/components/ui/card";
@@ -326,11 +327,13 @@ export function TuningPage() {
         <TuningRecordChart samples={samples} recording={recording} />
       </Card>
 
+      <LiveTwinCalibrationCard onParametersChanged={() => void simConfigQuery.refetch()} />
+
       <div className="grid gap-5 lg:grid-cols-2">
         <Card className="p-4">
-          <h2 className="text-sm font-medium">Session error score</h2>
+          <h2 className="text-sm font-medium">Recorded session score</h2>
           <p className="text-muted-foreground mt-1 text-xs">
-            Lower is better. Based on {summary.sampleCount} recorded samples.
+            Lower is better. Based on {summary.sampleCount} recorded samples (debug / validation).
           </p>
           <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
             <dt className="text-muted-foreground">Weighted score</dt>
@@ -343,10 +346,10 @@ export function TuningPage() {
         </Card>
 
         <Card className="p-4">
-          <h2 className="text-sm font-medium">Optimized profile</h2>
+          <h2 className="text-sm font-medium">Replay validation (offline)</h2>
           <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
-            Replays your recording through the cart–pendulum plant and searches parameters that minimize
-            hardware vs sim error (position and encoder only).
+            Optional: fit parameters from a saved recording in the browser (for debugging). Prefer live
+            calibration above during normal use.
           </p>
           {samples.length < MIN_OPTIMIZE_SAMPLES ? (
             <p className="text-muted-foreground mt-3 text-xs">

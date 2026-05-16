@@ -30,6 +30,13 @@ import {
   startTuningRecord,
   stopTuningRecord,
 } from "./tuningRecord.js";
+import {
+  getLiveTwinCalibrationStatus,
+  resetLiveTwinCalibrationToBaseline,
+  resetLiveTwinCalibrationWindow,
+  startLiveTwinCalibration,
+  stopLiveTwinCalibration,
+} from "./liveTwinCalibration.js";
 import { displayCountsPerCm, teknicMeasuredToCm } from "./railPositionCm.js";
 import {
   moveToPositionCmRespectingTravelLimits,
@@ -615,6 +622,16 @@ export const appRouter = t.router({
       start: baseProcedure.mutation(() => startTuningRecord()),
       stop: baseProcedure.mutation(() => stopTuningRecord()),
       clear: baseProcedure.mutation(() => clearTuningSamples()),
+    }),
+    /** Live digital-twin calibration (sim parameters only; hardware unchanged). */
+    calibration: t.router({
+      status: baseProcedure.query(() => getLiveTwinCalibrationStatus()),
+      start: baseProcedure
+        .input(z.object({ persistToFileOnStop: z.boolean().optional() }).optional())
+        .mutation(async ({ input }) => startLiveTwinCalibration(input ?? undefined)),
+      stop: baseProcedure.mutation(() => stopLiveTwinCalibration()),
+      resetWindow: baseProcedure.mutation(() => resetLiveTwinCalibrationWindow()),
+      resetToBaseline: baseProcedure.mutation(() => resetLiveTwinCalibrationToBaseline()),
     }),
     simConfig: t.router({
       /** Read `config/coupled-sim.parameters.json` (strict — all fields required). */
