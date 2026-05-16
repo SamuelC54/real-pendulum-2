@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { JOG_RPM, jogRpmForDirection } from "./jogMath";
+import {
+  isJogBlockedByTravelLimit,
+  JOG_RPM,
+  jogRpmForDirection,
+  shouldReleaseJogHoldForTravelLimit,
+} from "./jogMath";
 
 describe("jogMath", () => {
   it("uses symmetric rpm magnitude", () => {
@@ -10,5 +15,12 @@ describe("jogMath", () => {
   it("signs match rail jog labels vs Teknic velocity convention", () => {
     expect(jogRpmForDirection("left")).toBe(JOG_RPM);
     expect(jogRpmForDirection("right")).toBe(-JOG_RPM);
+  });
+
+  it("shouldReleaseJogHoldForTravelLimit when hold direction hits a switch", () => {
+    const limits = { connected: true, limitLeftPressed: true, limitRightPressed: false };
+    expect(shouldReleaseJogHoldForTravelLimit("left", limits)).toBe(true);
+    expect(shouldReleaseJogHoldForTravelLimit("right", limits)).toBe(false);
+    expect(isJogBlockedByTravelLimit("left", limits)).toBe(true);
   });
 });

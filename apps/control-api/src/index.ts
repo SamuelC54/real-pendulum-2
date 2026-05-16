@@ -10,12 +10,26 @@ loadRootEnv({ path: path.join(REPO_ROOT, ".env") });
 loadRootEnv({ path: path.join(REPO_ROOT, ".env.local"), override: true });
 import cors from "cors";
 import { appRouter } from "./router.js";
+import type { GrpcBackendMode } from "./grpcRequestContext.js";
+
+function parseGrpcBackendMode(header: string | string[] | undefined): GrpcBackendMode {
+  const v = Array.isArray(header) ? header[0] : header;
+  if (typeof v !== "string") return "hardware";
+  const t = v.trim().toLowerCase();
+  if (t === "sim" || t === "simulator") return "sim";
+  if (t === "twin" || t === "digital-twin") return "twin";
+  return "hardware";
+}
 
 const port = Number(process.env.CONTROL_API_PORT ?? 4000);
 
 const handler = createHTTPHandler({
   router: appRouter,
-  createContext: () => ({}),
+  createContext({ req }) {
+    return {
+      grpcBackendMode: parseGrpcBackendMode(req.headers["x-pendulum-backend"]),
+    };
+  },
   basePath: "/trpc/",
 });
 

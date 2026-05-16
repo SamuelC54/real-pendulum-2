@@ -1,10 +1,6 @@
 import { memo } from "react";
-import {
-  boundsFromTravelSwitchDisplays,
-  motorCountsForDisplay,
-} from "@/lib/motorPositionDisplay";
-import { trpc } from "@/trpc";
-import { useMotorStatusQuery } from "@/services/useMotorStatusQuery";
+import { boundsFromTravelLimitsCm } from "@/lib/railPositionCm";
+import { useMotorStatusQuery, useSensorStatusQuery } from "@/services/useMotorStatusQuery";
 import { cn } from "@/lib/utils";
 
 /**
@@ -13,17 +9,21 @@ import { cn } from "@/lib/utils";
  */
 export const CartRailVisualizer = memo(function CartRailVisualizer() {
   const motor = useMotorStatusQuery();
-  const sensor = trpc.sensor.status.get.useQuery(undefined, {
-    refetchInterval: (q) => (q.state.data?.connected ? 80 : 1500),
-  });
+  const sensor = useSensorStatusQuery();
 
   const motorConnected = motor.data?.connected ?? false;
-  const pos = motorCountsForDisplay(motor.data?.measuredPosition);
+  const pos = motor.data?.positionCm;
   const tl = motor.data?.travelLimits;
-  const bounds = boundsFromTravelSwitchDisplays(tl?.left, tl?.right);
+  const bounds = boundsFromTravelLimitsCm(tl?.leftCm, tl?.rightCm);
   const sensorConnected = sensor.data?.connected ?? false;
   const limitLeft = sensor.data?.limitLeftPressed ?? false;
   const limitRight = sensor.data?.limitRightPressed ?? false;
+
+  const twinSim =
+    motor.data && "twinSimMotor" in motor.data ? motor.data.twinSimMotor : undefined;
+  const simPos = twinSim !== undefined ? twinSim.positionCm : undefined;
+  const simTl = twinSim?.travelLimits;
+  const simBounds = boundsFromTravelLimitsCm(simTl?.leftCm, simTl?.rightCm);
 
   const hasPosition = pos !== undefined && Number.isFinite(pos);
   const span = bounds ? bounds.max - bounds.min : 0;
@@ -35,9 +35,18 @@ export const CartRailVisualizer = memo(function CartRailVisualizer() {
     pct = Math.max(3, Math.min(97, t * 100));
   }
 
+  const hasSimPosition = simPos !== undefined && Number.isFinite(simPos);
+  const simSpan = simBounds ? simBounds.max - simBounds.min : 0;
+  const simHasScale = simBounds != null && simSpan > 1e-9;
+  let simPct = 50;
+  if (simBounds && hasSimPosition && simHasScale) {
+    const t = (simPos - simBounds.min) / simSpan;
+    simPct = Math.max(3, Math.min(97, t * 100));
+  }
+
   const rangeLabel =
     hasScale && bounds
-      ? `${bounds.min.toFixed(0)} → ${bounds.max.toFixed(0)} counts`
+      ? `${bounds.min.toFixed(2)} → ${bounds.max.toFixed(2)} cm`
       : null;
 
   if (!motorConnected) {
@@ -58,7 +67,7 @@ export const CartRailVisualizer = memo(function CartRailVisualizer() {
         role="img"
         aria-label={
           hasPosition && hasScale
-            ? `Cart about ${pct.toFixed(0)} percent from left along travel limits (display counts)`
+            ? `Cart about ${pct.toFixed(0)} percent from left along travel limits (cm)`
             : "Rail cart position"
         }
       >
@@ -73,10 +82,10 @@ export const CartRailVisualizer = memo(function CartRailVisualizer() {
           {hasPosition ? (
             <div
               className="pointer-events-none absolute inset-0 flex items-center justify-center px-0.5 text-center"
-              title="Left travel limit (display counts)"
+              title="Left travel limit (cm)"
             >
               <span className="text-muted-foreground font-mono text-[9px] tabular-nums">
-                {bounds && hasScale ? bounds.min.toFixed(1) : "—"}
+                {bounds && hasScale ? bounds.min.toFixed(2) : "—"}
               </span>
             </div>
           ) : null}
@@ -92,10 +101,10 @@ export const CartRailVisualizer = memo(function CartRailVisualizer() {
           {hasPosition ? (
             <div
               className="pointer-events-none absolute inset-0 flex items-center justify-center px-0.5 text-center"
-              title="Right travel limit (display counts)"
+              title="Right travel limit (cm)"
             >
               <span className="text-muted-foreground font-mono text-[9px] tabular-nums">
-                {bounds && hasScale ? bounds.max.toFixed(1) : "—"}
+                {bounds && hasScale ? bounds.max.toFixed(2) : "—"}
               </span>
             </div>
           ) : null}
@@ -105,9 +114,9 @@ export const CartRailVisualizer = memo(function CartRailVisualizer() {
           {hasPosition ? (
             <span
               className="min-w-0 truncate text-center font-mono text-[10px] text-foreground tabular-nums font-medium"
-              title="Current display count"
+              title="Current position (cm)"
             >
-              {pos.toFixed(1)}
+              {pos.toFixed(2)}
             </span>
           ) : null}
           <span className="text-muted-foreground shrink-0 select-none font-mono text-[10px]">R</span>
@@ -118,11 +127,20 @@ export const CartRailVisualizer = memo(function CartRailVisualizer() {
             className="absolute top-1/2 z-10 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background bg-primary shadow-md transition-[left] duration-150 ease-out"
             style={{ left: `${pct}%` }}
           >
-            <span className="sr-only">cart marker</span>
+            <span className="sr-only">cart marker (hardware)</span>
           </div>
         ) : !hasPosition ? (
           <div className="absolute inset-0 flex items-center justify-center px-4 text-center text-muted-foreground text-xs">
             Measured position unavailable — rebuild motor DLL / motor-service for PosnMeasured.
+          </div>
+        ) : null}
+        {twinSim !== undefined && hasSimPosition && simHasScale ? (
+          <div
+            className="absolute top-1/2 z-[9] h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-sky-800 bg-sky-400/90 shadow-md transition-[left] duration-150 ease-out dark:border-sky-200"
+            style={{ left: `${simPct}%` }}
+            title="Simulated cart (coupled plant)"
+          >
+            <span className="sr-only">simulated cart marker</span>
           </div>
         ) : null}
       </div>
@@ -131,6 +149,15 @@ export const CartRailVisualizer = memo(function CartRailVisualizer() {
         Same sign convention as the status strip (left negative, right positive). The bar scales after
         both travel limits exist (homing or jog to limits). Connect the Sensor Board to highlight stop
         zones when a switch closes.
+        {twinSim !== undefined ? (
+          <>
+            {" "}
+            <span className="text-sky-800 dark:text-sky-200">
+              Twin: large dot = hardware cart, small sky dot = simulated cart (independent sim travel
+              limits when homed in sim).
+            </span>
+          </>
+        ) : null}
       </p>
     </div>
   );

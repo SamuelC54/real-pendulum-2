@@ -1,4 +1,5 @@
 import { describe, expect, it, beforeEach } from "vitest";
+import { withGrpcBackendMode } from "./grpcRequestContext.js";
 import {
   clearTravelLimits,
   getTravelLimitDisplays,
@@ -42,10 +43,13 @@ describe("railTravelLimits", () => {
     expect(getTravelLimitDisplays()).toEqual({ left: -100, right: 50 });
   });
 
-  it("clear resets both sides", () => {
-    recordTravelLimitFromTeknicMeasured(1, "left");
-    recordTravelLimitFromTeknicMeasured(2, "right");
-    clearTravelLimits();
-    expect(getTravelLimitDisplays()).toEqual({ left: null, right: null });
+  it("isolates travel limits between hardware and sim backend modes", () => {
+    recordTravelLimitFromTeknicMeasured(10, "left");
+    expect(getTravelLimitDisplays().left).toBe(-10);
+    withGrpcBackendMode("sim", () => {
+      recordTravelLimitFromTeknicMeasured(20, "left");
+      expect(getTravelLimitDisplays().left).toBe(-20);
+    });
+    expect(getTravelLimitDisplays().left).toBe(-10);
   });
 });

@@ -3,12 +3,14 @@ import { Card } from "@/components/ui/card";
 import { CartRailVisualizer } from "@/components/CartRailVisualizer";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { motorCountsForDisplay } from "@/lib/motorPositionDisplay";
 import { useMotorSession } from "@/services/motorSession";
+import { useSimBackendAutoConnect } from "@/services/useSimBackendAutoConnect";
 import { useMotorStatusQuery } from "@/services/useMotorStatusQuery";
+import { useAtomValue } from "jotai";
+import { grpcBackendModeAtom } from "@/stores/grpcBackendMode";
 
 /** Owns the polling status query so parent `App` does not re-render every refetch tick. */
-function formatMeasuredCounts(value: number | undefined): string {
+function formatPositionCm(value: number | undefined): string {
   if (value === undefined || !Number.isFinite(value)) {
     return "—";
   }
@@ -17,10 +19,12 @@ function formatMeasuredCounts(value: number | undefined): string {
 }
 
 export function MotorStatusBlocks() {
+  const mode = useAtomValue(grpcBackendModeAtom);
+  const simAuto = useSimBackendAutoConnect();
   const status = useMotorStatusQuery();
   const { connect, connected, busy, connectMotor, disconnectMotor } = useMotorSession();
 
-  const measured = motorCountsForDisplay(status.data?.measuredPosition);
+  const positionCm = status.data?.positionCm;
 
   return (
     <Card className="flex flex-col gap-4 p-6">
@@ -53,21 +57,38 @@ export function MotorStatusBlocks() {
                 <span className="text-muted-foreground font-mono text-xs leading-tight">
                   position{" "}
                   <span className="text-foreground font-semibold tabular-nums">
-                    {formatMeasuredCounts(measured)}
+                    {formatPositionCm(positionCm)}
                   </span>{" "}
-                  <span className="font-sans font-normal">counts</span>
-                  {measured === undefined || !Number.isFinite(measured) ? (
+                  <span className="font-sans font-normal">cm</span>
+                  {positionCm === undefined || !Number.isFinite(positionCm) ? (
                     <span className="ml-1 font-sans text-[10px] font-normal opacity-80">
                       (update motor-service / DLL)
                     </span>
                   ) : null}
                 </span>
               ) : null}
+              {status.data && "twinSimMotor" in status.data && status.data.twinSimMotor ? (
+                <span className="text-muted-foreground block font-mono text-[10px] leading-tight">
+                  Sim: {status.data.twinSimMotor.commandedRpm.toFixed(1)} rpm · pos{" "}
+                  <span className="text-sky-900 dark:text-sky-200">
+                    {formatPositionCm(status.data.twinSimMotor.positionCm)}
+                  </span>{" "}
+                  cm
+                </span>
+              ) : null}
             </div>
           </div>
           {status.data?.connected ? <CartRailVisualizer /> : null}
           <div className="flex flex-wrap gap-2">
-            {!connected ? (
+            {!connected && mode === "sim" ? (
+              <p className="text-muted-foreground text-xs leading-relaxed">
+                {simAuto.pending
+                  ? "Connecting to coupled simulator…"
+                  : (simAuto.lastError ??
+                    "Simulator auto-connect — ensure coupled sim is running (npm run dev).")}
+              </p>
+            ) : null}
+            {!connected && mode !== "sim" ? (
               <Button
                 type="button"
                 variant="default"
@@ -78,7 +99,8 @@ export function MotorStatusBlocks() {
                 <Link2 aria-hidden className="mr-2 h-4 w-4" />
                 Connect Motor Board
               </Button>
-            ) : (
+            ) : null}
+            {connected ? (
               <Button
                 type="button"
                 variant="outline"
@@ -89,9 +111,22 @@ export function MotorStatusBlocks() {
                 <Link2Off aria-hidden className="mr-2 h-4 w-4" />
                 Disconnect
               </Button>
-            )}
+            ) : null}
           </div>
-          {connect.data && !connect.data.ok && connect.data.error ? (
+          {connect.data && "real" in connect.data ? (
+            <>
+              {!connect.data.real.ok && connect.data.real.error ? (
+                <p className="text-destructive wrap-break-word whitespace-pre-wrap text-xs">
+                  {connect.data.real.error}
+                </p>
+              ) : null}
+              {!connect.data.sim.ok && connect.data.sim.error ? (
+                <p className="text-destructive wrap-break-word whitespace-pre-wrap text-xs">
+                  Sim motor: {connect.data.sim.error}
+                </p>
+              ) : null}
+            </>
+          ) : connect.data && !("real" in connect.data) && !connect.data.ok && connect.data.error ? (
             <p className="text-destructive wrap-break-word whitespace-pre-wrap text-xs">{connect.data.error}</p>
           ) : null}
           {connect.error ? (

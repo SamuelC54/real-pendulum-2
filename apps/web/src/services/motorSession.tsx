@@ -1,13 +1,21 @@
-import { createContext, useCallback, useContext, useMemo, type ReactNode } from "react";
-import { useSetAtom } from "jotai";
-import { jogRpmForDirection } from "@/lib/jogMath";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  type ReactNode,
+} from "react";
+import { useAtomValue, useSetAtom } from "jotai";
+import { jogRpmForDirection, shouldReleaseJogHoldForTravelLimit } from "@/lib/jogMath";
 import { holdingAtom, type JogHold } from "@/stores/jog";
 import { trpc } from "@/trpc";
 import { useConnectMotorMutation } from "./useConnectMotorMutation";
 import { useDisconnectMotorMutation } from "./useDisconnectMotorMutation";
 import { useJogSetVelocityMutation } from "./useJogSetVelocityMutation";
 import { useJogStopMutation } from "./useJogStopMutation";
-import { useMotorStatusConnected } from "./useMotorStatusQuery";
+import { useMotorStatusConnected, useSensorStatusQuery } from "./useMotorStatusQuery";
 
 export type MotorSessionValue = {
   connect: ReturnType<typeof useConnectMotorMutation>;
@@ -25,12 +33,20 @@ export const MotorSessionContext = createContext<MotorSessionValue | null>(null)
 
 export function MotorSessionProvider({ children }: { children: ReactNode }) {
   const { data: connected = false } = useMotorStatusConnected();
+  const holding = useAtomValue(holdingAtom);
+  const sensor = useSensorStatusQuery();
   const utils = trpc.useUtils();
   const connect = useConnectMotorMutation();
   const disconnect = useDisconnectMotorMutation();
   const setVelocity = useJogSetVelocityMutation();
   const stop = useJogStopMutation();
   const setHolding = useSetAtom(holdingAtom);
+  const applyHoldRef = useRef<(dir: JogHold) => void | Promise<void>>(() => {});
+
+  const invalidateMotorQueries = useCallback(() => {
+    void utils.status.get.invalidate();
+    void utils.twin.status.get.invalidate();
+  }, [utils]);
 
   const busy =
     connect.isPending || disconnect.isPending || setVelocity.isPending || stop.isPending;
@@ -41,29 +57,61 @@ export function MotorSessionProvider({ children }: { children: ReactNode }) {
       setHolding(dir);
       if (!dir) {
         await stop.mutateAsync();
-        await utils.status.get.invalidate();
+        invalidateMotorQueries();
         return;
       }
       await setVelocity.mutateAsync({ rpm: jogRpmForDirection(dir) });
-      await utils.status.get.invalidate();
+      invalidateMotorQueries();
     },
-    [connected, setHolding, stop, setVelocity, utils],
+    [connected, setHolding, stop, setVelocity, invalidateMotorQueries],
   );
+
+  applyHoldRef.current = applyHold;
+
+  /** Stop an in-progress jog as soon as its direction hits a travel limit (sensor poll ~80 ms). */
+  useEffect(() => {
+    if (!connected || !holding) return;
+    const limits = {
+      connected: sensor.data?.connected ?? false,
+      limitLeftPressed: sensor.data?.limitLeftPressed ?? false,
+      limitRightPressed: sensor.data?.limitRightPressed ?? false,
+    };
+    if (!shouldReleaseJogHoldForTravelLimit(holding, limits)) return;
+    void applyHoldRef.current(null);
+  }, [
+    connected,
+    holding,
+    sensor.data?.connected,
+    sensor.data?.limitLeftPressed,
+    sensor.data?.limitRightPressed,
+  ]);
 
   const connectMotor = useCallback(async () => {
     connect.reset();
-    const r = await connect.mutateAsync();
-    await utils.status.get.invalidate();
-    if (!r.ok && r.error) {
-      console.warn("[jog] connect failed:", r.error);
+    try {
+      const r = await connect.mutateAsync();
+      invalidateMotorQueries();
+      if ("real" in r) {
+        if (!r.real.ok && r.real.error) {
+          console.warn("[jog] motor connect (hardware) failed:", r.real.error);
+        }
+        if (!r.sim.ok && r.sim.error) {
+          console.warn("[jog] motor connect (sim) failed:", r.sim.error);
+        }
+      } else if (!r.ok && r.error) {
+        console.warn("[jog] connect failed:", r.error);
+      }
+    } catch (e) {
+      invalidateMotorQueries();
+      throw e;
     }
-  }, [connect, utils]);
+  }, [connect, invalidateMotorQueries]);
 
   const disconnectMotor = useCallback(async () => {
     setHolding(null);
     await disconnect.mutateAsync();
-    await utils.status.get.invalidate();
-  }, [disconnect, setHolding, utils]);
+    invalidateMotorQueries();
+  }, [disconnect, setHolding, invalidateMotorQueries]);
 
   const value = useMemo<MotorSessionValue>(
     () => ({

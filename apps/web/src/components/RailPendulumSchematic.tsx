@@ -1,11 +1,7 @@
 import { memo } from "react";
-import {
-  boundsFromTravelSwitchDisplays,
-  motorCountsForDisplay,
-} from "@/lib/motorPositionDisplay";
+import { boundsFromTravelLimitsCm } from "@/lib/railPositionCm";
 import { cn } from "@/lib/utils";
-import { trpc } from "@/trpc";
-import { useMotorStatusQuery } from "@/services/useMotorStatusQuery";
+import { useMotorStatusQuery, useSensorStatusQuery } from "@/services/useMotorStatusQuery";
 
 /** Match `EncoderDial` default (600 P/R × 4). */
 const COUNTS_PER_REV = 2400;
@@ -18,20 +14,18 @@ function formatMotor(n: number | undefined): string {
 }
 
 /**
- * Linear rail (motor / Teknic display counts) plus a pendulum angle from the Sensor Board rotary
+ * Linear rail (motor position in cm) plus a pendulum angle from the Sensor Board rotary
  * encoder ticks. Shown together so cart motion and pendulum rotation are visible at a glance.
  */
 export const RailPendulumSchematic = memo(function RailPendulumSchematic() {
   const motor = useMotorStatusQuery();
-  const sensor = trpc.sensor.status.get.useQuery(undefined, {
-    refetchInterval: (q) => (q.state.data?.connected ? 80 : 1500),
-  });
+  const sensor = useSensorStatusQuery();
 
   const motorConnected = motor.data?.connected ?? false;
   const sensorConnected = sensor.data?.connected ?? false;
-  const pos = motorCountsForDisplay(motor.data?.measuredPosition);
+  const pos = motor.data?.positionCm;
   const tl = motor.data?.travelLimits;
-  const bounds = boundsFromTravelSwitchDisplays(tl?.left, tl?.right);
+  const bounds = boundsFromTravelLimitsCm(tl?.leftCm, tl?.rightCm);
   const limitLeft = sensor.data?.limitLeftPressed ?? false;
   const limitRight = sensor.data?.limitRightPressed ?? false;
   const ticks = sensor.data?.encoderTicks ?? 0;
@@ -68,7 +62,7 @@ export const RailPendulumSchematic = memo(function RailPendulumSchematic() {
 
   const ariaLabel = [
     motorConnected && hasPosition
-      ? `Motor cart near ${pct.toFixed(0)} percent along rail, ${formatMotor(pos)} display counts`
+      ? `Motor cart near ${pct.toFixed(0)} percent along rail, ${formatMotor(pos)} cm`
       : "Motor rail position unavailable",
     sensorConnected
       ? `Pendulum encoder about ${angleDeg.toFixed(0)} degrees, ${ticks} ticks`
@@ -84,7 +78,7 @@ export const RailPendulumSchematic = memo(function RailPendulumSchematic() {
         <span className="text-muted-foreground text-xs font-medium">Rail & pendulum</span>
         {rangeLabel ? (
           <span className="text-muted-foreground font-mono text-[10px] tabular-nums">
-            travel {rangeLabel} counts
+            travel {rangeLabel} cm
           </span>
         ) : (
           <span className="text-muted-foreground text-[10px]">Record both limits to scale the rail</span>
@@ -95,7 +89,7 @@ export const RailPendulumSchematic = memo(function RailPendulumSchematic() {
         <div className="rounded-md border border-border bg-muted/30 px-2 py-1.5">
           <div className="text-muted-foreground font-medium">Motor</div>
           <div className="font-mono text-foreground tabular-nums">
-            {motorConnected ? `${formatMotor(pos)} cts` : "—"}
+            {motorConnected ? `${formatMotor(pos)} cm` : "—"}
           </div>
         </div>
         <div className="rounded-md border border-border bg-muted/30 px-2 py-1.5">
@@ -114,6 +108,23 @@ export const RailPendulumSchematic = memo(function RailPendulumSchematic() {
           </div>
         </div>
       </div>
+
+      {motor.data && "twinSimMotor" in motor.data && motor.data.twinSimMotor && sensor.data && "twinSimSensor" in sensor.data && sensor.data.twinSimSensor ? (
+        <div className="mb-3 grid grid-cols-2 gap-2 text-[11px] leading-tight">
+          <div className="rounded-md border border-sky-500/35 bg-sky-500/10 px-2 py-1.5 dark:bg-sky-500/15">
+            <div className="text-muted-foreground font-medium">Simulation · motor</div>
+            <div className="font-mono text-sky-950 tabular-nums dark:text-sky-100">
+              {formatMotor(motor.data.twinSimMotor.positionCm)} cm
+            </div>
+          </div>
+          <div className="rounded-md border border-sky-500/35 bg-sky-500/10 px-2 py-1.5 dark:bg-sky-500/15">
+            <div className="text-muted-foreground font-medium">Simulation · encoder</div>
+            <div className="font-mono text-sky-950 tabular-nums dark:text-sky-100">
+              {sensor.data.twinSimSensor.encoderTicks} ticks
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <svg
         viewBox={`0 ${-vbTopPad} ${vbW} ${vbH + vbTopPad}`}
@@ -220,7 +231,7 @@ export const RailPendulumSchematic = memo(function RailPendulumSchematic() {
       </svg>
 
       <p className="text-muted-foreground mt-2 text-[10px] leading-snug">
-        Cart follows Teknic measured position (display counts: left negative, right positive). Rod and
+        Cart follows Teknic measured position (cm: left negative, right positive). Rod and
         bob follow the quadrature encoder on the Sensor Board (same phase as the dial card).
       </p>
     </div>

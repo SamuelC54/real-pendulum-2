@@ -5,23 +5,32 @@
  * each limit closes (rising edge), triggered from the web.
  */
 
+import { getGrpcBackendMode } from "./grpcRequestContext.js";
 import { teknicMeasuredToDisplayCounts } from "./teknicDisplayCounts.js";
 
-let limitLeftDisplay: number | null = null;
-let limitRightDisplay: number | null = null;
-
-export type TravelLimitDisplays = {
+type TravelLimitDisplays = {
   left: number | null;
   right: number | null;
 };
 
+const limitsHardware: TravelLimitDisplays = { left: null, right: null };
+const limitsSim: TravelLimitDisplays = { left: null, right: null };
+
+function activeLimits(): TravelLimitDisplays {
+  return getGrpcBackendMode() === "sim" ? limitsSim : limitsHardware;
+}
+
+export type { TravelLimitDisplays };
+
 export function getTravelLimitDisplays(): TravelLimitDisplays {
-  return { left: limitLeftDisplay, right: limitRightDisplay };
+  const a = activeLimits();
+  return { left: a.left, right: a.right };
 }
 
 export function clearTravelLimits(): void {
-  limitLeftDisplay = null;
-  limitRightDisplay = null;
+  const a = activeLimits();
+  a.left = null;
+  a.right = null;
 }
 
 /** Clears stored limits when the motor disconnects (same lifecycle as session rail bounds). */
@@ -42,26 +51,30 @@ export function setTravelLimitsFromHoming(
   if (!Number.isFinite(posAtLeftMotor) || !Number.isFinite(posAtRightMotor)) {
     return;
   }
+  const a = activeLimits();
   if (zeroedAtMid) {
     const mid = (posAtLeftMotor + posAtRightMotor) / 2;
-    limitLeftDisplay = mid - posAtLeftMotor;
-    limitRightDisplay = mid - posAtRightMotor;
+    a.left = mid - posAtLeftMotor;
+    a.right = mid - posAtRightMotor;
     return;
   }
-  limitLeftDisplay = teknicMeasuredToDisplayCounts(posAtLeftMotor);
-  limitRightDisplay = teknicMeasuredToDisplayCounts(posAtRightMotor);
+  a.left = teknicMeasuredToDisplayCounts(posAtLeftMotor);
+  a.right = teknicMeasuredToDisplayCounts(posAtRightMotor);
 }
 
 /** Snapshot current motor measured position into the given side (from limit switch hit). */
 export function recordTravelLimitFromTeknicMeasured(teknicMeasured: number, side: "left" | "right"): void {
   if (!Number.isFinite(teknicMeasured)) return;
   const d = teknicMeasuredToDisplayCounts(teknicMeasured);
-  if (side === "left") limitLeftDisplay = d;
-  else limitRightDisplay = d;
+  const a = activeLimits();
+  if (side === "left") a.left = d;
+  else a.right = d;
 }
 
 /** @internal Vitest */
 export function resetTravelLimitsStateForTests(): void {
-  limitLeftDisplay = null;
-  limitRightDisplay = null;
+  limitsHardware.left = null;
+  limitsHardware.right = null;
+  limitsSim.left = null;
+  limitsSim.right = null;
 }
