@@ -4,12 +4,16 @@ import { Activity, CircleStop, Download, Play, Trash2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
+  applySuggestionToForm,
   configToForm,
   formToConfigSnippet,
   formToPatch,
   samplesToCsv,
+  suggestSimTuning,
   summarizeTuningError,
   type SimConfigForm,
+  type TuningSuggestion,
+  type TuningSuggestionConfidence,
 } from "@/lib/tuningMath";
 import { grpcBackendModeAtom } from "@/stores/grpcBackendMode";
 import { tuningRecordingAtom, tuningSamplesAtom } from "@/stores/tuningSession";
@@ -38,6 +42,43 @@ function DeltaCell({ real, sim }: { real: number | null; sim: number | null }) {
       {d >= 0 ? "+" : ""}
       {fmt(d)}
     </span>
+  );
+}
+
+const confidenceClass: Record<TuningSuggestionConfidence, string> = {
+  low: "bg-muted text-muted-foreground",
+  medium: "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200",
+  high: "bg-emerald-100 text-emerald-900 dark:bg-emerald-950 dark:text-emerald-200",
+};
+
+function SuggestionRow({
+  suggestion,
+  onApply,
+}: {
+  suggestion: TuningSuggestion;
+  onApply: () => void;
+}) {
+  return (
+    <li className="border-border/60 border-b py-3 last:border-0 last:pb-0">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-mono text-xs font-medium">{suggestion.label}</span>
+        <span
+          className={cn(
+            "rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide",
+            confidenceClass[suggestion.confidence],
+          )}
+        >
+          {suggestion.confidence}
+        </span>
+        <span className="text-muted-foreground font-mono text-xs tabular-nums">
+          {fmt(suggestion.currentValue, 6)} → {fmt(suggestion.suggestedValue, 6)} ({suggestion.direction})
+        </span>
+      </div>
+      <p className="text-muted-foreground mt-1 text-xs leading-relaxed">{suggestion.reason}</p>
+      <Button type="button" size="sm" variant="outline" className="mt-2 h-7 text-xs" onClick={onApply}>
+        Apply to form
+      </Button>
+    </li>
   );
 }
 
@@ -96,6 +137,11 @@ export function TuningPage() {
   }, [simConfigQuery.data]);
 
   const summary = useMemo(() => summarizeTuningError(samples, weights), [samples, weights]);
+
+  const tuningHints = useMemo(() => {
+    if (!form || samples.length === 0) return null;
+    return suggestSimTuning(samples, form);
+  }, [samples, form]);
 
   const live = compare.data;
   const realPos = live?.real.motor.positionCm;
@@ -264,19 +310,74 @@ export function TuningPage() {
         </Card>
 
         <Card className="p-4">
-          <h2 className="text-sm font-medium">Suggested test motions</h2>
-          <ul className="text-muted-foreground mt-2 list-inside list-disc space-y-1 text-xs leading-relaxed">
-            <li>Short jog left / right, then stop</li>
-            <li>Constant-speed jog across mid-span</li>
-            <li>Sudden stop from motion</li>
-            <li>Full homing sequence</li>
-            <li>Approach each limit switch slowly</li>
-          </ul>
-          <p className="text-muted-foreground mt-3 text-[11px]">
-            Start Record on this tab, then use Control for jog/homing while the trace keeps running.
+          <h2 className="text-sm font-medium">Suggested adjustments</h2>
+          <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
+            Heuristic hints from your recording — review before applying. Mean Δ uses hardware − sim.
           </p>
+          {samples.length < 8 ? (
+            <p className="text-muted-foreground mt-3 text-xs">
+              Record at least ~8 samples (a short jog is enough) to see suggestions.
+            </p>
+          ) : tuningHints && tuningHints.suggestions.length > 0 ? (
+            <>
+              <ul className="mt-3">
+                {tuningHints.suggestions.map((s) => (
+                  <SuggestionRow
+                    key={s.param}
+                    suggestion={s}
+                    onApply={() => setForm((f) => (f ? applySuggestionToForm(f, s) : f))}
+                  />
+                ))}
+              </ul>
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className="mt-3"
+                disabled={!form}
+                onClick={() => {
+                  if (!form) return;
+                  let next = form;
+                  for (const s of tuningHints.suggestions) {
+                    next = applySuggestionToForm(next, s);
+                  }
+                  setForm(next);
+                }}
+              >
+                Apply all to form
+              </Button>
+            </>
+          ) : tuningHints ? (
+            <p className="text-muted-foreground mt-3 text-xs">
+              No clear bias detected yet — try more motion (jog, limits, homing) or larger mismatches.
+              {tuningHints.diagnostics.meanPositionDeltaCm != null ? (
+                <>
+                  {" "}
+                  Mean position Δ{" "}
+                  <span className="font-mono tabular-nums">
+                    {fmt(tuningHints.diagnostics.meanPositionDeltaCm, 2)} cm
+                  </span>
+                  .
+                </>
+              ) : null}
+            </p>
+          ) : null}
         </Card>
       </div>
+
+      <Card className="p-4">
+        <h2 className="text-sm font-medium">Suggested test motions</h2>
+        <ul className="text-muted-foreground mt-2 list-inside list-disc space-y-1 text-xs leading-relaxed">
+          <li>Short jog left / right, then stop</li>
+          <li>Constant-speed jog across mid-span</li>
+          <li>Sudden stop from motion</li>
+          <li>Full homing sequence</li>
+          <li>Approach each limit switch slowly</li>
+        </ul>
+        <p className="text-muted-foreground mt-3 text-[11px]">
+          Start Record on this tab, then use Control for jog/homing while the trace keeps running.
+        </p>
+      </Card>
 
       <Card className="p-4">
         <h2 className="text-sm font-medium">Coupled simulation parameters</h2>
