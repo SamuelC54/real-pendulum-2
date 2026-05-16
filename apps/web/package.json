@@ -26,7 +26,6 @@
     "clsx": "^2.1.1",
     "jotai": "^2.19.1",
     "lucide-react": "^0.507.0",
-    "mujoco-react": "^8.2.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "recharts": "^2.15.4",

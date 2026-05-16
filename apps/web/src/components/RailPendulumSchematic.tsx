@@ -2,7 +2,7 @@ import { memo } from "react";
 import { useAtomValue } from "jotai";
 import { boundsFromTravelLimitsCm } from "@/lib/railPositionCm";
 import { cn } from "@/lib/utils";
-import { MujocoCartPendulumViewer } from "@/components/MujocoCartPendulumViewer";
+import { CartPendulumViewer } from "@/components/CartPendulumViewer";
 import { useMotorStatusQuery, useSensorStatusQuery } from "@/services/useMotorStatusQuery";
 import { grpcBackendModeAtom } from "@/stores/grpcBackendMode";
 
@@ -272,7 +272,7 @@ export const RailPendulumSchematic = memo(function RailPendulumSchematic() {
               limitRight={twinSimSensor?.limitRightPressed ?? false}
               ticks={twinSimSensor?.encoderTicks ?? 0}
             />
-            <MujocoCartPendulumViewer
+            <CartPendulumViewer
               positionCm={twinSim?.positionCm}
               encoderTicks={twinSimSensor?.encoderTicks ?? 0}
               connected={Boolean(twinSim?.connected && twinSimSensor?.connected)}
@@ -280,21 +280,21 @@ export const RailPendulumSchematic = memo(function RailPendulumSchematic() {
           </div>
         </div>
         <p className="text-muted-foreground mt-3 text-[10px] leading-snug">
-          Twin mode: hardware schematic plus a 3D MuJoCo view for the simulator (driven by coupled-sim
-          telemetry). Physics still runs in physics-sim on the backend.
+          Twin mode: hardware schematic plus a 3D view for the simulator (poses from coupled-sim
+          telemetry). Physics runs in physics-sim on the backend.
         </p>
       </div>
     );
   }
 
-  const showMujoco = mode === "sim";
-  const mujocoConnected = Boolean(motor.data?.connected && sensor.data?.connected);
+  const showSim3d = mode === "sim";
+  const sim3dConnected = Boolean(motor.data?.connected && sensor.data?.connected);
 
   return (
     <div className="w-full max-w-md border-t border-border pt-4">
       <RailPendulumLeg
-        legLabel={showMujoco ? "Simulator" : "Rail & pendulum"}
-        variant={showMujoco ? "simulator" : "hardware"}
+        legLabel={showSim3d ? "Simulator" : "Rail & pendulum"}
+        variant={showSim3d ? "simulator" : "hardware"}
         motorConnected={motor.data?.connected ?? false}
         sensorConnected={sensor.data?.connected ?? false}
         pos={motor.data?.positionCm}
@@ -303,17 +303,17 @@ export const RailPendulumSchematic = memo(function RailPendulumSchematic() {
         limitRight={sensor.data?.limitRightPressed ?? false}
         ticks={sensor.data?.encoderTicks ?? 0}
       />
-      {showMujoco ? (
-        <MujocoCartPendulumViewer
+      {showSim3d ? (
+        <CartPendulumViewer
           className="mt-3"
           positionCm={motor.data?.positionCm}
           encoderTicks={sensor.data?.encoderTicks ?? 0}
-          connected={mujocoConnected}
+          connected={sim3dConnected}
         />
       ) : null}
       <p className="text-muted-foreground mt-2 text-[10px] leading-snug">
-        {showMujoco
-          ? "2D schematic plus browser MuJoCo view; physics runs in physics-sim on the backend."
+        {showSim3d
+          ? "2D schematic plus Three.js view; physics runs in physics-sim on the backend."
           : "Cart follows Teknic measured position (cm: left negative, right positive). Rod and bob follow the quadrature encoder on the Sensor Board (same phase as the dial card)."}
       </p>
     </div>

@@ -3,7 +3,6 @@ import { Provider } from "jotai";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
-import { MujocoProviderRoot } from "./components/MujocoProviderRoot";
 import "./index.css";
 import { MotorSessionProvider } from "./services/motorSession";
 import { jotaiStore } from "./stores/jotaiStore";
@@ -18,9 +17,7 @@ createRoot(document.getElementById("root")!).render(
       <trpc.Provider client={trpcClient} queryClient={queryClient}>
         <QueryClientProvider client={queryClient}>
           <MotorSessionProvider>
-            <MujocoProviderRoot>
-              <App />
-            </MujocoProviderRoot>
+            <App />
           </MotorSessionProvider>
         </QueryClientProvider>
       </trpc.Provider>
