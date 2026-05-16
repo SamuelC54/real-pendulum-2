@@ -74,6 +74,18 @@ describe("Coupled sim (MotorService + SensorService, one plant)", () => {
     await disconnectMotor();
   });
 
+  it("positive jog rpm increases Teknic measured (display counts decrease)", async () => {
+    await connectMotor();
+    const s0 = await getMotorStatus();
+    const t0 = s0.measuredPosition ?? 0;
+    await setJogVelocityRpm(200);
+    await sleep(80);
+    const s1 = await getMotorStatus();
+    expect(s1.measuredPosition).toBeGreaterThan(t0);
+    await stopMotor();
+    await disconnectMotor();
+  });
+
   it("jog advances encoder between sensor polls (shared plant)", async () => {
     await connectMotor();
     await sensor.connect({});

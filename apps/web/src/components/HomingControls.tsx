@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { motorCountsForDisplay } from "@/lib/motorPositionDisplay";
 import { grpcBackendModeAtom } from "@/stores/grpcBackendMode";
 import { trpc } from "@/trpc";
-import { useMotorStatusConnected } from "@/services/useMotorStatusQuery";
+import { useMotorStatusConnected, useSensorStatusConnected } from "@/services/useMotorStatusQuery";
 
 type RailHomingRow = {
   ok: boolean;
@@ -94,10 +94,7 @@ export const HomingControls = memo(function HomingControls() {
   const mode = useAtomValue(grpcBackendModeAtom);
   const utils = trpc.useUtils();
   const motorConnected = useMotorStatusConnected().data ?? false;
-  const sensorStatus = trpc.sensor.status.get.useQuery(undefined, {
-    refetchInterval: 1500,
-  });
-  const sensorConnected = sensorStatus.data?.connected ?? false;
+  const sensorConnected = useSensorStatusConnected().data ?? false;
 
   const homeSingle = trpc.rail.home.useMutation({
     onSuccess: () => {

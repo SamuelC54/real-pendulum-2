@@ -44,7 +44,7 @@ export type CoupledSimGrpcOptions = {
   port?: number;
   /** Display counts = `xM / meters` (positive cart → positive display, UI convention). */
   metersPerDisplayCount: number;
-  /** `vCmdMps = rpm * mpsPerRpm` when jogging. */
+  /** `vCmdMps = -rpm * mpsPerRpm` when jogging (matches Teknic/display: +rpm → display counts decrease). */
   mpsPerRpm: number;
   /** Cart position (m) at or below which the left limit switch is pressed. */
   limitLeftXM: number;
@@ -249,7 +249,7 @@ export function startCoupledSimGrpcServer(
         }
         const rpm = req.rpm ?? 0;
         model.lastCommandedRpm = rpm;
-        model.plant.state.vCmdMps = rpm * model.mpsPerRpm;
+        model.plant.state.vCmdMps = -rpm * model.mpsPerRpm;
         return create(SetJogVelocityReplySchema, { ok: true, errorMessage: "" });
       },
       async stop() {
