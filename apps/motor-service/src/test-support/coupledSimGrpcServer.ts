@@ -66,6 +66,107 @@ export type CoupledSimGrpcModel = {
   detail: string;
 };
 
+export type CoupledSimConfigSnapshot = {
+  metersPerDisplayCount: number;
+  mpsPerRpm: number;
+  limitLeftXM: number;
+  limitRightXM: number;
+  plant: {
+    gravity: number;
+    pendulumLengthM: number;
+    cartVelocityTrackingPerSec: number;
+    angularDampingPerSec: number;
+    encoderTicksPerRadian: number;
+  };
+};
+
+export function getCoupledSimConfigSnapshot(model: CoupledSimGrpcModel): CoupledSimConfigSnapshot {
+  const c = model.plant.config;
+  return {
+    metersPerDisplayCount: model.metersPerDisplayCount,
+    mpsPerRpm: model.mpsPerRpm,
+    limitLeftXM: model.limitLeftXM,
+    limitRightXM: model.limitRightXM,
+    plant: {
+      gravity: c.gravity,
+      pendulumLengthM: c.pendulumLengthM,
+      cartVelocityTrackingPerSec: c.cartVelocityTrackingPerSec,
+      angularDampingPerSec: c.angularDampingPerSec,
+      encoderTicksPerRadian: c.encoderTicksPerRadian,
+    },
+  };
+}
+
+export function patchCoupledSimConfig(
+  model: CoupledSimGrpcModel,
+  patch: Partial<CoupledSimConfigSnapshot> & { plant?: Partial<CoupledSimConfigSnapshot["plant"]> },
+): void {
+  if (patch.metersPerDisplayCount != null && Number.isFinite(patch.metersPerDisplayCount)) {
+    model.metersPerDisplayCount = patch.metersPerDisplayCount;
+  }
+  if (patch.mpsPerRpm != null && Number.isFinite(patch.mpsPerRpm)) {
+    model.mpsPerRpm = patch.mpsPerRpm;
+  }
+  if (patch.limitLeftXM != null && Number.isFinite(patch.limitLeftXM)) {
+    model.limitLeftXM = patch.limitLeftXM;
+  }
+  if (patch.limitRightXM != null && Number.isFinite(patch.limitRightXM)) {
+    model.limitRightXM = patch.limitRightXM;
+  }
+  if (patch.plant) {
+    const cfg = model.plant.config as CartPendulumPlant["config"] & Record<string, number>;
+    if (patch.plant.gravity != null && Number.isFinite(patch.plant.gravity)) {
+      cfg.gravity = patch.plant.gravity;
+    }
+    if (patch.plant.pendulumLengthM != null && Number.isFinite(patch.plant.pendulumLengthM)) {
+      cfg.pendulumLengthM = patch.plant.pendulumLengthM;
+    }
+    if (
+      patch.plant.cartVelocityTrackingPerSec != null &&
+      Number.isFinite(patch.plant.cartVelocityTrackingPerSec)
+    ) {
+      cfg.cartVelocityTrackingPerSec = patch.plant.cartVelocityTrackingPerSec;
+    }
+    if (patch.plant.angularDampingPerSec != null && Number.isFinite(patch.plant.angularDampingPerSec)) {
+      cfg.angularDampingPerSec = patch.plant.angularDampingPerSec;
+    }
+    if (patch.plant.encoderTicksPerRadian != null && Number.isFinite(patch.plant.encoderTicksPerRadian)) {
+      cfg.encoderTicksPerRadian = patch.plant.encoderTicksPerRadian;
+    }
+  }
+}
+
+function handleAdminConfig(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  model: CoupledSimGrpcModel,
+): void {
+  if (req.method === "GET") {
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify(getCoupledSimConfigSnapshot(model)));
+    return;
+  }
+  if (req.method === "PATCH") {
+    const chunks: Buffer[] = [];
+    req.on("data", (c) => chunks.push(c));
+    req.on("end", () => {
+      try {
+        const raw = Buffer.concat(chunks).toString("utf8");
+        const patch = raw ? (JSON.parse(raw) as Partial<CoupledSimConfigSnapshot>) : {};
+        patchCoupledSimConfig(model, patch);
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify(getCoupledSimConfigSnapshot(model)));
+      } catch (e) {
+        res.writeHead(400, { "content-type": "text/plain" });
+        res.end(e instanceof Error ? e.message : String(e));
+      }
+    });
+    return;
+  }
+  res.writeHead(405, { "content-type": "text/plain" });
+  res.end("GET or PATCH only");
+}
+
 export function createCoupledSimGrpcModel(
   partial?: Partial<CoupledSimGrpcOptions> & { plant?: CartPendulumPlant },
 ): CoupledSimGrpcModel {
@@ -269,7 +370,14 @@ export function startCoupledSimGrpcServer(
   const handler = connectNodeAdapter({ routes });
 
   return new Promise((resolve, reject) => {
-    const server = http.createServer(handler);
+    const server = http.createServer((req, res) => {
+      const path = req.url?.split("?")[0] ?? "";
+      if (path === "/admin/config") {
+        handleAdminConfig(req, res, model);
+        return;
+      }
+      void handler(req, res);
+    });
     server.listen(listenPort, "127.0.0.1", () => {
       const addr = server.address();
       if (!addr || typeof addr === "string") {

@@ -113,4 +113,21 @@ describe("Coupled sim (MotorService + SensorService, one plant)", () => {
     expect(st.measuredPosition).toBeCloseTo(0, 5);
     await disconnectMotor();
   });
+
+  it("GET/PATCH /admin/config updates plant tunables", async () => {
+    const getRes = await fetch(`${url}/admin/config`);
+    expect(getRes.ok).toBe(true);
+    const before = (await getRes.json()) as { mpsPerRpm: number; plant: { pendulumLengthM: number } };
+    const patchRes = await fetch(`${url}/admin/config`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ mpsPerRpm: before.mpsPerRpm * 2, plant: { pendulumLengthM: 0.42 } }),
+    });
+    expect(patchRes.ok).toBe(true);
+    const after = (await patchRes.json()) as { mpsPerRpm: number; plant: { pendulumLengthM: number } };
+    expect(after.mpsPerRpm).toBeCloseTo(before.mpsPerRpm * 2);
+    expect(after.plant.pendulumLengthM).toBe(0.42);
+    expect(model.mpsPerRpm).toBeCloseTo(before.mpsPerRpm * 2);
+    expect(model.plant.config.pendulumLengthM).toBe(0.42);
+  });
 });
