@@ -5,6 +5,7 @@ import { JogControls } from "@/components/JogControls";
 import { MotorStatusBlocks } from "@/components/MotorStatusBlocks";
 import { PositionMoveControls } from "@/components/PositionMoveControls";
 import { SensorLedCard } from "@/components/SensorLedCard";
+import { SimBackendAutoConnect } from "@/components/SimBackendAutoConnect";
 import { TuningPage } from "@/components/TuningPage";
 import { cn } from "@/lib/utils";
 
@@ -56,6 +57,7 @@ export function AppShell() {
 
   return (
     <div className="min-h-dvh bg-background text-foreground">
+      <SimBackendAutoConnect />
       <AppHeader />
       <div className="mx-auto max-w-7xl px-6 pt-4">
         <nav

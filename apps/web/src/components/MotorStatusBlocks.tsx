@@ -4,7 +4,10 @@ import { CartRailVisualizer } from "@/components/CartRailVisualizer";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useMotorSession } from "@/services/motorSession";
+import { useSimBackendAutoConnect } from "@/services/useSimBackendAutoConnect";
 import { useMotorStatusQuery } from "@/services/useMotorStatusQuery";
+import { useAtomValue } from "jotai";
+import { grpcBackendModeAtom } from "@/stores/grpcBackendMode";
 
 /** Owns the polling status query so parent `App` does not re-render every refetch tick. */
 function formatPositionCm(value: number | undefined): string {
@@ -16,6 +19,8 @@ function formatPositionCm(value: number | undefined): string {
 }
 
 export function MotorStatusBlocks() {
+  const mode = useAtomValue(grpcBackendModeAtom);
+  const simAuto = useSimBackendAutoConnect();
   const status = useMotorStatusQuery();
   const { connect, connected, busy, connectMotor, disconnectMotor } = useMotorSession();
 
@@ -75,7 +80,15 @@ export function MotorStatusBlocks() {
           </div>
           {status.data?.connected ? <CartRailVisualizer /> : null}
           <div className="flex flex-wrap gap-2">
-            {!connected ? (
+            {!connected && mode === "sim" ? (
+              <p className="text-muted-foreground text-xs leading-relaxed">
+                {simAuto.pending
+                  ? "Connecting to coupled simulator…"
+                  : (simAuto.lastError ??
+                    "Simulator auto-connect — ensure coupled sim is running (npm run dev).")}
+              </p>
+            ) : null}
+            {!connected && mode !== "sim" ? (
               <Button
                 type="button"
                 variant="default"
@@ -86,7 +99,8 @@ export function MotorStatusBlocks() {
                 <Link2 aria-hidden className="mr-2 h-4 w-4" />
                 Connect Motor Board
               </Button>
-            ) : (
+            ) : null}
+            {connected ? (
               <Button
                 type="button"
                 variant="outline"
@@ -97,7 +111,7 @@ export function MotorStatusBlocks() {
                 <Link2Off aria-hidden className="mr-2 h-4 w-4" />
                 Disconnect
               </Button>
-            )}
+            ) : null}
           </div>
           {connect.data && "real" in connect.data ? (
             <>

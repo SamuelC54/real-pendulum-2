@@ -13,6 +13,7 @@ import { EncoderDial } from "@/components/EncoderDial";
 import { LimitSwitchIndicators } from "@/components/LimitSwitchIndicators";
 import { Button } from "@/components/ui/button";
 import { grpcBackendModeAtom } from "@/stores/grpcBackendMode";
+import { useSimBackendAutoConnect } from "@/services/useSimBackendAutoConnect";
 import { useSensorStatusQuery } from "@/services/useMotorStatusQuery";
 import { trpc } from "@/trpc";
 
@@ -28,6 +29,7 @@ function portLabel(p: {
 
 export function SensorLedCard() {
   const mode = useAtomValue(grpcBackendModeAtom);
+  const simAuto = useSimBackendAutoConnect();
   const utils = trpc.useUtils();
   const [serialPort, setSerialPort] = useState("");
 
@@ -129,10 +131,20 @@ export function SensorLedCard() {
         </span>
       </div>
       <p className="text-muted-foreground text-[11px] leading-snug">
-        USB list via sensor-service — pick a port or{" "}
-        <code className="text-foreground">SENSOR_SERIAL_PORT</code>.{" "}
-        <strong className="text-foreground font-medium">Flash</strong>: CLI on control-api.{" "}
-        <code className="text-foreground">npm run flash:sensor-firmware -- COM3</code>: CLI where npm runs.
+        {mode === "sim" ? (
+          <>
+            Simulator mode: sensor limits and encoder come from the coupled plant (no USB). Motor and
+            sensor connect automatically.
+          </>
+        ) : (
+          <>
+            USB list via sensor-service — pick a port or{" "}
+            <code className="text-foreground">SENSOR_SERIAL_PORT</code>.{" "}
+            <strong className="text-foreground font-medium">Flash</strong>: CLI on control-api.{" "}
+            <code className="text-foreground">npm run flash:sensor-firmware -- COM3</code>: CLI where npm
+            runs.
+          </>
+        )}
       </p>
       {connected ? (
         <LimitSwitchIndicators
@@ -153,7 +165,7 @@ export function SensorLedCard() {
           {status.data.twinSimSensor.limitRightPressed ? " on" : " off"}
         </p>
       ) : null}
-      {!connected ? (
+      {!connected && mode !== "sim" ? (
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
           <label className="flex min-w-[200px] flex-1 flex-col gap-1 text-xs">
             <span className="text-muted-foreground">Serial port</span>
@@ -197,6 +209,7 @@ export function SensorLedCard() {
           </label>
         </div>
       ) : null}
+      {mode !== "sim" ? (
       <Button
         type="button"
         variant="outline"
@@ -218,7 +231,8 @@ export function SensorLedCard() {
         />
         Flash firmware
       </Button>
-      {portsQuery.isError ? (
+      ) : null}
+      {portsQuery.isError && mode !== "sim" ? (
         <p className="text-destructive text-xs">
           Could not list serial ports: {portsQuery.error.message}
         </p>
@@ -291,7 +305,15 @@ export function SensorLedCard() {
         <p className="text-destructive text-xs">{resetEncoder.data.error}</p>
       ) : null}
       <div className="flex flex-wrap gap-2">
-        {!connected ? (
+        {!connected && mode === "sim" ? (
+          <p className="text-muted-foreground text-xs leading-relaxed">
+            {simAuto.pending
+              ? "Connecting to coupled simulator…"
+              : (simAuto.lastError ??
+                "Auto-connect pending — start coupled sim (included in npm run dev).")}
+          </p>
+        ) : null}
+        {!connected && mode !== "sim" ? (
           <Button
             type="button"
             variant="default"
@@ -306,7 +328,8 @@ export function SensorLedCard() {
             <Usb aria-hidden className="mr-2 h-4 w-4" />
             Connect Sensor Board
           </Button>
-        ) : (
+        ) : null}
+        {connected ? (
           <>
             <Button
               type="button"
@@ -328,7 +351,7 @@ export function SensorLedCard() {
               Toggle LED
             </Button>
           </>
-        )}
+        ) : null}
       </div>
       <div className="mt-6 flex flex-col gap-3 border-t border-border pt-4">
         <EncoderDial

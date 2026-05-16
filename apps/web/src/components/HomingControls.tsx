@@ -3,6 +3,7 @@ import { useAtomValue } from "jotai";
 import { Home } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { useSimBackendAutoConnect } from "@/services/useSimBackendAutoConnect";
 import { grpcBackendModeAtom } from "@/stores/grpcBackendMode";
 import { trpc } from "@/trpc";
 import { useMotorStatusConnected, useSensorStatusConnected } from "@/services/useMotorStatusQuery";
@@ -92,6 +93,7 @@ function HomingResultDetail({ title, railHomeResult }: { title: string; railHome
 
 export const HomingControls = memo(function HomingControls() {
   const mode = useAtomValue(grpcBackendModeAtom);
+  const simAuto = useSimBackendAutoConnect();
   const utils = trpc.useUtils();
   const motorConnected = useMotorStatusConnected().data ?? false;
   const sensorConnected = useSensorStatusConnected().data ?? false;
@@ -145,10 +147,22 @@ export const HomingControls = memo(function HomingControls() {
         Home rail
       </Button>
       {!motorConnected ? (
-        <p className="text-muted-foreground text-xs">Connect the Motor Board first.</p>
+        <p className="text-muted-foreground text-xs">
+          {mode === "sim"
+            ? simAuto.pending
+              ? "Connecting to simulator (motor)…"
+              : simAuto.lastError ?? "Waiting for coupled sim — run npm run dev or serve:coupled-sim."
+            : "Connect the Motor Board first."}
+        </p>
       ) : null}
       {!sensorConnected ? (
-        <p className="text-muted-foreground text-xs">Connect the Sensor Board first.</p>
+        <p className="text-muted-foreground text-xs">
+          {mode === "sim"
+            ? simAuto.pending
+              ? "Connecting to simulator (sensor)…"
+              : simAuto.lastError ?? "Waiting for coupled sim — limits and encoder come from the plant."
+            : "Connect the Sensor Board first."}
+        </p>
       ) : null}
       {home.error ? (
         <p className="text-destructive text-xs">{home.error.message}</p>
