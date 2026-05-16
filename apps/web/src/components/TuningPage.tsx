@@ -17,7 +17,11 @@ import {
   type TuningSuggestionConfidence,
 } from "@/lib/tuningMath";
 import { grpcBackendModeAtom } from "@/stores/grpcBackendMode";
-import { tuningRecordingAtom, tuningSamplesAtom } from "@/stores/tuningSession";
+import {
+  tuningRecordingAtom,
+  tuningSamplesAtom,
+  tuningSuggestionsAfterSampleCountAtom,
+} from "@/stores/tuningSession";
 import { tuningErrorWeightsAtom, tuningProfileAtom } from "@/stores/tuningProfile";
 import { trpc } from "@/trpc";
 import { cn } from "@/lib/utils";
@@ -115,6 +119,9 @@ export function TuningPage() {
 
   const [recording, setRecording] = useAtom(tuningRecordingAtom);
   const [samples, setSamples] = useAtom(tuningSamplesAtom);
+  const [suggestionsAfterSampleCount, setSuggestionsAfterSampleCount] = useAtom(
+    tuningSuggestionsAfterSampleCountAtom,
+  );
 
   const compare = trpc.tuning.compare.useQuery(undefined, {
     enabled: mode === "twin",
@@ -140,12 +147,36 @@ export function TuningPage() {
     }
   }, [simConfigQuery.data]);
 
+  useEffect(() => {
+    if (samples.length === 0) setSuggestionsAfterSampleCount(0);
+  }, [samples.length, setSuggestionsAfterSampleCount]);
+
   const summary = useMemo(() => summarizeTuningError(samples, weights), [samples, weights]);
 
   const tuningHints = useMemo(() => {
     if (!form || samples.length === 0) return null;
     return suggestSimTuning(samples, form);
   }, [samples, form]);
+
+  const suggestionsNeedMoreSamples = samples.length < 8;
+  const suggestionsStaleAfterApply = samples.length >= 8 && samples.length <= suggestionsAfterSampleCount;
+  const showTuningSuggestions =
+    !suggestionsNeedMoreSamples &&
+    !suggestionsStaleAfterApply &&
+    tuningHints != null &&
+    tuningHints.suggestions.length > 0;
+
+  const dismissTuningSuggestions = useCallback(() => {
+    setSuggestionsAfterSampleCount(samples.length);
+  }, [samples.length, setSuggestionsAfterSampleCount]);
+
+  const applyTuningSuggestion = useCallback(
+    (suggestion: TuningSuggestion) => {
+      setForm((f) => (f ? applySuggestionToForm(f, suggestion) : f));
+      dismissTuningSuggestions();
+    },
+    [dismissTuningSuggestions],
+  );
 
   const live = compare.data;
   const realPos = live?.real.motor.positionCm;
@@ -323,18 +354,23 @@ export function TuningPage() {
           <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
             Heuristic hints from your recording — review before applying. Mean Δ uses hardware − sim.
           </p>
-          {samples.length < 8 ? (
+          {suggestionsNeedMoreSamples ? (
             <p className="text-muted-foreground mt-3 text-xs">
               Record at least ~8 samples (a short jog is enough) to see suggestions.
             </p>
-          ) : tuningHints && tuningHints.suggestions.length > 0 ? (
+          ) : suggestionsStaleAfterApply ? (
+            <p className="text-muted-foreground mt-3 text-xs leading-relaxed">
+              Suggestions were applied to the form. Record more motion while{" "}
+              <strong className="text-foreground">Record</strong> is on to refresh hints from new data.
+            </p>
+          ) : showTuningSuggestions ? (
             <>
               <ul className="mt-3">
                 {tuningHints.suggestions.map((s) => (
                   <SuggestionRow
                     key={s.param}
                     suggestion={s}
-                    onApply={() => setForm((f) => (f ? applySuggestionToForm(f, s) : f))}
+                    onApply={() => applyTuningSuggestion(s)}
                   />
                 ))}
               </ul>
@@ -345,12 +381,13 @@ export function TuningPage() {
                 className="mt-3"
                 disabled={!form}
                 onClick={() => {
-                  if (!form) return;
+                  if (!form || !tuningHints) return;
                   let next = form;
                   for (const s of tuningHints.suggestions) {
                     next = applySuggestionToForm(next, s);
                   }
                   setForm(next);
+                  dismissTuningSuggestions();
                 }}
               >
                 Apply all to form
