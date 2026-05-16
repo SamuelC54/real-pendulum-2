@@ -1,9 +1,25 @@
+import type { ReactNode } from "react";
+import { useAtomValue } from "jotai";
 import { BackendModeControl } from "@/components/BackendModeControl";
 import {
   useMotorStatusConnected,
   useSensorStatusConnected,
+  useTwinLinkageStatus,
 } from "@/services/useMotorStatusQuery";
+import { grpcBackendModeAtom } from "@/stores/grpcBackendMode";
 import { cn } from "@/lib/utils";
+
+function StatusDot({ connected }: { connected: boolean }) {
+  return (
+    <span
+      className={cn(
+        "h-2 w-2 shrink-0 rounded-full",
+        connected ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]" : "bg-muted-foreground/35",
+      )}
+      aria-hidden
+    />
+  );
+}
 
 function ConnectionBadge({
   label,
@@ -21,13 +37,7 @@ function ConnectionBadge({
           : "border-border bg-muted/60 text-muted-foreground",
       )}
     >
-      <span
-        className={cn(
-          "h-2 w-2 shrink-0 rounded-full",
-          connected ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]" : "bg-muted-foreground/35",
-        )}
-        aria-hidden
-      />
+      <StatusDot connected={connected} />
       <span>{label}</span>
       <span className="text-[11px] opacity-90">
         {connected ? "Connected" : "Disconnected"}
@@ -36,25 +46,113 @@ function ConnectionBadge({
   );
 }
 
-export function AppHeader() {
-  const motor = useMotorStatusConnected();
-  const sensor = useSensorStatusConnected();
-  const motorOn = motor.data ?? false;
-  const sensorOn = sensor.data ?? false;
+function TwinBoardIndicator({
+  label,
+  connected,
+}: {
+  label: string;
+  connected: boolean;
+}) {
+  return (
+    <span
+      className="inline-flex items-center gap-1"
+      title={`${label} ${connected ? "connected" : "disconnected"}`}
+    >
+      <StatusDot connected={connected} />
+      <span>{label}</span>
+    </span>
+  );
+}
+
+function TwinLegRow({
+  legLabel,
+  motor,
+  sensor,
+}: {
+  legLabel: string;
+  motor: boolean;
+  sensor: boolean;
+}) {
+  return (
+    <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-0.5">
+      <span className="text-muted-foreground">{legLabel}</span>
+      <TwinBoardIndicator label="Motor" connected={motor} />
+      <TwinBoardIndicator label="Sensor" connected={sensor} />
+    </span>
+  );
+}
+
+function TwinLinkageBadge({
+  motorHardware,
+  sensorHardware,
+  motorSim,
+  sensorSim,
+}: {
+  motorHardware: boolean;
+  sensorHardware: boolean;
+  motorSim: boolean;
+  sensorSim: boolean;
+}) {
+  const allOn = motorHardware && sensorHardware && motorSim && sensorSim;
+  const anyOn = motorHardware || sensorHardware || motorSim || sensorSim;
 
   return (
-    <header className="pointer-events-none fixed top-3 right-4 z-50 max-w-[min(100vw-2rem,22rem)] sm:top-4 sm:right-6">
-      <div className="pointer-events-auto flex flex-col items-end gap-2">
-        <BackendModeControl />
+    <span
+      className={cn(
+        "inline-flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-medium",
+        allOn
+          ? "border-emerald-500/45 bg-emerald-500/10 text-emerald-800 dark:border-emerald-500/35 dark:bg-emerald-500/15 dark:text-emerald-300"
+          : anyOn
+            ? "border-amber-500/45 bg-amber-500/10 text-amber-900 dark:border-amber-500/35 dark:bg-amber-500/15 dark:text-amber-200"
+            : "border-border bg-muted/60 text-muted-foreground",
+      )}
+    >
+      <span className="font-semibold">Twin</span>
+      <TwinLegRow legLabel="Hardware" motor={motorHardware} sensor={sensorHardware} />
+      <TwinLegRow legLabel="Simulator" motor={motorSim} sensor={sensorSim} />
+    </span>
+  );
+}
+
+function StandardConnectionBadges() {
+  const motorOn = useMotorStatusConnected().data ?? false;
+  const sensorOn = useSensorStatusConnected().data ?? false;
+  return (
+    <>
+      <ConnectionBadge label="Motor Board" connected={motorOn} />
+      <ConnectionBadge label="Sensor Board" connected={sensorOn} />
+    </>
+  );
+}
+
+function TwinConnectionBadge() {
+  const linkage = useTwinLinkageStatus();
+  return <TwinLinkageBadge {...linkage} />;
+}
+
+function ConnectionBadges() {
+  const mode = useAtomValue(grpcBackendModeAtom);
+  return mode === "twin" ? <TwinConnectionBadge /> : <StandardConnectionBadges />;
+}
+
+export function AppHeader({ nav }: { nav: ReactNode }) {
+  const mode = useAtomValue(grpcBackendModeAtom);
+
+  return (
+    <header className="border-b border-border bg-card/80 backdrop-blur-sm">
+      <div className="mx-auto flex max-w-7xl flex-col gap-4 px-6 py-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="min-w-0 shrink-0">{nav}</div>
         <div
-          className="flex flex-wrap justify-end gap-1.5"
-          aria-label="Hardware connection status"
+          className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end lg:justify-end"
+          aria-label={mode === "twin" ? "Twin hardware and simulator connection status" : "Hardware connection status"}
         >
-          <ConnectionBadge label="Motor Board" connected={motorOn} />
-          <ConnectionBadge label="Sensor Board" connected={sensorOn} />
+          <BackendModeControl />
+          <div className="flex flex-wrap gap-1.5 sm:justify-end">
+            <ConnectionBadges />
+          </div>
         </div>
       </div>
-      <span className="sr-only">Linear rail jog — hardware connection status</span>
+      <span className="sr-only">Linear rail jog — connection status</span>
     </header>
   );
 }

@@ -21,7 +21,7 @@ export function BackendModeControl() {
   return (
     <div
       className={cn(
-        "flex flex-wrap items-center justify-end gap-2 rounded-lg border border-border bg-card/90 px-2.5 py-1.5 text-[11px] shadow-sm backdrop-blur-sm",
+        "flex flex-wrap items-center gap-2 rounded-lg border border-border bg-background px-2.5 py-1.5 text-[11px] shadow-sm",
         mode === "sim" && "border-amber-500/40 bg-amber-500/5",
         mode === "twin" && "border-sky-500/40 bg-sky-500/5",
       )}

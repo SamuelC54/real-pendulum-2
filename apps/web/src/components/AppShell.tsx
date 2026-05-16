@@ -81,22 +81,25 @@ export function AppShell() {
       <BackendAutoConnect />
       <KeyboardJogListener />
       <TuningRecorder />
-      <AppHeader />
-      <div className="mx-auto max-w-7xl px-6 pt-4">
-        <nav
-          className="pointer-events-auto mb-4 flex w-fit gap-1 rounded-lg border border-border bg-card/90 p-1 shadow-sm backdrop-blur-sm"
-          aria-label="Main sections"
-        >
-          <NavTab active={page === "control"} onClick={() => setPage("control")}>
-            Control
-          </NavTab>
-          <NavTab active={page === "tuning"} onClick={() => setPage("tuning")}>
-            Tuning
-            {recording ? (
-              <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-red-500" aria-hidden />
-            ) : null}
-          </NavTab>
-        </nav>
+      <AppHeader
+        nav={
+          <nav
+            className="flex w-fit gap-1 rounded-lg border border-border bg-card p-1 shadow-sm"
+            aria-label="Main sections"
+          >
+            <NavTab active={page === "control"} onClick={() => setPage("control")}>
+              Control
+            </NavTab>
+            <NavTab active={page === "tuning"} onClick={() => setPage("tuning")}>
+              Tuning
+              {recording ? (
+                <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-red-500" aria-hidden />
+              ) : null}
+            </NavTab>
+          </nav>
+        }
+      />
+      <main className="mx-auto max-w-7xl px-6 py-4">
         <TuningRecordingBanner />
         <div className={page === "control" ? undefined : "hidden"} aria-hidden={page !== "control"}>
           <ControlPage />
@@ -104,7 +107,7 @@ export function AppShell() {
         <div className={page === "tuning" ? undefined : "hidden"} aria-hidden={page !== "tuning"}>
           <TuningPage />
         </div>
-      </div>
+      </main>
     </div>
   );
 }

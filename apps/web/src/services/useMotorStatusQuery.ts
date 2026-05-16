@@ -64,6 +64,35 @@ export function useSensorStatusConnected() {
   return mode === "twin" ? twin : single;
 }
 
+/** Motor + sensor **real** / **sim** `connected` flags for the twin header badge. */
+export function useTwinLinkageStatus() {
+  const mode = useAtomValue(grpcBackendModeAtom);
+  const motor = trpc.twin.status.get.useQuery(undefined, {
+    enabled: mode === "twin",
+    refetchInterval: motorTwinRefetchInterval,
+    select: (row) => ({
+      hardware: row?.real?.connected ?? false,
+      sim: row?.sim?.connected ?? false,
+    }),
+  });
+  const sensor = trpc.twin.sensor.status.get.useQuery(undefined, {
+    enabled: mode === "twin",
+    refetchInterval: sensorTwinRefetchInterval,
+    select: (row) => ({
+      hardware: row?.real?.connected ?? false,
+      sim: row?.sim?.connected ?? false,
+    }),
+  });
+  const motorRow = motor.data;
+  const sensorRow = sensor.data;
+  return {
+    motorHardware: motorRow?.hardware ?? false,
+    sensorHardware: sensorRow?.hardware ?? false,
+    motorSim: motorRow?.sim ?? false,
+    sensorSim: sensorRow?.sim ?? false,
+  };
+}
+
 /**
  * Motor status for UI. In **twin** mode, reads `twin.status.get` and merges **`real`** into the top-level
  * shape (so existing screens keep working), plus **`twinSimMotor`** for the simulated plant snapshot.
