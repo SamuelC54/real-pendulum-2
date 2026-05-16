@@ -6,13 +6,14 @@ import {
   Upload,
   Usb,
 } from "lucide-react";
-import { useState } from "react";
-import { useAtomValue } from "jotai";
+import { useCallback } from "react";
+import { useAtom, useAtomValue } from "jotai";
 import { Card } from "@/components/ui/card";
 import { EncoderDial } from "@/components/EncoderDial";
 import { LimitSwitchIndicators } from "@/components/LimitSwitchIndicators";
 import { Button } from "@/components/ui/button";
 import { grpcBackendModeAtom } from "@/stores/grpcBackendMode";
+import { sensorSerialPortAtom } from "@/stores/sensorSerialPort";
 import { useSimBackendAutoConnect } from "@/services/useSimBackendAutoConnect";
 import { useSensorStatusQuery } from "@/services/useMotorStatusQuery";
 import { trpc } from "@/trpc";
@@ -27,11 +28,20 @@ function portLabel(p: {
   return extra ? `${p.path} — ${extra}` : p.path;
 }
 
+type SensorConnectResult =
+  | { ok: boolean; error: string }
+  | { real: { ok: boolean; error: string }; sim: { ok: boolean; error: string } };
+
+function hardwareSensorConnectOk(data: SensorConnectResult, twin: boolean): boolean {
+  if (twin) return "real" in data && data.real.ok;
+  return "ok" in data && data.ok;
+}
+
 export function SensorLedCard() {
   const mode = useAtomValue(grpcBackendModeAtom);
   const simAuto = useSimBackendAutoConnect();
   const utils = trpc.useUtils();
-  const [serialPort, setSerialPort] = useState("");
+  const [serialPort, setSerialPort] = useAtom(sensorSerialPortAtom);
 
   const portsQuery = trpc.sensor.serial.list.useQuery(undefined, {
     retry: 1,
@@ -39,16 +49,27 @@ export function SensorLedCard() {
 
   const status = useSensorStatusQuery();
 
-  const invalidateSensorQueries = () => {
+  const invalidateSensorQueries = useCallback(() => {
     void utils.sensor.status.get.invalidate();
     void utils.twin.sensor.status.get.invalidate();
-  };
+  }, [utils]);
+
+  const onSensorConnectSuccess = useCallback(
+    (data: SensorConnectResult, variables: { serialPort?: string }) => {
+      invalidateSensorQueries();
+      const port = variables.serialPort?.trim();
+      if (port && hardwareSensorConnectOk(data, mode === "twin")) {
+        setSerialPort(port);
+      }
+    },
+    [invalidateSensorQueries, mode, setSerialPort],
+  );
 
   const connectSingle = trpc.sensor.connection.connect.useMutation({
-    onSuccess: invalidateSensorQueries,
+    onSuccess: onSensorConnectSuccess,
   });
   const connectTwin = trpc.twin.sensor.connection.connect.useMutation({
-    onSuccess: invalidateSensorQueries,
+    onSuccess: onSensorConnectSuccess,
   });
   const connect = mode === "twin" ? connectTwin : connectSingle;
 
@@ -183,6 +204,11 @@ export function SensorLedCard() {
                       ? "No devices detected — use .env on server"
                       : "Choose serial port…"}
                 </option>
+                {serialPort &&
+                !ports.some((p) => p.path === serialPort) &&
+                ports.length !== 1 ? (
+                  <option value={serialPort}>{serialPort} (last used)</option>
+                ) : null}
                 {ports.map((p) => (
                   <option key={p.path} value={p.path}>
                     {portLabel(p)}
