@@ -16,7 +16,6 @@
     "@radix-ui/react-switch": "^1.2.6",
     "@radix-ui/react-tabs": "^1.1.13",
     "@real-pendulum/app-config": "*",
-    "@real-pendulum/cart-pendulum-sim": "*",
     "@real-pendulum/control-api": "*",
     "@tanstack/react-query": "^5.76.1",
     "@trpc/client": "^11.1.2",

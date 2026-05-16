@@ -60,7 +60,7 @@ describe("liveTwinCalibration", () => {
     await startLiveTwinCalibration();
     await vi.waitFor(
       () => getLiveTwinCalibrationStatus().windowSampleCount >= 4,
-      { timeout: 500 },
+      { timeout: 3000 },
     );
     const status = getLiveTwinCalibrationStatus();
     expect(status.windowSampleCount).toBeGreaterThan(0);

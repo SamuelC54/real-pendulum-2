@@ -6,7 +6,7 @@ import {
 } from "@real-pendulum/motor-service/test-support/coupled-sim-server";
 
 const port = cliPort("--port", config.sim.coupledGrpcPort);
-const model = createCoupledSimGrpcModel();
+const model = await createCoupledSimGrpcModel();
 
 const { url, close } = await startCoupledSimGrpcServer(model, { port });
 console.log(`[serve-coupled-sim-grpc] MotorService + SensorService (shared plant) at ${url}`);

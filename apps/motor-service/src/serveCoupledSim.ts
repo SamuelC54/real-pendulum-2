@@ -1,5 +1,5 @@
 /**
- * Run **motor.v1** + **sensor.v1** on one port with a shared **`CartPendulumPlant`**.
+ * Run **motor.v1** + **sensor.v1** on one port with a shared MuJoCo plant (`physics-sim` must be running).
  *
  * Usage (from repo root):
  *   `npx tsx apps/motor-service/src/serveCoupledSim.ts`
@@ -19,7 +19,7 @@ import {
 
 /** Default avoids low **50xxx** ports often blocked on Windows (Hyper-V / excluded ranges → **EACCES**). */
 const port = cliPort("--port", config.sim.coupledGrpcPort);
-const model = createCoupledSimGrpcModel();
+const model = await createCoupledSimGrpcModel();
 
 const { url, close } = await startCoupledSimGrpcServer(model, { port });
 console.log(`[serveCoupledSim] MotorService + SensorService (shared plant) at ${url}`);

@@ -1,8 +1,16 @@
+export type {
+  CartPendulumConfig,
+  CartPendulumPlant,
+  CartPendulumState,
+} from "./cartPendulumTypes.js";
+export { createCartPendulumPlant, encoderTicksInt } from "./plantMirror.js";
 export {
-  createCartPendulumPlant,
-  encoderTicksInt,
-  stepCartPendulum,
-  type CartPendulumConfig,
-  type CartPendulumPlant,
-  type CartPendulumState,
-} from "./cartPendulumPlant.js";
+  applyPhysicsPayloadToPlant,
+  physicsSimHealthCheck,
+  physicsSimPatchConfig,
+  physicsSimReplay,
+  physicsSimReset,
+  physicsSimStep,
+  type PhysicsReplayPoint,
+  type PhysicsSimStatePayload,
+} from "./physicsSimClient.js";

@@ -81,6 +81,19 @@ export function configToForm(c: {
   };
 }
 
+export function formToTwinParams(form: SimConfigForm) {
+  return {
+    mpsPerRpm: form.mpsPerRpm,
+    pendulumLengthM: form.pendulumLengthM,
+    cartVelocityTrackingPerSec: form.cartVelocityTrackingPerSec,
+    angularDampingPerSec: form.angularDampingPerSec,
+  };
+}
+
+export function twinParamsToForm(p: ReturnType<typeof formToTwinParams>): SimConfigForm {
+  return { ...p };
+}
+
 export function formToPatch(form: SimConfigForm) {
   return {
     mpsPerRpm: form.mpsPerRpm,

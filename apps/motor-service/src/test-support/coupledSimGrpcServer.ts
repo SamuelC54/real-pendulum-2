@@ -1,15 +1,19 @@
 /**
  * Combined **`motor.v1.MotorService`** + **`sensor.v1.SensorService`** on one HTTP port, sharing one
- * **`@real-pendulum/cart-pendulum-sim`** plant (see `docs/simulation-and-bench.md` §3.5).
+ * cart–pendulum plant (MuJoCo via `apps/physics-sim`).
  */
 import * as http from "node:http";
 import { create } from "@bufbuild/protobuf";
 import type { ConnectRouter } from "@connectrpc/connect";
 import { connectNodeAdapter } from "@connectrpc/connect-node";
 import {
+  applyPhysicsPayloadToPlant,
   createCartPendulumPlant,
   encoderTicksInt,
-  stepCartPendulum,
+  physicsSimHealthCheck,
+  physicsSimPatchConfig,
+  physicsSimReset,
+  physicsSimStep,
   type CartPendulumPlant,
 } from "@real-pendulum/cart-pendulum-sim";
 import {
@@ -96,30 +100,39 @@ export function getCoupledSimConfigSnapshot(model: CoupledSimGrpcModel): Coupled
   };
 }
 
-export function patchCoupledSimConfig(
+export async function patchCoupledSimConfig(
   model: CoupledSimGrpcModel,
   patch: Partial<CoupledSimConfigSnapshot> & { plant?: Partial<CoupledSimConfigSnapshot["plant"]> },
-): void {
+): Promise<void> {
   if (patch.mpsPerRpm != null && Number.isFinite(patch.mpsPerRpm)) {
     model.mpsPerRpm = patch.mpsPerRpm;
   }
+  const plantPatch: Partial<CoupledSimConfigSnapshot["plant"]> = {};
   if (patch.plant) {
     const cfg = model.plant.config as CartPendulumPlant["config"] & Record<string, number>;
     if (patch.plant.gravity != null && Number.isFinite(patch.plant.gravity)) {
       cfg.gravity = patch.plant.gravity;
+      plantPatch.gravity = patch.plant.gravity;
     }
     if (patch.plant.pendulumLengthM != null && Number.isFinite(patch.plant.pendulumLengthM)) {
       cfg.pendulumLengthM = patch.plant.pendulumLengthM;
+      plantPatch.pendulumLengthM = patch.plant.pendulumLengthM;
     }
     if (
       patch.plant.cartVelocityTrackingPerSec != null &&
       Number.isFinite(patch.plant.cartVelocityTrackingPerSec)
     ) {
       cfg.cartVelocityTrackingPerSec = patch.plant.cartVelocityTrackingPerSec;
+      plantPatch.cartVelocityTrackingPerSec = patch.plant.cartVelocityTrackingPerSec;
     }
     if (patch.plant.angularDampingPerSec != null && Number.isFinite(patch.plant.angularDampingPerSec)) {
       cfg.angularDampingPerSec = patch.plant.angularDampingPerSec;
+      plantPatch.angularDampingPerSec = patch.plant.angularDampingPerSec;
     }
+  }
+  if (Object.keys(plantPatch).length > 0) {
+    const payload = await physicsSimPatchConfig(plantPatch);
+    applyPhysicsPayloadToPlant(model.plant, payload);
   }
 }
 
@@ -137,16 +150,18 @@ function handleAdminConfig(
     const chunks: Buffer[] = [];
     req.on("data", (c) => chunks.push(c));
     req.on("end", () => {
-      try {
-        const raw = Buffer.concat(chunks).toString("utf8");
-        const patch = raw ? (JSON.parse(raw) as Partial<CoupledSimConfigSnapshot>) : {};
-        patchCoupledSimConfig(model, patch);
-        res.writeHead(200, { "content-type": "application/json" });
-        res.end(JSON.stringify(getCoupledSimConfigSnapshot(model)));
-      } catch (e) {
-        res.writeHead(400, { "content-type": "text/plain" });
-        res.end(e instanceof Error ? e.message : String(e));
-      }
+      void (async () => {
+        try {
+          const raw = Buffer.concat(chunks).toString("utf8");
+          const patch = raw ? (JSON.parse(raw) as Partial<CoupledSimConfigSnapshot>) : {};
+          await patchCoupledSimConfig(model, patch);
+          res.writeHead(200, { "content-type": "application/json" });
+          res.end(JSON.stringify(getCoupledSimConfigSnapshot(model)));
+        } catch (e) {
+          res.writeHead(400, { "content-type": "text/plain" });
+          res.end(e instanceof Error ? e.message : String(e));
+        }
+      })();
     });
     return;
   }
@@ -175,15 +190,15 @@ function plantFromParameters(file: CoupledSimParameters): CartPendulumPlant {
   );
 }
 
-export function createCoupledSimGrpcModel(
+export async function createCoupledSimGrpcModel(
   partial?: Partial<CoupledSimGrpcOptions> & { plant?: CartPendulumPlant },
-): CoupledSimGrpcModel {
+): Promise<CoupledSimGrpcModel> {
   const file = loadCoupledSimParametersForStartup();
   const mpsPerRpm = partial?.mpsPerRpm ?? file.mpsPerRpm;
   const limitLeftXM = partial?.limitLeftXM ?? simLimitLeftXM();
   const limitRightXM = partial?.limitRightXM ?? simLimitRightXM();
   const plant = partial?.plant ?? plantFromParameters(file);
-  return {
+  const model: CoupledSimGrpcModel = {
     plant,
     motorConnected: false,
     sensorConnected: false,
@@ -192,8 +207,22 @@ export function createCoupledSimGrpcModel(
     mpsPerRpm,
     limitLeftXM,
     limitRightXM,
-    detail: "SIM: coupled cart + pendulum (motor + sensor gRPC, see docs/simulation-and-bench.md)",
+    detail: "SIM: coupled cart + pendulum (MuJoCo physics-sim)",
   };
+
+  const ok = await physicsSimHealthCheck();
+  if (!ok) {
+    throw new Error(
+      "physics-sim is not reachable. Start it with: npm run dev -w @real-pendulum/physics-sim",
+    );
+  }
+  const payload = await physicsSimReset({
+    config: { ...plant.config },
+    initial: { ...plant.state },
+  });
+  applyPhysicsPayloadToPlant(plant, payload);
+
+  return model;
 }
 
 /** Teknic `PosnMeasured` counts: UI display = `-measuredPosition` → `measured = -display = -xM / metersPerDisplay`. */
@@ -219,13 +248,25 @@ function enforceTravelLimitOnPlant(model: CoupledSimGrpcModel): void {
   }
 }
 
-function advancePhysics(model: CoupledSimGrpcModel, lastMs: { t: number }): void {
+async function syncPlantToPhysics(model: CoupledSimGrpcModel): Promise<void> {
+  const payload = await physicsSimReset({
+    config: { ...model.plant.config },
+    initial: { ...model.plant.state },
+  });
+  applyPhysicsPayloadToPlant(model.plant, payload);
+}
+
+async function advancePhysics(model: CoupledSimGrpcModel, lastMs: { t: number }): Promise<void> {
   if (!model.motorConnected) return;
   const now = Date.now();
   const dt = Math.min(0.25, Math.max(0, (now - lastMs.t) / 1000));
   lastMs.t = now;
   if (dt <= 0) return;
-  stepCartPendulum(model.plant, dt);
+  const payload = await physicsSimStep({
+    dt,
+    vCmdMps: model.plant.state.vCmdMps,
+  });
+  applyPhysicsPayloadToPlant(model.plant, payload);
   enforceTravelLimitOnPlant(model);
 }
 
@@ -272,7 +313,7 @@ export function startCoupledSimGrpcServer(
         return create(StopReplySchema, { ok: true, errorMessage: "" });
       },
       async getStatus() {
-        advancePhysics(model, lastMs);
+        await advancePhysics(model, lastMs);
         const reply = create(GetStatusReplySchema, {
           connected: model.motorConnected,
           commandedRpm: model.lastCommandedRpm,
@@ -287,7 +328,7 @@ export function startCoupledSimGrpcServer(
             userId: "sim",
             firmwareVersion: "0",
             serialNumber: BigInt(0),
-            model: "cart-pendulum-sim",
+            model: "mujoco-cart-pendulum",
           });
         }
         return reply;
@@ -301,6 +342,7 @@ export function startCoupledSimGrpcServer(
         }
         model.plant.state.xM = 0;
         model.plant.state.vMps = 0;
+        await syncPlantToPhysics(model);
         return create(ZeroMeasuredPositionReplySchema, { ok: true, errorMessage: "" });
       },
       async moveToPosition(req: MoveToPositionRequest) {
@@ -310,13 +352,14 @@ export function startCoupledSimGrpcServer(
             errorMessage: "not connected",
           });
         }
-        advancePhysics(model, lastMs);
         model.plant.state.vCmdMps = 0;
         model.lastCommandedRpm = 0;
         const teknic = req.positionCounts ?? 0;
         const display = -teknic;
         model.plant.state.xM = display * metersPerDisplayCount();
         model.plant.state.vMps = 0;
+        lastMs.t = Date.now();
+        await syncPlantToPhysics(model);
         return create(MoveToPositionReplySchema, { ok: true, errorMessage: "" });
       },
     });
@@ -339,7 +382,7 @@ export function startCoupledSimGrpcServer(
         });
       },
       async getStatus() {
-        advancePhysics(model, lastMs);
+        await advancePhysics(model, lastMs);
         const x = model.plant.state.xM;
         const left = model.sensorConnected && x <= model.limitLeftXM;
         const right = model.sensorConnected && x >= model.limitRightXM;

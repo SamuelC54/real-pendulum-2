@@ -37,6 +37,8 @@ import {
   startLiveTwinCalibration,
   stopLiveTwinCalibration,
 } from "./liveTwinCalibration.js";
+import { fitOfflineReplayOptimization } from "./tuningOfflineFit.js";
+import { DEFAULT_CALIBRATION_WEIGHTS } from "./twinCalibrationTypes.js";
 import { displayCountsPerCm, teknicMeasuredToCm } from "./railPositionCm.js";
 import {
   moveToPositionCmRespectingTravelLimits,
@@ -129,6 +131,27 @@ const grpcWireMiddleware = t.middleware(async ({ ctx, next }) => {
 
 const baseProcedure = t.procedure;
 const publicProcedure = t.procedure.use(grpcWireMiddleware);
+
+const tuningSampleSchema = z.object({
+  t: z.number(),
+  commandedRpm: z.number(),
+  realMotorCm: z.number().nullable(),
+  simMotorCm: z.number().nullable(),
+  realEncoderTicks: z.number(),
+  simEncoderTicks: z.number(),
+});
+
+const twinCalibrationParamsSchema = z.object({
+  mpsPerRpm: z.number(),
+  pendulumLengthM: z.number(),
+  cartVelocityTrackingPerSec: z.number(),
+  angularDampingPerSec: z.number(),
+});
+
+const tuningWeightsSchema = z.object({
+  position: z.number(),
+  encoder: z.number(),
+});
 
 export const appRouter = t.router({
   meta: t.router({
@@ -615,6 +638,22 @@ export const appRouter = t.router({
   tuning: t.router({
     /** Live hardware vs simulation snapshot for the tuning UI (Twin backends). */
     compare: baseProcedure.query(() => fetchTuningCompare()),
+    /** Offline replay fit via MuJoCo (browser validation path). */
+    fitReplayOffline: baseProcedure
+      .input(
+        z.object({
+          samples: z.array(tuningSampleSchema),
+          params: twinCalibrationParamsSchema,
+          weights: tuningWeightsSchema.optional(),
+        }),
+      )
+      .mutation(async ({ input }) =>
+        fitOfflineReplayOptimization(
+          input.samples,
+          input.params,
+          input.weights ?? DEFAULT_CALIBRATION_WEIGHTS,
+        ),
+      ),
     record: t.router({
       status: baseProcedure.query(() => getTuningRecordStatus()),
       samples: baseProcedure.query(() => [...getTuningSamples()]),
@@ -630,7 +669,7 @@ export const appRouter = t.router({
         .input(z.object({ persistToFileOnStop: z.boolean().optional() }).optional())
         .mutation(async ({ input }) => startLiveTwinCalibration(input ?? undefined)),
       stop: baseProcedure.mutation(() => stopLiveTwinCalibration()),
-      resetWindow: baseProcedure.mutation(() => resetLiveTwinCalibrationWindow()),
+      resetWindow: baseProcedure.mutation(async () => resetLiveTwinCalibrationWindow()),
       resetToBaseline: baseProcedure.mutation(() => resetLiveTwinCalibrationToBaseline()),
     }),
     simConfig: t.router({

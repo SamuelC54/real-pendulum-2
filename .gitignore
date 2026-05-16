@@ -1,5 +1,8 @@
 node_modules/
 dist/
+__pycache__/
+*.py[cod]
+.venv/
 *.log
 .DS_Store
 # Legacy local overrides (unused; see packages/app-config/src/config.ts)

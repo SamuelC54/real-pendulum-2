@@ -11,7 +11,11 @@ const trueParams: TwinCalibrationParams = {
   angularDampingPerSec: 0.1,
 };
 
-function synthesizeSamples(params: TwinCalibrationParams, n: number, rpm: number): TuningSample[] {
+async function synthesizeSamples(
+  params: TwinCalibrationParams,
+  n: number,
+  rpm: number,
+): Promise<TuningSample[]> {
   const template: TuningSample[] = Array.from({ length: n }, (_, i) => ({
     t: i * 50,
     commandedRpm: rpm,
@@ -20,7 +24,7 @@ function synthesizeSamples(params: TwinCalibrationParams, n: number, rpm: number
     realEncoderTicks: 0,
     simEncoderTicks: 0,
   }));
-  const trace = replayTwinTrace(template, params);
+  const trace = await replayTwinTrace(template, params);
   return template.map((s, i) => ({
     ...s,
     realMotorCm: trace[i]!.motorCm,
@@ -31,18 +35,18 @@ function synthesizeSamples(params: TwinCalibrationParams, n: number, rpm: number
 }
 
 describe("twinCalibrationOptimize", () => {
-  it("estimateMpsPerRpmFromTravel scales toward true speed", () => {
-    const samples = synthesizeSamples(trueParams, 20, 60);
+  it("estimateMpsPerRpmFromTravel scales toward true speed", async () => {
+    const samples = await synthesizeSamples(trueParams, 20, 60);
     const wrong = { ...trueParams, mpsPerRpm: 0.00004 };
-    const est = estimateMpsPerRpmFromTravel(samples, wrong);
+    const est = await estimateMpsPerRpmFromTravel(samples, wrong);
     expect(est).toBeGreaterThan(wrong.mpsPerRpm);
     expect(est).toBeCloseTo(trueParams.mpsPerRpm, 4);
   });
 
-  it("fitTwinCalibrationParams improves replay score", () => {
-    const samples = synthesizeSamples(trueParams, 24, 80);
+  it("fitTwinCalibrationParams improves replay score", async () => {
+    const samples = await synthesizeSamples(trueParams, 24, 80);
     const guess = { ...trueParams, mpsPerRpm: 0.00004 };
-    const fit = fitTwinCalibrationParams(samples, guess);
+    const fit = await fitTwinCalibrationParams(samples, guess);
     expect(fit).not.toBeNull();
     expect(fit!.score).toBeLessThan(0.5);
   });
