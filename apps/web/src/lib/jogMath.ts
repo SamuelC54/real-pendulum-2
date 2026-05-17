@@ -5,7 +5,7 @@ export const JOG_RPM_DEFAULT = 120;
 export const JOG_RPM = JOG_RPM_DEFAULT;
 
 /** Software clamp on Teknic jog (`TeknicCfg::kJogVelLimitRpm`). */
-export const JOG_RPM_SLIDER_MAX = 500;
+export const JOG_RPM_SLIDER_MAX = 4000;
 
 /**
  * Default host **`Motion.AccLimit`** (RPM/s with `AccUnit` RPM_PER_SEC) for move-to-position UI — matches

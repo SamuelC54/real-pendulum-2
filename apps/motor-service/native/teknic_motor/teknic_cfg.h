@@ -50,7 +50,7 @@ constexpr int kEnableRetries = 4;
 constexpr int kEnableRetryGapMs = 150;
 
 // Software clamp on commanded jog velocity (MoveVelStart argument magnitude).
-constexpr int kJogVelLimitRpm = 500;
+constexpr int kJogVelLimitRpm = 4000;
 
 // Upper bounds for MovePosnStart profile limits when the API sends explicit max_velocity_rpm /
 // max_acceleration_rpm_per_sec (UI). Jog limits above must NOT cap these — otherwise position moves
