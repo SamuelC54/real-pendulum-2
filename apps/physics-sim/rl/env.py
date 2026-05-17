@@ -38,7 +38,6 @@ class EnvConfig:
     pendulum_length_m: float = 0.35
     cart_velocity_tracking_per_sec: float = 12.0
     angular_damping_per_sec: float = 0.04
-    cart_slide_damping: float = 0.05
     x_limit_m: float = 0.45
     task: str = "balance"  # "balance" (upright) | "center" (hang down, stay centered)
     healthy_angle_rad: float = DEFAULT_HEALTHY_ANGLE_RAD
@@ -116,7 +115,6 @@ class CartPendulumRpmEnv(gym.Env):
         self.cfg = config or EnvConfig()
         self.render_mode = render_mode
         self.plant = CartPendulumPlant(config=self._plant_config())
-        self._apply_cart_joint_damping()
         self.action_space = spaces.Box(
             low=np.array([-self.cfg.max_rpm], dtype=np.float32),
             high=np.array([self.cfg.max_rpm], dtype=np.float32),
@@ -140,12 +138,6 @@ class CartPendulumRpmEnv(gym.Env):
             angular_damping_per_sec=c.angular_damping_per_sec,
             max_internal_step_sec=1.0 / 240.0,
         )
-
-    def _apply_cart_joint_damping(self) -> None:
-        from cart_pendulum.plant import _JOINT_CART
-
-        j = self.plant._model.joint(_JOINT_CART)
-        self.plant._model.dof_damping[j.dofadr[0]] = self.cfg.cart_slide_damping
 
     def _obs(self) -> np.ndarray:
         return observation_from_plant(self.plant, self.cfg)
