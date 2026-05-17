@@ -9,15 +9,15 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../
 const appConfigRoot = path.join(repoRoot, "packages/app-config/src");
 
 export default defineConfig(({ mode }) => {
-  const e2eFake = mode === "e2e";
+  const isE2e = mode === "e2e";
   const e2eReal = mode === "e2e-real";
-  const devPort = e2eFake
-    ? config.e2e.fakeWebPort
+  const devPort = isE2e
+    ? config.e2e.simWebPort
     : e2eReal
       ? e2eRealWebPort()
       : config.web.devPort;
-  const controlApiPort = e2eFake
-    ? config.e2e.fakeControlApiPort
+  const controlApiPort = isE2e
+    ? config.e2e.controlApiPort
     : config.controlApi.port;
   const controlApiTarget = `http://127.0.0.1:${controlApiPort}`;
 

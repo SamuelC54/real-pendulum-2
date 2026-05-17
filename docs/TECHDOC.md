@@ -102,9 +102,9 @@ Defined by **`proto/motor.proto`** — **Connect**, **Disconnect**, **SetJogVelo
 - Configure **`TEKNIC_SDK_ROOT`** (see **`apps/motor-service/native/README.md`**) so CMake finds Teknic headers and **`sFoundation20`** import libs / DLL copy rules.
 - **`npm run build:native -w @real-pendulum/motor-service`** runs **`scripts/build-native.mjs`** (CMake: Visual Studio 2022 then 2026 generator fallback on Windows, Release; **`motor.cmakeGenerator`** in **`packages/app-config/src/config.ts`**). Output: **`native/build/Release/teknic_motor.dll`** next to copied **`sFoundation20.dll`**.
 
-### 4.4 Simulation (fake gRPC + coupled plant)
+### 4.4 Simulation (coupled sim gRPC + plant)
 
-Full detail — **how `CartPendulumPlant` feeds fake `motor.v1` and `sensor.v1` gRPC** (RPC tables, time stepping, one shared plant) — lives in **[`simulation-and-bench.md`](./simulation-and-bench.md) §3.5**. Stack overview and Teknic notes remain in this file.
+Full detail — **how `CartPendulumPlant` feeds simulated `motor.v1` and `sensor.v1` gRPC** (RPC tables, time stepping, one shared plant) — lives in **[`simulation-and-bench.md`](./simulation-and-bench.md) §3.5**. Stack overview and Teknic notes remain in this file.
 
 ---
 
@@ -185,7 +185,7 @@ Avoid committing secrets; keep machine-specific paths in local config overrides 
 
 - **[Testing strategy](./testing-strategy.md)** — Vitest layers, Playwright E2E (`e2e/`, `scripts/e2e-stack.mjs`), CI jobs (Ubuntu + Windows native), and Teknic SDK notes for **`native-windows`**.
 - **[Hardware smoke checklist](./hardware-smoke-checklist.md)** — manual verification when motion or native code changes.
-- **[Simulation & bench](./simulation-and-bench.md)** — solo simulation, real+sim comparison, **`physics-sim`**, **§3.5** (physics → fake motor/sensor gRPC), config sketches, roadmap.
+- **[Simulation & bench](./simulation-and-bench.md)** — solo simulation, real+sim comparison, **`physics-sim`**, **§3.5** (physics → coupled sim motor/sensor gRPC), config sketches, roadmap.
 
 ---
 

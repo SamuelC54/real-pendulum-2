@@ -8,7 +8,7 @@ const ci = config.e2e.continuousIntegration;
 
 const webPort = useRealMotor
   ? config.e2e.webPort ?? config.web.devPort
-  : config.e2e.fakeWebPort;
+  : config.e2e.simWebPort;
 
 const baseURL = `http://127.0.0.1:${webPort}`;
 

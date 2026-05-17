@@ -87,10 +87,11 @@ export type AppConfig = {
     /** `true` for hardware Playwright runs (`playwright.real.config.cjs`). */
     useRealMotor: boolean;
     connectTimeoutMs: number;
-    /** Fake stack: isolated ports (no Teknic DLL). */
-    fakeMotorGrpcPort: number;
-    fakeControlApiPort: number;
-    fakeWebPort: number;
+    /** Playwright sim stack: isolated ports (no Teknic DLL). */
+    physicsSimHttpPort: number;
+    coupledGrpcPort: number;
+    controlApiPort: number;
+    simWebPort: number;
     /** Real-hardware E2E web dev port; default `web.devPort`. */
     webPort?: number;
     /** `true` in CI Playwright runs (`playwright.ci.config.cjs`). */
@@ -168,9 +169,10 @@ export const config: AppConfig = {
   e2e: {
     useRealMotor: false,
     connectTimeoutMs: 120_000,
-    fakeMotorGrpcPort: 50552,
-    fakeControlApiPort: 14001,
-    fakeWebPort: 4174,
+    physicsSimHttpPort: 50571,
+    coupledGrpcPort: 50552,
+    controlApiPort: 14001,
+    simWebPort: 4174,
     webPort: undefined,
     continuousIntegration: false,
   },
@@ -204,14 +206,19 @@ export function webControlApiBaseUrl(): string {
   return `http://127.0.0.1:${config.controlApi.port}`;
 }
 
-/** Playwright fake stack — motor gRPC base URL. */
-export function e2eFakeMotorGrpcUrl(): string {
-  return `http://127.0.0.1:${config.e2e.fakeMotorGrpcPort}`;
+/** Playwright E2E sim stack — physics-sim HTTP base URL. */
+export function e2ePhysicsSimHttpUrl(): string {
+  return `http://127.0.0.1:${config.e2e.physicsSimHttpPort}`;
 }
 
-/** Playwright fake stack — browser tRPC URL (Vite `mode: e2e`). */
-export function e2eFakeControlApiTrpcUrl(): string {
-  return `http://127.0.0.1:${config.e2e.fakeControlApiPort}/trpc`;
+/** Playwright E2E sim stack — coupled motor + sensor gRPC base URL. */
+export function e2eCoupledGrpcUrl(): string {
+  return `http://127.0.0.1:${config.e2e.coupledGrpcPort}`;
+}
+
+/** Playwright E2E sim stack — browser tRPC URL (Vite `mode: e2e`). */
+export function e2eControlApiTrpcUrl(): string {
+  return `http://127.0.0.1:${config.e2e.controlApiPort}/trpc`;
 }
 
 /** Playwright real-hardware stack — web dev port. */

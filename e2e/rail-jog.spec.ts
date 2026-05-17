@@ -3,7 +3,7 @@ import { connectTimeoutMs, isRealMotorE2E } from "./playwright";
 import { assertMotorUiConnected } from "./wait-for-connect";
 
 test.describe(
-  isRealMotorE2E() ? "rail jog (real motor stack)" : "rail jog (fake motor stack)",
+  isRealMotorE2E() ? "rail jog (real motor stack)" : "rail jog (coupled sim stack)",
   () => {
     test("jog controls disabled before connect", async ({ page }) => {
       await page.goto("/");

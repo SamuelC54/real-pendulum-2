@@ -13,7 +13,6 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "start:tsx": "tsx src/index.ts",
-    "serve:fake-motor": "tsx scripts/serve-fake-motor-grpc.ts",
     "serve:coupled-sim": "tsx scripts/serve-coupled-sim-grpc.ts",
     "test": "vitest run",
     "test:watch": "vitest"

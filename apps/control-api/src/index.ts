@@ -11,6 +11,11 @@ if (motorGrpcUrl) {
   config.motor.grpcUrl = motorGrpcUrl;
 }
 
+const sensorGrpcUrl = cliString("--sensor-grpc-url");
+if (sensorGrpcUrl) {
+  config.sensor.grpcUrl = sensorGrpcUrl;
+}
+
 const port = cliPort("--port", config.controlApi.port);
 
 function parseGrpcBackendMode(header: string | string[] | undefined): GrpcBackendMode {

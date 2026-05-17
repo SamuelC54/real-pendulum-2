@@ -9,7 +9,6 @@
       "import": "./dist/sdk/index.js",
       "default": "./dist/sdk/index.js"
     },
-    "./test-support/fake-motor-server": "./src/test-support/fakeMotorGrpcServer.ts",
     "./test-support/coupled-sim-server": "./src/test-support/coupledSimGrpcServer.ts"
   },
   "scripts": {

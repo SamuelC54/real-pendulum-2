@@ -1,44 +1,61 @@
 /**
- * Fake gRPC motor → control-api → Vite for Playwright E2E (no Teknic DLL).
- * Ports and URLs: `config.e2e` in packages/app-config/src/config.ts
+ * Coupled sim (physics-sim + MuJoCo) → control-api → Vite for Playwright E2E (no Teknic DLL).
+ * Ports: `config.e2e` in packages/app-config/src/config.ts
  */
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import waitOn from "wait-on";
 import treeKill from "tree-kill";
-import { config, e2eFakeMotorGrpcUrl } from "@real-pendulum/app-config";
+import {
+  config,
+  e2eCoupledGrpcUrl,
+  e2ePhysicsSimHttpUrl,
+} from "@real-pendulum/app-config";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const motorPort = config.e2e.fakeMotorGrpcPort;
-const controlPort = config.e2e.fakeControlApiPort;
-const webPort = config.e2e.fakeWebPort;
-const motorUrl = e2eFakeMotorGrpcUrl();
+const physicsSimDir = path.join(root, "apps/physics-sim");
+const physicsPort = config.e2e.physicsSimHttpPort;
+const coupledPort = config.e2e.coupledGrpcPort;
+const controlPort = config.e2e.controlApiPort;
+const webPort = config.e2e.simWebPort;
+const coupledUrl = e2eCoupledGrpcUrl();
+const physicsUrl = e2ePhysicsSimHttpUrl();
 
-const children: ReturnType<typeof spawn>[] = [];
+const children: ChildProcess[] = [];
 
-function launch(command: string, args: string[]) {
+function launch(
+  command: string,
+  args: string[],
+  options?: { cwd?: string; env?: NodeJS.ProcessEnv },
+): ChildProcess {
   const child = spawn(command, args, {
-    cwd: root,
+    cwd: options?.cwd ?? root,
     shell: true,
     stdio: "inherit",
+    env: { ...process.env, ...options?.env },
   });
   children.push(child);
   return child;
 }
 
-launch("npm", [
-  "run",
-  "serve:fake-motor",
-  "-w",
-  "@real-pendulum/control-api",
-  "--",
-  "--port",
-  String(motorPort),
-]);
+launch("python", ["-m", "cart_pendulum.server", "--port", String(physicsPort)], {
+  cwd: physicsSimDir,
+});
 
 await waitOn({
-  resources: [`tcp:127.0.0.1:${motorPort}`],
+  resources: [`tcp:127.0.0.1:${physicsPort}`],
+  timeout: 60_000,
+});
+
+launch(
+  "npm",
+  ["run", "serve:coupled-sim", "-w", "@real-pendulum/motor-service", "--", "--port", String(coupledPort)],
+  { env: { PHYSICS_SIM_URL: physicsUrl } },
+);
+
+await waitOn({
+  resources: [`tcp:127.0.0.1:${coupledPort}`],
   timeout: 60_000,
 });
 
@@ -51,7 +68,9 @@ launch("npm", [
   "--port",
   String(controlPort),
   "--motor-grpc-url",
-  motorUrl,
+  coupledUrl,
+  "--sensor-grpc-url",
+  coupledUrl,
 ]);
 
 await waitOn({
@@ -80,7 +99,7 @@ await waitOn({
 });
 
 console.log(
-  `[e2e-stack] Ready — http://127.0.0.1:${webPort} (motor ${motorPort}, control-api ${controlPort})`,
+  `[e2e-stack] Ready — http://127.0.0.1:${webPort} (physics ${physicsPort}, coupled ${coupledPort}, control-api ${controlPort})`,
 );
 
 function shutdown() {

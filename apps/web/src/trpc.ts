@@ -1,6 +1,6 @@
 import {
   config,
-  e2eFakeControlApiTrpcUrl,
+  e2eControlApiTrpcUrl,
   e2eRealControlApiTrpcUrl,
   webControlApiBaseUrl,
 } from "@real-pendulum/app-config";
@@ -14,7 +14,7 @@ import { jotaiStore } from "./stores/jotaiStore";
 export const trpc = createTRPCReact<AppRouter>();
 
 function trpcUrl() {
-  if (__PENDULUM_VITE_MODE__ === "e2e") return e2eFakeControlApiTrpcUrl();
+  if (__PENDULUM_VITE_MODE__ === "e2e") return e2eControlApiTrpcUrl();
   if (__PENDULUM_VITE_MODE__ === "e2e-real") return e2eRealControlApiTrpcUrl();
   if (config.web.controlApiUrl?.trim()) return config.web.controlApiUrl.trim();
   if (typeof window !== "undefined") {
