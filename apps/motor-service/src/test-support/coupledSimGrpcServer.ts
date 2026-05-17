@@ -10,9 +10,11 @@ import {
   applyPhysicsPayloadToPlant,
   createCartPendulumPlant,
   encoderTicksInt,
+  physicsSimGetState,
   physicsSimHealthCheck,
   physicsSimPatchConfig,
   physicsSimReset,
+  physicsSimRlStatus,
   physicsSimStep,
   type CartPendulumPlant,
 } from "@real-pendulum/physics-sim/client";
@@ -260,6 +262,20 @@ async function advancePhysics(model: CoupledSimGrpcModel, lastMs: { t: number })
   const dt = Math.min(0.25, Math.max(0, (now - lastMs.t) / 1000));
   lastMs.t = now;
   if (dt <= 0) return;
+
+  try {
+    const rl = await physicsSimRlStatus();
+    if (rl.inference.active) {
+      const payload = await physicsSimGetState();
+      applyPhysicsPayloadToPlant(model.plant, payload);
+      model.lastCommandedRpm = rl.inference.rpm;
+      enforceTravelLimitOnPlant(model);
+      return;
+    }
+  } catch {
+    /* physics-sim or RL API unavailable — fall through to normal step */
+  }
+
   const payload = await physicsSimStep({
     dt,
     vCmdMps: model.plant.state.vCmdMps,

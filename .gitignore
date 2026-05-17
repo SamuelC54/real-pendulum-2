@@ -10,6 +10,10 @@ local-config.override
 tools/protoc/
 # Native CMake output (may include old vcpkg_installed/ from past experiments)
 apps/motor-service/native/build/
+apps/physics-sim/rl/gen/**/model.zip
+apps/physics-sim/rl/gen/**/meta.json
+apps/physics-sim/rl/gen/**/vecnormalize.pkl
+apps/physics-sim/rl/gen/_latest/
 /test-results/
 /playwright-report/
 /blob-report/

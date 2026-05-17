@@ -1,8 +1,9 @@
 import { memo, useMemo } from "react";
-import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
+import type { TuningErrorWeights } from "@/lib/tuningMath";
 import type { TuningSample } from "@/lib/tuningMath";
 import {
   buildTuningChartRows,
+  buildTuningErrorChartRows,
   formatChartTime,
   TUNING_CHART_MAX_POINTS,
 } from "@/lib/tuningRecordChartData";
@@ -13,9 +14,14 @@ import {
   ChartLegendContent,
   ChartTooltip,
   ChartTooltipContent,
-} from "@/components/ui/chart";
+  CartesianGrid,
+  Line,
+  LineChart,
+  XAxis,
+  YAxis,
+} from "@/components/ui/line-chart";
 
-const chartConfig = {
+const traceChartConfig = {
   commandedRpm: {
     label: "Command RPM",
     color: "var(--chart-1)",
@@ -38,21 +44,37 @@ const chartConfig = {
   },
 } satisfies ChartConfig;
 
-type TuningRecordChartProps = {
-  samples: TuningSample[];
-  recording?: boolean;
-};
+const errorChartConfig = {
+  absPositionCm: {
+    label: "|Δ position| (cm)",
+    color: "var(--chart-2)",
+  },
+  absEncoderTicks: {
+    label: "|Δ encoder| (ticks)",
+    color: "var(--chart-4)",
+  },
+  weightedScore: {
+    label: "Weighted score",
+    color: "var(--chart-1)",
+  },
+} satisfies ChartConfig;
 
-type MiniChartProps = {
+type TraceKey = keyof typeof traceChartConfig;
+type ErrorKey = keyof typeof errorChartConfig;
+
+function TraceLineChart({
+  data,
+  keys,
+  showTimeAxis = false,
+  heightClass = "h-[7rem]",
+}: {
   data: ReturnType<typeof buildTuningChartRows>;
-  keys: (keyof typeof chartConfig)[];
+  keys: TraceKey[];
   showTimeAxis?: boolean;
   heightClass?: string;
-};
-
-function MiniLineChart({ data, keys, showTimeAxis = false, heightClass = "h-[7rem]" }: MiniChartProps) {
+}) {
   return (
-    <ChartContainer config={chartConfig} className={`w-full ${heightClass}`}>
+    <ChartContainer config={traceChartConfig} className={`aspect-auto w-full ${heightClass}`}>
       <LineChart data={data} margin={{ left: 4, right: 8, top: 4, bottom: showTimeAxis ? 0 : 4 }}>
         <CartesianGrid vertical={false} strokeDasharray="3 3" />
         <XAxis
@@ -63,7 +85,7 @@ function MiniLineChart({ data, keys, showTimeAxis = false, heightClass = "h-[7re
           hide={!showTimeAxis}
           tickFormatter={formatChartTime}
         />
-        <YAxis tickLine={false} axisLine={false} tickMargin={4} width={44} tickFormatter={(v) => String(v)} />
+        <YAxis tickLine={false} axisLine={false} tickMargin={4} width={44} />
         <ChartTooltip
           content={
             <ChartTooltipContent
@@ -74,9 +96,7 @@ function MiniLineChart({ data, keys, showTimeAxis = false, heightClass = "h-[7re
             />
           }
         />
-        {keys.length > 1 ? (
-          <ChartLegend content={<ChartLegendContent />} />
-        ) : null}
+        {keys.length > 1 ? <ChartLegend content={<ChartLegendContent />} /> : null}
         {keys.map((key) => (
           <Line
             key={key}
@@ -94,10 +114,61 @@ function MiniLineChart({ data, keys, showTimeAxis = false, heightClass = "h-[7re
   );
 }
 
+function ErrorLineChart({
+  data,
+  keys,
+  heightClass = "h-[8rem]",
+}: {
+  data: ReturnType<typeof buildTuningErrorChartRows>;
+  keys: ErrorKey[];
+  heightClass?: string;
+}) {
+  return (
+    <ChartContainer config={errorChartConfig} className={`aspect-auto w-full ${heightClass}`}>
+      <LineChart data={data} margin={{ left: 4, right: 8, top: 4, bottom: 0 }}>
+        <CartesianGrid vertical={false} strokeDasharray="3 3" />
+        <XAxis
+          dataKey="tSec"
+          tickLine={false}
+          axisLine={false}
+          tickMargin={8}
+          tickFormatter={formatChartTime}
+        />
+        <YAxis tickLine={false} axisLine={false} tickMargin={4} width={44} />
+        <ChartTooltip
+          content={
+            <ChartTooltipContent
+              labelFormatter={(_, payload) => {
+                const t = payload?.[0]?.payload?.tSec;
+                return typeof t === "number" ? formatChartTime(t) : "";
+              }}
+            />
+          }
+        />
+        {keys.length > 1 ? <ChartLegend content={<ChartLegendContent />} /> : null}
+        {keys.map((key) => (
+          <Line
+            key={key}
+            type="monotone"
+            dataKey={key}
+            stroke={`var(--color-${key})`}
+            strokeWidth={2}
+            dot={false}
+            connectNulls={false}
+          />
+        ))}
+      </LineChart>
+    </ChartContainer>
+  );
+}
+
 export const TuningRecordChart = memo(function TuningRecordChart({
   samples,
   recording = false,
-}: TuningRecordChartProps) {
+}: {
+  samples: TuningSample[];
+  recording?: boolean;
+}) {
   const data = useMemo(() => buildTuningChartRows(samples), [samples]);
 
   if (data.length === 0) {
@@ -110,14 +181,39 @@ export const TuningRecordChart = memo(function TuningRecordChart({
 
   return (
     <div className="space-y-3" role="img" aria-label="Recorded tuning signals over time">
-      <MiniLineChart data={data} keys={["commandedRpm"]} />
-      <MiniLineChart data={data} keys={["realMotorCm", "simMotorCm"]} />
-      <MiniLineChart data={data} keys={["realEncoderTicks", "simEncoderTicks"]} showTimeAxis />
+      <TraceLineChart data={data} keys={["commandedRpm"]} />
+      <TraceLineChart data={data} keys={["realMotorCm", "simMotorCm"]} />
+      <TraceLineChart data={data} keys={["realEncoderTicks", "simEncoderTicks"]} showTimeAxis />
       <p className="text-muted-foreground text-[10px]">
         {samples.length.toLocaleString()} samples
         {samples.length > TUNING_CHART_MAX_POINTS ? " (downsampled for display)" : ""}
         {recording ? " · updating while recording" : ""}
       </p>
+    </div>
+  );
+});
+
+export const TuningErrorChart = memo(function TuningErrorChart({
+  samples,
+  weights,
+}: {
+  samples: TuningSample[];
+  weights: TuningErrorWeights;
+}) {
+  const data = useMemo(() => buildTuningErrorChartRows(samples, weights), [samples, weights]);
+
+  if (data.length === 0) {
+    return (
+      <p className="text-muted-foreground py-6 text-center text-xs">
+        Record a trace to plot twin error over time.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-3" role="img" aria-label="Recorded tuning error over time">
+      <ErrorLineChart data={data} keys={["absPositionCm", "absEncoderTicks"]} />
+      <ErrorLineChart data={data} keys={["weightedScore"]} heightClass="h-[6rem]" />
     </div>
   );
 });

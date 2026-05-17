@@ -1,4 +1,5 @@
-import type { TuningSample } from "@/lib/tuningMath";
+import type { TuningSample, TuningErrorWeights } from "@/lib/tuningMath";
+import { DEFAULT_TUNING_WEIGHTS } from "@/lib/tuningMath";
 
 export const TUNING_CHART_MAX_POINTS = 1500;
 
@@ -37,6 +38,36 @@ export function buildTuningChartRows(samples: TuningSample[]): TuningChartRow[] 
     realEncoderTicks: finiteOrUndef(s.realEncoderTicks),
     simEncoderTicks: finiteOrUndef(s.simEncoderTicks),
   }));
+}
+
+export type TuningErrorChartRow = {
+  tSec: number;
+  absPositionCm?: number;
+  absEncoderTicks?: number;
+  weightedScore?: number;
+};
+
+export function buildTuningErrorChartRows(
+  samples: TuningSample[],
+  weights: TuningErrorWeights = DEFAULT_TUNING_WEIGHTS,
+): TuningErrorChartRow[] {
+  if (samples.length === 0) return [];
+  const t0 = samples[0]!.t;
+  return downsampleTuningSamples(samples).map((s) => {
+    const absPositionCm =
+      s.realMotorCm != null && s.simMotorCm != null
+        ? Math.abs(s.realMotorCm - s.simMotorCm)
+        : undefined;
+    const absEncoderTicks = Math.abs(s.realEncoderTicks - s.simEncoderTicks);
+    const weightedScore =
+      (absPositionCm ?? 0) * weights.position + absEncoderTicks * weights.encoder;
+    return {
+      tSec: (s.t - t0) / 1000,
+      absPositionCm,
+      absEncoderTicks,
+      weightedScore,
+    };
+  });
 }
 
 export function formatChartTime(sec: number): string {

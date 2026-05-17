@@ -50,6 +50,13 @@ import {
   patchCoupledSimConfigFile,
   putCoupledSimConfigFile,
 } from "./coupledSimConfigFile.js";
+import {
+  getRlStatus,
+  startRlInference,
+  startRlTraining,
+  stopRlInference,
+  stopRlTraining,
+} from "./rlPhysics.js";
 
 function friendlyMotorError(err: unknown): string {
   return friendlyMotorGrpcError(motor.motorConnectBaseUrl(), err);
@@ -681,6 +688,31 @@ export const appRouter = t.router({
       put: baseProcedure
         .input(coupledSimParametersSchema)
         .mutation(async ({ input }) => putCoupledSimConfigFile(input)),
+    }),
+  }),
+  /** MuJoCo PPO training / live-plant inference (physics-sim). */
+  rl: t.router({
+    status: baseProcedure.query(() => getRlStatus()),
+    training: t.router({
+      start: baseProcedure
+        .input(
+          z
+            .object({
+              totalTimesteps: z.number().int().positive().optional(),
+              saveEvery: z.number().int().positive().optional(),
+              nEnvs: z.number().int().min(1).max(16).optional(),
+              task: z.enum(["balance", "center"]).optional(),
+            })
+            .optional(),
+        )
+        .mutation(async ({ input }) => startRlTraining(input ?? {})),
+      stop: baseProcedure.mutation(() => stopRlTraining()),
+    }),
+    inference: t.router({
+      start: baseProcedure
+        .input(z.object({ generation: z.number().int().nonnegative() }))
+        .mutation(async ({ input }) => startRlInference(input.generation)),
+      stop: baseProcedure.mutation(() => stopRlInference()),
     }),
   }),
 });

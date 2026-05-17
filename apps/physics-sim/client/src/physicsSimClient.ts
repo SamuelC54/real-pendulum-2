@@ -92,6 +92,61 @@ export type PhysicsSimCalibrationFit = {
   score: number;
 };
 
+export type PhysicsSimRlStatus = {
+  training: {
+    active: boolean;
+    timesteps: number;
+    totalTimesteps: number;
+    latestGeneration: number | null;
+    error: string | null;
+  };
+  inference: {
+    active: boolean;
+    generation: number | null;
+    rpm: number;
+    lastReward: number;
+    stepCount: number;
+    error: string | null;
+  };
+  metrics: { timesteps: number; meanReward: number; generation: number | null }[];
+  generations: number[];
+};
+
+export async function physicsSimRlStatus(): Promise<PhysicsSimRlStatus> {
+  return physicsFetch<PhysicsSimRlStatus>("/rl/status");
+}
+
+export async function physicsSimRlTrainStart(body: {
+  totalTimesteps?: number;
+  saveEvery?: number;
+  nEnvs?: number;
+  task?: string;
+}): Promise<PhysicsSimRlStatus> {
+  return physicsFetch<PhysicsSimRlStatus>("/rl/train/start", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function physicsSimRlTrainStop(): Promise<PhysicsSimRlStatus> {
+  return physicsFetch<PhysicsSimRlStatus>("/rl/train/stop", { method: "POST", body: "{}" });
+}
+
+export async function physicsSimRlInferenceStart(generation: number): Promise<PhysicsSimRlStatus> {
+  return physicsFetch<PhysicsSimRlStatus>("/rl/inference/start", {
+    method: "POST",
+    body: JSON.stringify({ generation }),
+  });
+}
+
+export async function physicsSimRlInferenceStop(): Promise<PhysicsSimRlStatus> {
+  return physicsFetch<PhysicsSimRlStatus>("/rl/inference/stop", { method: "POST", body: "{}" });
+}
+
+export async function physicsSimGetState(): Promise<PhysicsSimStatePayload> {
+  return physicsFetch<PhysicsSimStatePayload>("/state");
+}
+
 export async function physicsSimCalibrate(options: {
   samples: unknown[];
   start: Record<string, number>;
