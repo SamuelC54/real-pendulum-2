@@ -30,7 +30,8 @@ class PlantConfig:
 class PlantState:
     x_m: float = 0.0
     v_mps: float = 0.0
-    theta_rad: float = 0.05
+    """Hinge angle (rad); 0 = bob hangs toward −Z (straight down)."""
+    theta_rad: float = 0.0
     omega_rps: float = 0.0
     v_cmd_mps: float = 0.0
     encoder_ticks_float: float = 0.0
@@ -75,6 +76,12 @@ class CartPendulumPlant:
         self._model.geom_size[rod_gid, 1] = length / 2.0
         self._model.geom_pos[bob_gid, 2] = -length
 
+    def sync_encoder_from_theta(self) -> None:
+        """Quadrature encoder readout tracks MuJoCo hinge angle (no separate integration)."""
+        self.state.encoder_ticks_float = (
+            self.state.theta_rad * self.config.encoder_ticks_per_radian
+        )
+
     def sync_state_to_mujoco(self) -> None:
         s = self.state
         self._data.qpos[self._cart_qpos] = s.x_m
@@ -83,6 +90,7 @@ class CartPendulumPlant:
         self._data.qvel[self._pend_qvel] = s.omega_rps
         self._data.ctrl[self._act_id] = s.v_cmd_mps
         mujoco.mj_forward(self._model, self._data)
+        self.sync_encoder_from_theta()
 
     def sync_state_from_mujoco(self) -> None:
         s = self.state
@@ -112,15 +120,13 @@ class CartPendulumPlant:
         h_max = max(1e-6, cfg.max_internal_step_sec)
         remaining = dt_sec
         self._data.ctrl[self._act_id] = self.state.v_cmd_mps
-        omega_prev = self.state.omega_rps
         while remaining > 1e-12:
             h = min(h_max, remaining)
             self._model.opt.timestep = h
             mujoco.mj_step(self._model, self._data)
             remaining -= h
         self.sync_state_from_mujoco()
-        omega_mid = 0.5 * (omega_prev + self.state.omega_rps)
-        self.state.encoder_ticks_float += omega_mid * dt_sec * cfg.encoder_ticks_per_radian
+        self.sync_encoder_from_theta()
 
     def encoder_ticks_int(self) -> int:
         return int(round(self.state.encoder_ticks_float))

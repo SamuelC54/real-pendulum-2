@@ -98,17 +98,25 @@ class PhysicsSimHandler(BaseHTTPRequestHandler):
         if path == "/reset":
             initial = body.get("initial") or {}
             with _live_lock:
+                tpr = _live_plant.config.encoder_ticks_per_radian
+                theta = float(initial.get("thetaRad", 0))
+                if "encoderTicksFloat" in initial and "thetaRad" not in initial:
+                    enc = float(initial["encoderTicksFloat"])
+                    theta = enc / tpr
+                else:
+                    enc = float(initial.get("encoderTicksFloat", theta * tpr))
                 _live_plant.state = PlantState(
                     x_m=float(initial.get("xM", 0)),
                     v_mps=float(initial.get("vMps", 0)),
-                    theta_rad=float(initial.get("thetaRad", 0.05)),
+                    theta_rad=theta,
                     omega_rps=float(initial.get("omegaRps", 0)),
                     v_cmd_mps=float(initial.get("vCmdMps", 0)),
-                    encoder_ticks_float=float(initial.get("encoderTicksFloat", 0)),
+                    encoder_ticks_float=enc,
                 )
                 if body.get("config"):
                     _live_plant.patch_config(body["config"])
                 _live_plant.sync_state_to_mujoco()
+                _live_plant.sync_encoder_from_theta()
             _json_response(self, 200, _state_payload())
             return
 

@@ -26,6 +26,27 @@ def test_pendulum_oscillates():
     assert initial * plant.state.theta_rad < 0
 
 
+def test_resting_pendulum_hangs_vertical():
+    plant = CartPendulumPlant(
+        config=PlantConfig(
+            pendulum_length_m=0.35,
+            cart_velocity_tracking_per_sec=12.0,
+            angular_damping_per_sec=0.04,
+        )
+    )
+    plant.state.v_cmd_mps = 0.0
+    plant.state.theta_rad = 0.0
+    plant.state.omega_rps = 0.0
+    plant.sync_state_to_mujoco()
+
+    dt = 1 / 240
+    for _ in range(480):
+        plant.step(dt)
+
+    assert abs(plant.state.theta_rad) < 0.02
+    assert abs(plant.encoder_ticks_int()) < 50
+
+
 def test_cart_motion_couples_to_pendulum():
     plant = CartPendulumPlant(
         config=PlantConfig(

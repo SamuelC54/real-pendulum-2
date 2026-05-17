@@ -2,5 +2,5 @@
   "mpsPerRpm": 0.0007,
   "pendulumLengthM": 0.3,
   "cartVelocityTrackingPerSec": 10,
-  "angularDampingPerSec": 0.0005
+  "angularDampingPerSec": 0.00003
 }

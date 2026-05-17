@@ -181,7 +181,7 @@ function plantFromParameters(file: CoupledSimParameters): CartPendulumPlant {
     {
       xM: 0,
       vMps: 0,
-      thetaRad: 0.05,
+      thetaRad: 0,
       omegaRps: 0,
       vCmdMps: 0,
     },
