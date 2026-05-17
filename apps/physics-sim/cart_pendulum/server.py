@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import threading
+import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 from urllib.parse import urlparse
@@ -12,6 +14,7 @@ from .plant import CartPendulumPlant, PlantConfig, PlantState
 from .replay import replay_twin_trace
 
 _live_plant = CartPendulumPlant()
+_live_lock = threading.Lock()
 _replay_defaults: dict[str, float] = {
     "gravity": 9.80665,
     "encoderTicksPerRadian": 2400.0 / (2.0 * 3.141592653589793),
@@ -68,7 +71,9 @@ class PhysicsSimHandler(BaseHTTPRequestHandler):
             _json_response(self, 200, {"ok": True, "engine": "mujoco"})
             return
         if path == "/state":
-            _json_response(self, 200, _state_payload())
+            with _live_lock:
+                payload = _state_payload()
+            _json_response(self, 200, payload)
             return
         _json_response(self, 404, {"error": "not found"})
 
@@ -82,40 +87,47 @@ class PhysicsSimHandler(BaseHTTPRequestHandler):
 
         if path == "/step":
             dt = float(body.get("dt", 0))
-            if "vCmdMps" in body:
-                _live_plant.state.v_cmd_mps = float(body["vCmdMps"])
-            _live_plant.step(dt)
+            with _live_lock:
+                if "vCmdMps" in body:
+                    _live_plant.state.v_cmd_mps = float(body["vCmdMps"])
+                _live_plant.step(dt)
             _json_response(self, 200, _state_payload())
             return
 
         if path == "/reset":
             initial = body.get("initial") or {}
-            _live_plant.state = PlantState(
-                x_m=float(initial.get("xM", 0)),
-                v_mps=float(initial.get("vMps", 0)),
-                theta_rad=float(initial.get("thetaRad", 0.05)),
-                omega_rps=float(initial.get("omegaRps", 0)),
-                v_cmd_mps=float(initial.get("vCmdMps", 0)),
-                encoder_ticks_float=float(initial.get("encoderTicksFloat", 0)),
-            )
-            if body.get("config"):
-                _live_plant.patch_config(body["config"])
-            _live_plant.sync_state_to_mujoco()
+            with _live_lock:
+                _live_plant.state = PlantState(
+                    x_m=float(initial.get("xM", 0)),
+                    v_mps=float(initial.get("vMps", 0)),
+                    theta_rad=float(initial.get("thetaRad", 0.05)),
+                    omega_rps=float(initial.get("omegaRps", 0)),
+                    v_cmd_mps=float(initial.get("vCmdMps", 0)),
+                    encoder_ticks_float=float(initial.get("encoderTicksFloat", 0)),
+                )
+                if body.get("config"):
+                    _live_plant.patch_config(body["config"])
+                _live_plant.sync_state_to_mujoco()
             _json_response(self, 200, _state_payload())
             return
 
         if path == "/replay":
-            samples = body.get("samples") or []
-            params = body.get("params") or {}
-            defaults = {**_replay_defaults, **(body.get("defaults") or {})}
-            trace = replay_twin_trace(
-                samples,
-                params,
-                gravity=float(defaults["gravity"]),
-                encoder_ticks_per_radian=float(defaults["encoderTicksPerRadian"]),
-                limit_left_x_m=float(defaults["limitLeftXM"]),
-                limit_right_x_m=float(defaults["limitRightXM"]),
-            )
+            try:
+                samples = body.get("samples") or []
+                params = body.get("params") or {}
+                defaults = {**_replay_defaults, **(body.get("defaults") or {})}
+                trace = replay_twin_trace(
+                    samples,
+                    params,
+                    gravity=float(defaults["gravity"]),
+                    encoder_ticks_per_radian=float(defaults["encoderTicksPerRadian"]),
+                    limit_left_x_m=float(defaults["limitLeftXM"]),
+                    limit_right_x_m=float(defaults["limitRightXM"]),
+                )
+            except Exception as e:
+                traceback.print_exc()
+                _json_response(self, 500, {"error": str(e)})
+                return
             _json_response(
                 self,
                 200,
@@ -140,7 +152,8 @@ class PhysicsSimHandler(BaseHTTPRequestHandler):
             _json_response(self, 400, {"error": "invalid json"})
             return
         plant_patch = body.get("plant") or body
-        _live_plant.patch_config(plant_patch)
+        with _live_lock:
+            _live_plant.patch_config(plant_patch)
         _json_response(self, 200, _state_payload())
 
 
