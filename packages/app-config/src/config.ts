@@ -155,8 +155,8 @@ export const config: AppConfig = {
     physicsSimHttpUrl: undefined,
     motorSimGrpcUrl: undefined,
     sensorSimGrpcUrl: undefined,
-    limitLeftXM: -0.2,
-    limitRightXM: 0.2,
+    limitLeftXM: -0.8,
+    limitRightXM: 0.8,
   },
 
   flash: {
