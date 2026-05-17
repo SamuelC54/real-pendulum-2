@@ -1,9 +1,6 @@
 {
   "mpsPerRpm": 0.00040673134134689803,
-  "plant": {
-    "pendulumLengthM": 0.6357160886243302,
-    "cartVelocityTrackingPerSec": 3.76988630046875,
-    "angularDampingPerSec": 0.04,
-    "maxInternalStepSec": 0.004166666666666667
-  }
+  "pendulumLengthM": 0.6357160886243302,
+  "cartVelocityTrackingPerSec": 3.76988630046875,
+  "angularDampingPerSec": 0.04
 }

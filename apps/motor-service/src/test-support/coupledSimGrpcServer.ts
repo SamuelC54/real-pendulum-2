@@ -170,15 +170,13 @@ function handleAdminConfig(
 }
 
 function plantFromParameters(file: CoupledSimParameters): CartPendulumPlant {
-  const { plant } = file;
   return createCartPendulumPlant(
     {
       gravity: plantGravityMS2(),
-      pendulumLengthM: plant.pendulumLengthM,
-      cartVelocityTrackingPerSec: plant.cartVelocityTrackingPerSec,
-      angularDampingPerSec: plant.angularDampingPerSec,
+      pendulumLengthM: file.pendulumLengthM,
+      cartVelocityTrackingPerSec: file.cartVelocityTrackingPerSec,
+      angularDampingPerSec: file.angularDampingPerSec,
       encoderTicksPerRadian: encoderTicksPerRadian(),
-      ...(plant.maxInternalStepSec != null ? { maxInternalStepSec: plant.maxInternalStepSec } : {}),
     },
     {
       xM: 0,

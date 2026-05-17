@@ -65,19 +65,12 @@ export type SimConfigForm = {
   angularDampingPerSec: number;
 };
 
-export function configToForm(c: {
-  mpsPerRpm: number;
-  plant: {
-    pendulumLengthM: number;
-    cartVelocityTrackingPerSec: number;
-    angularDampingPerSec: number;
-  };
-}): SimConfigForm {
+export function configToForm(c: SimConfigForm): SimConfigForm {
   return {
     mpsPerRpm: c.mpsPerRpm,
-    pendulumLengthM: c.plant.pendulumLengthM,
-    cartVelocityTrackingPerSec: c.plant.cartVelocityTrackingPerSec,
-    angularDampingPerSec: c.plant.angularDampingPerSec,
+    pendulumLengthM: c.pendulumLengthM,
+    cartVelocityTrackingPerSec: c.cartVelocityTrackingPerSec,
+    angularDampingPerSec: c.angularDampingPerSec,
   };
 }
 
@@ -95,27 +88,11 @@ export function twinParamsToForm(p: ReturnType<typeof formToTwinParams>): SimCon
 }
 
 export function formToPatch(form: SimConfigForm) {
-  return {
-    mpsPerRpm: form.mpsPerRpm,
-    plant: {
-      pendulumLengthM: form.pendulumLengthM,
-      cartVelocityTrackingPerSec: form.cartVelocityTrackingPerSec,
-      angularDampingPerSec: form.angularDampingPerSec,
-    },
-  };
+  return { ...form };
 }
 
 export function formToConfigSnippet(form: SimConfigForm, jsonPath = "config/coupled-sim.parameters.json"): string {
-  return JSON.stringify(
-    {
-      mpsPerRpm: form.mpsPerRpm,
-      plant: {
-        pendulumLengthM: form.pendulumLengthM,
-        cartVelocityTrackingPerSec: form.cartVelocityTrackingPerSec,
-        angularDampingPerSec: form.angularDampingPerSec,
-      },
-    },
-    null,
-    2,
-  ).concat(`\n// Save as ${jsonPath} or use tuning.simConfig.patch / put via control-api.\n`);
+  return JSON.stringify(form, null, 2).concat(
+    `\n// Save as ${jsonPath} or use tuning.simConfig.patch / put via control-api.\n`,
+  );
 }

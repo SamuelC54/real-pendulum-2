@@ -11,7 +11,7 @@ import {
 } from "@real-pendulum/app-config/coupled-sim-parameters";
 import {
   applyCoupledSimRuntimePatch,
-  type CoupledSimConfigSnapshot,
+  coupledSimParametersToRuntimePatch,
 } from "./tuningSimAdmin.js";
 
 export type CoupledSimConfigFileResult = {
@@ -71,7 +71,7 @@ export async function patchCoupledSimConfigFile(
     const current = readCoupledSimParametersFile(root);
     const next = mergeCoupledSimParametersPatch(current, patch);
     writeCoupledSimParametersFile(next, root);
-    const runtime = await applyCoupledSimRuntimePatch(patch as Partial<CoupledSimConfigSnapshot>);
+    const runtime = await applyCoupledSimRuntimePatch(coupledSimParametersToRuntimePatch(patch));
     return fileResult(next, filePath, runtime);
   } catch (e) {
     return {
@@ -88,7 +88,7 @@ export async function putCoupledSimConfigFile(
   try {
     const root = resolveCoupledSimRepoRoot(repoRoot);
     const filePath = writeCoupledSimParametersFile(parameters, root);
-    const runtime = await applyCoupledSimRuntimePatch(parameters);
+    const runtime = await applyCoupledSimRuntimePatch(coupledSimParametersToRuntimePatch(parameters));
     return fileResult(parameters, filePath, runtime);
   } catch (e) {
     return {

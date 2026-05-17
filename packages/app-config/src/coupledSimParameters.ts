@@ -3,23 +3,14 @@ import path from "node:path";
 import { z } from "zod";
 import { resolveRepoRoot } from "./node.js";
 
-export const coupledSimPlantSchema = z.object({
+export const coupledSimParametersSchema = z.object({
+  mpsPerRpm: z.number().finite(),
   pendulumLengthM: z.number().finite().positive(),
   cartVelocityTrackingPerSec: z.number().finite().positive(),
   angularDampingPerSec: z.number().finite().nonnegative(),
-  maxInternalStepSec: z.number().finite().positive().optional(),
 });
 
-export const coupledSimParametersSchema = z.object({
-  mpsPerRpm: z.number().finite(),
-  plant: coupledSimPlantSchema,
-});
-
-export const coupledSimParametersPatchSchema = coupledSimParametersSchema
-  .partial()
-  .extend({
-    plant: coupledSimPlantSchema.partial().optional(),
-  });
+export const coupledSimParametersPatchSchema = coupledSimParametersSchema.partial();
 
 export type CoupledSimParameters = z.infer<typeof coupledSimParametersSchema>;
 export type CoupledSimParametersPatch = z.infer<typeof coupledSimParametersPatchSchema>;
@@ -84,11 +75,7 @@ export function mergeCoupledSimParametersPatch(
   patch: CoupledSimParametersPatch,
 ): CoupledSimParameters {
   const validatedPatch = coupledSimParametersPatchSchema.parse(patch);
-  return assertCoupledSimParameters({
-    ...current,
-    ...validatedPatch,
-    plant: validatedPatch.plant ? { ...current.plant, ...validatedPatch.plant } : current.plant,
-  });
+  return assertCoupledSimParameters({ ...current, ...validatedPatch });
 }
 
 /** Used when starting `serve:coupled-sim` — loads `config/coupled-sim.parameters.json` only. */

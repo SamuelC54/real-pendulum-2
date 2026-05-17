@@ -1,3 +1,4 @@
+import type { CoupledSimParametersPatch } from "@real-pendulum/app-config/coupled-sim-parameters";
 import { resolveSimMotorGrpcUrl } from "./grpcSimDefaults.js";
 
 export type CoupledSimConfigSnapshot = {
@@ -14,6 +15,24 @@ export type CoupledSimConfigSnapshot = {
     encoderTicksPerRadian: number;
   };
 };
+
+/** Map flat `coupled-sim.parameters.json` fields to coupled-sim admin PATCH shape. */
+export function coupledSimParametersToRuntimePatch(
+  patch: CoupledSimParametersPatch,
+): Partial<CoupledSimConfigSnapshot> & { plant?: Partial<CoupledSimConfigSnapshot["plant"]> } {
+  const out: Partial<CoupledSimConfigSnapshot> & {
+    plant?: Partial<CoupledSimConfigSnapshot["plant"]>;
+  } = {};
+  if (patch.mpsPerRpm != null) out.mpsPerRpm = patch.mpsPerRpm;
+  const plant: Partial<CoupledSimConfigSnapshot["plant"]> = {};
+  if (patch.pendulumLengthM != null) plant.pendulumLengthM = patch.pendulumLengthM;
+  if (patch.cartVelocityTrackingPerSec != null) {
+    plant.cartVelocityTrackingPerSec = patch.cartVelocityTrackingPerSec;
+  }
+  if (patch.angularDampingPerSec != null) plant.angularDampingPerSec = patch.angularDampingPerSec;
+  if (Object.keys(plant).length > 0) out.plant = plant;
+  return out;
+}
 
 function adminConfigUrl(): string {
   const base = resolveSimMotorGrpcUrl().replace(/\/$/, "");

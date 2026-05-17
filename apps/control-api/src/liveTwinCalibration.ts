@@ -8,7 +8,10 @@ import {
   MIN_CALIBRATION_SAMPLES,
 } from "./twinCalibrationOptimize.js";
 import { summarizeReplayError } from "./tuningReplay.js";
-import { applyCoupledSimRuntimePatch } from "./tuningSimAdmin.js";
+import {
+  applyCoupledSimRuntimePatch,
+  coupledSimParametersToRuntimePatch,
+} from "./tuningSimAdmin.js";
 import {
   coupledSimPatchFromParams,
   DEFAULT_CALIBRATION_WEIGHTS,
@@ -109,7 +112,9 @@ async function recomputeReplayMetrics(): Promise<void> {
 
 async function applyParametersToSim(next: TwinCalibrationParams): Promise<void> {
   parameters = next;
-  const runtime = await deps.applyRuntimePatch(coupledSimPatchFromParams(next));
+  const runtime = await deps.applyRuntimePatch(
+    coupledSimParametersToRuntimePatch(coupledSimPatchFromParams(next)),
+  );
   if (!runtime.ok) {
     lastOptimizeError = runtime.error ?? "Sim runtime PATCH failed";
   }
