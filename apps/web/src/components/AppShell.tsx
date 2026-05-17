@@ -2,6 +2,7 @@ import { useAtomValue } from "jotai";
 import { useState, type ReactNode } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { HomingControls } from "@/components/HomingControls";
+import { MotionLatchBanner } from "@/components/MotionLatchBanner";
 import { JogControls } from "@/components/JogControls";
 import { MotorStatusBlocks } from "@/components/MotorStatusBlocks";
 import { PositionMoveControls } from "@/components/PositionMoveControls";
@@ -121,6 +122,7 @@ export function AppShell() {
         )}
       >
         <TuningRecordingBanner />
+        <MotionLatchBanner />
         <div className={page === "control" ? undefined : "hidden"} aria-hidden={page !== "control"}>
           <ControlPage />
         </div>

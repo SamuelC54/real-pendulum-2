@@ -36,12 +36,31 @@ export type TravelLimitSwitchState = {
   limitRightPressed: boolean;
 };
 
+export type MotionLatchState = {
+  latched: boolean;
+  side: "left" | "right" | null;
+  towardCenterJog?: "left" | "right" | null;
+};
+
+/** Jog direction allowed toward 0 cm while latched (left limit → right, etc.). */
+export function towardCenterJogDirection(
+  latch: MotionLatchState | undefined,
+): "left" | "right" | null {
+  if (!latch?.latched) return null;
+  if (latch.towardCenterJog) return latch.towardCenterJog;
+  if (latch.side === "left") return "right";
+  if (latch.side === "right") return "left";
+  return null;
+}
+
 /** True when jog in `dir` would travel further into an active limit (matches control-api guards). */
 export function isJogBlockedByTravelLimit(
   dir: "left" | "right",
   limits: TravelLimitSwitchState,
+  latch?: MotionLatchState,
 ): boolean {
   if (!limits.connected) return false;
+  if (towardCenterJogDirection(latch) === dir) return false;
   if (dir === "left" && limits.limitLeftPressed) return true;
   if (dir === "right" && limits.limitRightPressed) return true;
   return false;
@@ -51,9 +70,10 @@ export function isJogBlockedByTravelLimit(
 export function shouldReleaseJogHoldForTravelLimit(
   holding: "left" | "right" | null,
   limits: TravelLimitSwitchState,
+  latch?: MotionLatchState,
 ): boolean {
   if (!holding) return false;
-  return isJogBlockedByTravelLimit(holding, limits);
+  return isJogBlockedByTravelLimit(holding, limits, latch);
 }
 
 export function isMoveTargetBlockedByTravelLimit(
@@ -67,4 +87,35 @@ export function isMoveTargetBlockedByTravelLimit(
   if (limits.limitLeftPressed && targetCm < currentCm) return true;
   if (limits.limitRightPressed && targetCm > currentCm) return true;
   return false;
+}
+
+/** While latched, only the toward-center jog direction is enabled. */
+export function isJogBlockedByMotionLatch(
+  dir: "left" | "right",
+  latch: MotionLatchState | undefined,
+): boolean {
+  const toward = towardCenterJogDirection(latch);
+  if (!toward) return false;
+  return dir !== toward;
+}
+
+export function isMoveTargetBlockedByMotionLatch(
+  targetCm: number,
+  currentCm: number | undefined,
+  latch: MotionLatchState | undefined,
+): boolean {
+  if (!latch?.latched || !latch.side || currentCm === undefined || !Number.isFinite(currentCm)) {
+    return false;
+  }
+  if (latch.side === "left" && targetCm < currentCm) return true;
+  if (latch.side === "right" && targetCm > currentCm) return true;
+  return false;
+}
+
+export function shouldReleaseJogHoldForMotionLatch(
+  holding: "left" | "right" | null,
+  latch: MotionLatchState | undefined,
+): boolean {
+  if (!holding) return false;
+  return isJogBlockedByMotionLatch(holding, latch);
 }

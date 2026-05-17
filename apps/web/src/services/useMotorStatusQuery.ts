@@ -28,7 +28,7 @@ export function useMotorStatusConnected() {
   const twin = trpc.twin.status.get.useQuery(undefined, {
     enabled: mode === "twin",
     refetchInterval: motorTwinRefetchInterval,
-    select: (row) => row?.real.connected ?? false,
+    select: (row) => (row?.real.connected ?? false) || (row?.sim.connected ?? false),
   });
   return mode === "twin" ? twin : single;
 }

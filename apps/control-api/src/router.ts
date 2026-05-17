@@ -18,6 +18,15 @@ import * as motor from "@real-pendulum/motor-service/sdk";
 import * as sensor from "@real-pendulum/sensor-service/sdk";
 import { defaultCoupledSimGrpcUrl, resolveSimMotorGrpcUrl, resolveSimSensorGrpcUrl } from "./grpcSimDefaults.js";
 import { runRailHoming } from "./homing.js";
+import {
+  clearMotionLatch,
+  combineLimitSwitchStates,
+  getMotionLatchStatus,
+  runWithHomingBypass,
+  updateLimitSwitchState,
+} from "./motionLatch.js";
+import { moveHomeWhileLatched } from "./motionLatchMoveHome.js";
+import { startRecoveryJog, stopRecoveryJog } from "./motionLatchRecovery.js";
 import { homingResultForClient } from "./homingApi.js";
 import type { MotorStatusForClient } from "./motorStatusApi.js";
 import { readMotorStatusPayload, readSensorStatusPayload, type SensorStatusPayload } from "./statusPayload.js";
@@ -215,7 +224,9 @@ export const appRouter = t.router({
   rail: t.router({
     home: publicProcedure.mutation(async () => {
       try {
-        return homingResultForClient(await runRailHoming());
+        return homingResultForClient(
+          await runWithHomingBypass(() => runRailHoming()),
+        );
       } catch (e) {
         throw new Error(
           `rail: ${e instanceof Error ? e.message : String(e)}`,
@@ -438,10 +449,12 @@ export const appRouter = t.router({
     rail: t.router({
       /** Runs full homing on hardware and simulation in parallel (independent plants). */
       home: baseProcedure.mutation(async () => {
-        const [real, sim] = await Promise.all([
-          withHardwareGrpc(() => runRailHoming()),
-          withSimGrpc(() => runRailHoming()),
-        ]);
+        const [real, sim] = await runWithHomingBypass(() =>
+          Promise.all([
+            withHardwareGrpc(() => runRailHoming()),
+            withSimGrpc(() => runRailHoming()),
+          ]),
+        );
         return { real: homingResultForClient(real), sim: homingResultForClient(sim) };
       }),
       limits: t.router({
@@ -635,10 +648,14 @@ export const appRouter = t.router({
         })),
       }),
       status: t.router({
-        get: baseProcedure.query(async () => ({
-          real: await withHardwareGrpc(() => readSensorStatusPayload()),
-          sim: await withSimGrpc(() => readSensorStatusPayload()),
-        })),
+        get: baseProcedure.query(async () => {
+          const real = await withHardwareGrpc(() =>
+            readSensorStatusPayload({ trackLatch: false }),
+          );
+          const sim = await withSimGrpc(() => readSensorStatusPayload({ trackLatch: false }));
+          updateLimitSwitchState(combineLimitSwitchStates(real, sim));
+          return { real, sim };
+        }),
       }),
     }),
   }),
@@ -688,6 +705,65 @@ export const appRouter = t.router({
       put: baseProcedure
         .input(coupledSimParametersSchema)
         .mutation(async ({ input }) => putCoupledSimConfigFile(input)),
+    }),
+  }),
+  /** Limit-switch latch: full motion stop until operator releases. */
+  motion: t.router({
+    latch: t.router({
+      get: baseProcedure.query(() => getMotionLatchStatus()),
+      release: baseProcedure.mutation(() => {
+        clearMotionLatch();
+        return getMotionLatchStatus();
+      }),
+      /** Hold-to-jog toward center only (bypasses latch + travel limits). */
+      jogStart: baseProcedure
+        .input(
+          z
+            .object({
+              rpm: z.number().finite().positive().optional(),
+              maxAccelerationRpmPerSec: z.number().finite().positive().optional(),
+            })
+            .optional(),
+        )
+        .mutation(async ({ ctx, input }) => {
+          const mode: GrpcBackendMode = ctx.grpcBackendMode ?? "hardware";
+          const result = await startRecoveryJog(mode, input ?? {});
+          if (!result.ok) throw new Error(result.error);
+          return result;
+        }),
+      jogStop: baseProcedure.mutation(async ({ ctx }) => {
+        const mode: GrpcBackendMode = ctx.grpcBackendMode ?? "hardware";
+        const result = await stopRecoveryJog(mode);
+        if (!result.ok) throw new Error(result.error);
+        return result;
+      }),
+      /** Profile move to 0 cm while latched (recovery). */
+      moveHome: baseProcedure
+        .input(
+          z
+            .object({
+              maxVelocityRpm: z.number().finite().positive().optional(),
+              maxAccelerationRpmPerSec: z.number().finite().positive().optional(),
+            })
+            .optional(),
+        )
+        .mutation(async ({ ctx, input }) => {
+          const mode: GrpcBackendMode = ctx.grpcBackendMode ?? "hardware";
+          const result = await moveHomeWhileLatched(mode, input ?? {});
+          if ("real" in result) {
+            if (!result.real.ok) {
+              throw new Error(result.real.error);
+            }
+            if (!result.sim.ok && result.sim.error) {
+              throw new Error(`Sim: ${result.sim.error}`);
+            }
+            return result;
+          }
+          if (!result.ok) {
+            throw new Error(result.error);
+          }
+          return result;
+        }),
     }),
   }),
   /** MuJoCo PPO training / live-plant inference (physics-sim). */

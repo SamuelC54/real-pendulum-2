@@ -9,6 +9,7 @@ import {
 } from "@real-pendulum/physics-sim/client";
 import { encoderTicksPerRadian } from "./pendulumEncoder.js";
 import { readMotorStatusPayload, readSensorStatusPayload } from "./statusPayload.js";
+import { isMotionBlockedByLatch } from "./motionLatch.js";
 import { setJogVelocityRpmRespectingTravelLimits } from "./railLimitGuards.js";
 import { withHardwareGrpc } from "./twinGrpc.js";
 
@@ -44,6 +45,10 @@ function buildRawObservation(
 
 async function hardwareInferenceTick(): Promise<void> {
   try {
+    if (isMotionBlockedByLatch()) {
+      await stopHardwareInference();
+      return;
+    }
     const motor = await withHardwareGrpc(() => readMotorStatusPayload());
     const sensor = await withHardwareGrpc(() => readSensorStatusPayload());
 

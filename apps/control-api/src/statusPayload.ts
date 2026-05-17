@@ -1,5 +1,6 @@
 import * as motor from "@real-pendulum/motor-service/sdk";
 import * as sensor from "@real-pendulum/sensor-service/sdk";
+import { updateLimitSwitchState, updateMotorPositionForLatch } from "./motionLatch.js";
 import { friendlyMotorGrpcError } from "./motorErrors.js";
 import { friendlySensorGrpcError } from "./sensorErrors.js";
 import { motorStatusForClient, type MotorStatusForClient } from "./motorStatusApi.js";
@@ -16,14 +17,20 @@ function friendlySensorError(err: unknown): string {
   return friendlySensorGrpcError(sensor.sensorConnectBaseUrl(), err);
 }
 
-export async function readMotorStatusPayload(): Promise<MotorStatusForClient> {
+export async function readMotorStatusPayload(options?: {
+  trackLatch?: boolean;
+}): Promise<MotorStatusForClient> {
   try {
     const st = await motor.getMotorStatus();
     syncTravelLimitsFromMotorConnection(st.connected);
-    return motorStatusForClient({
+    const payload = motorStatusForClient({
       ...st,
       travelLimits: getTravelLimitDisplays(),
     });
+    if (options?.trackLatch !== false) {
+      updateMotorPositionForLatch(payload.positionCm);
+    }
+    return payload;
   } catch (e) {
     syncTravelLimitsFromMotorConnection(false);
     return motorStatusForClient({
@@ -46,9 +53,15 @@ export type SensorStatusPayload = {
   limitRightPressed: boolean;
 };
 
-export async function readSensorStatusPayload(): Promise<SensorStatusPayload> {
+export async function readSensorStatusPayload(options?: {
+  trackLatch?: boolean;
+}): Promise<SensorStatusPayload> {
   try {
-    return await sensor.getSensorStatus();
+    const st = await sensor.getSensorStatus();
+    if (options?.trackLatch !== false) {
+      updateLimitSwitchState(st);
+    }
+    return st;
   } catch (e) {
     return {
       connected: false,
