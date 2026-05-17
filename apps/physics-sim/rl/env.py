@@ -6,7 +6,7 @@ Coordinate conventions (see ``models/cart_pendulum.xml``):
   - θ = 0: bob hangs toward −Z. θ ≈ π: inverted (balance target).
   - Teknic jog sign: positive RPM → negative ``v_cmd_mps`` (see ``step``).
 
-Task: swing-up, balance upright, center when upright, idle/spin penalties, hard stop at rail limit.
+Task: upright shaping, center in balance cone, idle/spin/RPM penalties, hard stop at rail limit.
 
 Training uses the same plant as the digital twin (``cart_pendulum/plant.py``).
 """
@@ -14,7 +14,7 @@ Training uses the same plant as the digital twin (``cart_pendulum/plant.py``).
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import gymnasium as gym
@@ -31,6 +31,26 @@ DEFAULT_HEALTHY_ANGLE_RAD = 0.2
 
 
 @dataclass
+class RewardConfig:
+    """Per-step reward shaping and penalties (see ``CartPendulumRpmEnv._step_reward``)."""
+
+    # Max at inverted; scales as (π − |θ − π|) / π from hanging (0) to upright (max).
+    upright_reward: float = 5.0
+    # Only in balance cone; linear in |x| / x_limit.
+    center_reward: float = 2
+    # Episode ends at rail limit (no edge ramp).
+    limit_penalty: float = 1000.0
+    # Per step: rpm_penalty × |RPM| / max_rpm.
+    rpm_penalty: float = 0.02
+    # Per step when pole is within idle_angle_rad of hanging down.
+    idle_penalty: float = 0.0
+    idle_angle_rad: float = math.radians(10.0)
+    # Episode ends with −spin_fail_penalty when total hub revolutions exceed spin_max_revs.
+    spin_max_revs: float = 2.0
+    spin_fail_penalty: float = 500.0
+
+
+@dataclass
 class EnvConfig:
     """Hyperparameters shared by training, inference, and tests."""
 
@@ -39,24 +59,13 @@ class EnvConfig:
     max_rpm: float = DEFAULT_MAX_RPM
     mps_per_rpm: float = DEFAULT_MPS_PER_RPM
     gravity: float = 9.80665
-    pendulum_length_m: float = 0.35
+    pendulum_length_m: float = 0.15
     cart_velocity_tracking_per_sec: float = 12.0
     angular_damping_per_sec: float = 0.04
     x_limit_m: float = 0.2
     healthy_angle_rad: float = DEFAULT_HEALTHY_ANGLE_RAD
     reset_noise_scale: float = 0.01
-    upright_reward: float = 4.0
-    swing_up_reward: float = 0.25
-    center_reward: float = 0.4
-    """Episode ends at rail limit with this one-shot penalty (no edge ramp)."""
-    limit_penalty: float = 1000.0
-    """Small per-step cost: rpm_penalty × |RPM| / max_rpm (higher command → fewer points)."""
-    rpm_penalty: float = 0.02
-    """Penalty per step when pole is within idle_angle_rad of hanging down."""
-    idle_penalty: float = 1.0
-    idle_angle_rad: float = math.radians(10.0)
-    """Per full revolution of hub spin (integrated |Δθ| / 2π) per step."""
-    spin_penalty_per_rev: float = 40.0
+    rewards: RewardConfig = field(default_factory=RewardConfig)
     obs_scale: tuple[float, float, float, float] = (0.5, math.pi, 2.0, 10.0)
 
 
@@ -199,58 +208,59 @@ class CartPendulumRpmEnv(gym.Env):
         return is_plant_healthy(self.plant, self.cfg)
 
     def _rpm_penalty(self, rpm: float) -> float:
-        if self.cfg.rpm_penalty <= 0.0:
+        r = self.cfg.rewards
+        if r.rpm_penalty <= 0.0:
             return 0.0
-        return self.cfg.rpm_penalty * abs(rpm) / max(self.cfg.max_rpm, 1e-6)
+        return r.rpm_penalty * abs(rpm) / max(self.cfg.max_rpm, 1e-6)
 
     def _step_reward(self, rpm: float) -> tuple[float, bool]:
         """
-        + swing_up (always), upright (in balance cone), center (only when upright)
+        + upright_reward × (π − |θ − π|) / π, center (only in balance cone)
         − rpm_penalty, idle_penalty (within ±idle_angle of hanging down)
-        − spin_penalty_per_rev × |Δθ| / 2π (discourages continuous looping)
+        > spin_max_revs hub revolutions: −spin_fail_penalty and terminate.
         At |x| ≥ x_limit: −limit_penalty and terminate episode.
         """
         cfg = self.cfg
+        rwd = cfg.rewards
         s = self.plant.state
         if not np.isfinite([s.x_m, s.theta_rad, s.v_mps, s.omega_rps]).all():
-            return -cfg.limit_penalty, True, 0.0
+            return -rwd.limit_penalty, True, False
+
+        theta = s.theta_rad
+        if self._prev_theta_rad is not None:
+            d_theta = abs(_theta_delta_rad(self._prev_theta_rad, theta))
+            self._spin_rev_accum += d_theta / (2.0 * math.pi)
+        self._prev_theta_rad = theta
+
+        if rwd.spin_max_revs > 0.0 and self._spin_rev_accum > rwd.spin_max_revs:
+            return -rwd.spin_fail_penalty, True, True
 
         x_abs = abs(s.x_m)
         if x_abs >= cfg.x_limit_m:
-            return -cfg.limit_penalty, True, 0.0
+            return -rwd.limit_penalty, True, False
 
         angle_err = abs(_pole_angle_error(s.theta_rad))
         upright = angle_err < cfg.healthy_angle_rad
         reward = 0.0
 
-        if cfg.swing_up_reward > 0.0:
-            reward += cfg.swing_up_reward * max(0.0, (math.pi - angle_err) / math.pi)
+        upright_factor = max(0.0, (math.pi - angle_err) / math.pi)
+        if rwd.upright_reward > 0.0:
+            reward += rwd.upright_reward * upright_factor
 
-        if upright:
-            reward += cfg.upright_reward
-            if cfg.center_reward > 0.0 and cfg.x_limit_m > 0.0:
-                reward += cfg.center_reward * (1.0 - x_abs / cfg.x_limit_m)
+        if upright and rwd.center_reward > 0.0 and cfg.x_limit_m > 0.0:
+            reward += rwd.center_reward * (1.0 - x_abs / cfg.x_limit_m)
 
         hang_err = abs(_pole_angle_error_from_hanging(s.theta_rad))
-        if cfg.idle_penalty > 0.0 and hang_err < cfg.idle_angle_rad:
-            reward -= cfg.idle_penalty
-
-        theta = s.theta_rad
-        spin_penalty = 0.0
-        if self._prev_theta_rad is not None and cfg.spin_penalty_per_rev > 0.0:
-            d_theta = abs(_theta_delta_rad(self._prev_theta_rad, theta))
-            revs = d_theta / (2.0 * math.pi)
-            self._spin_rev_accum += revs
-            spin_penalty = cfg.spin_penalty_per_rev * revs
-            reward -= spin_penalty
-        self._prev_theta_rad = theta
+        if rwd.idle_penalty > 0.0 and hang_err < rwd.idle_angle_rad:
+            reward -= rwd.idle_penalty
 
         reward -= self._rpm_penalty(rpm)
-        return reward, False, spin_penalty
+        return reward, False, False
 
     def _reward_and_terminated(self, rpm: float) -> tuple[float, bool, bool, float]:
-        reward, terminated, spin_penalty = self._step_reward(rpm)
+        reward, terminated, spin_fail = self._step_reward(rpm)
         truncated = self._step_count >= self.cfg.max_episode_steps
+        spin_penalty = self.cfg.rewards.spin_fail_penalty if spin_fail else 0.0
         return reward, terminated, truncated, spin_penalty
 
     def reset(
@@ -300,6 +310,8 @@ class CartPendulumRpmEnv(gym.Env):
         obs = self._obs()
         reward, terminated, truncated, spin_penalty = self._reward_and_terminated(rpm)
         healthy = self._is_healthy()
+        angle_err = abs(_pole_angle_error(self.plant.state.theta_rad))
+        upright_factor = max(0.0, (math.pi - angle_err) / math.pi)
         info: dict[str, Any] = {
             "raw_obs": raw_observation(self.plant),
             "rpm": rpm,
@@ -309,7 +321,8 @@ class CartPendulumRpmEnv(gym.Env):
             "x_m": self.plant.state.x_m,
             "theta_rad": self.plant.state.theta_rad,
             "is_healthy": healthy,
-            "reward_survive": self.cfg.upright_reward if healthy else 0.0,
+            "upright_factor": upright_factor,
+            "reward_survive": self.cfg.rewards.upright_reward * upright_factor,
             "pole_angle_error_rad": _pole_angle_error(self.plant.state.theta_rad),
         }
         return obs, reward, terminated, truncated, info

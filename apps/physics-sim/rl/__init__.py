@@ -9,6 +9,6 @@ Package layout:
   render_ai.py — Offline MuJoCo viewer for a saved generation
 """
 
-from .env import CartPendulumRpmEnv
+from .env import CartPendulumRpmEnv, EnvConfig, RewardConfig
 
-__all__ = ["CartPendulumRpmEnv"]
+__all__ = ["CartPendulumRpmEnv", "EnvConfig", "RewardConfig"]
