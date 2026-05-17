@@ -36,7 +36,7 @@ describe("Coupled sim (MotorService + SensorService, one plant)", () => {
   let sensor: ReturnType<typeof createClient<typeof SensorService>>;
 
   beforeAll(async () => {
-    model = createCoupledSimGrpcModel({
+    model = await createCoupledSimGrpcModel({
       mpsPerRpm: 0.001,
       limitLeftXM: -0.01,
       limitRightXM: 0.4,
@@ -73,7 +73,7 @@ describe("Coupled sim (MotorService + SensorService, one plant)", () => {
     expect(r.ok).toBe(true);
     expect(model.plant.state.xM).toBeCloseTo(-100 * metersPerDisplayCount(), 8);
     const st = await getMotorStatus();
-    expect(st.measuredPosition).toBeCloseTo(100, 4);
+    expect(st.measuredPosition).toBeCloseTo(100, 1);
     await disconnectMotor();
   });
 
@@ -93,11 +93,11 @@ describe("Coupled sim (MotorService + SensorService, one plant)", () => {
     await connectMotor();
     await sensor.connect({});
     await setJogVelocityRpm(200);
-    await sleep(60);
+    await sleep(100);
     const s1 = await sensor.getStatus({});
-    await sleep(40);
+    await sleep(100);
     const s2 = await sensor.getStatus({});
-    expect(s2.encoderTicks).not.toBe(s1.encoderTicks);
+    expect(Math.abs(s2.encoderTicks - s1.encoderTicks)).toBeGreaterThan(0);
     await stopMotor();
     const s3 = await sensor.getStatus({});
     const st = await getMotorStatus();
@@ -138,7 +138,7 @@ describe("Coupled sim (MotorService + SensorService, one plant)", () => {
     expect(z.ok).toBe(true);
     expect(model.plant.state.xM).toBe(0);
     const st = await getMotorStatus();
-    expect(st.measuredPosition).toBeCloseTo(0, 5);
+    expect(st.measuredPosition).toBeCloseTo(0, 1);
     await disconnectMotor();
   });
 

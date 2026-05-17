@@ -8,7 +8,10 @@ import {
   MIN_CALIBRATION_SAMPLES,
 } from "./twinCalibrationOptimize.js";
 import { summarizeReplayError } from "./tuningReplay.js";
-import { applyCoupledSimRuntimePatch } from "./tuningSimAdmin.js";
+import {
+  applyCoupledSimRuntimePatch,
+  coupledSimParametersToRuntimePatch,
+} from "./tuningSimAdmin.js";
 import {
   coupledSimPatchFromParams,
   DEFAULT_CALIBRATION_WEIGHTS,
@@ -93,23 +96,30 @@ function liveMetricsFromCompare(
   };
 }
 
-function recomputeReplayMetrics(): void {
+async function recomputeReplayMetrics(): Promise<void> {
   if (!parameters || window.length === 0) {
     metrics = { ...metrics, score: 0, meanAbsPositionCm: null, meanAbsEncoder: 0 };
     return;
   }
-  const s = summarizeReplayError(window, parameters, DEFAULT_CALIBRATION_WEIGHTS);
-  metrics = {
-    ...metrics,
-    score: s.score,
-    meanAbsPositionCm: s.meanAbsPositionCm,
-    meanAbsEncoder: s.meanAbsEncoder,
-  };
+  try {
+    const s = await summarizeReplayError(window, parameters, DEFAULT_CALIBRATION_WEIGHTS);
+    metrics = {
+      ...metrics,
+      score: s.score,
+      meanAbsPositionCm: s.meanAbsPositionCm,
+      meanAbsEncoder: s.meanAbsEncoder,
+    };
+  } catch (e) {
+    lastOptimizeError =
+      e instanceof Error ? e.message : "physics-sim replay failed (is physics-sim running?)";
+  }
 }
 
 async function applyParametersToSim(next: TwinCalibrationParams): Promise<void> {
   parameters = next;
-  const runtime = await deps.applyRuntimePatch(coupledSimPatchFromParams(next));
+  const runtime = await deps.applyRuntimePatch(
+    coupledSimParametersToRuntimePatch(coupledSimPatchFromParams(next)),
+  );
   if (!runtime.ok) {
     lastOptimizeError = runtime.error ?? "Sim runtime PATCH failed";
   }
@@ -119,18 +129,24 @@ async function runOptimizeStep(): Promise<void> {
   if (!active || !parameters || window.length < MIN_CALIBRATION_SAMPLES) return;
   if (!window.some((s) => s.realMotorCm != null)) return;
 
-  const fit = fitTwinCalibrationParams(window, parameters, DEFAULT_CALIBRATION_WEIGHTS);
-  lastOptimizeAt = Date.now();
-  if (!fit) {
-    lastOptimizeError = "Not enough motion/position data in window";
-    return;
-  }
+  try {
+    const fit = await fitTwinCalibrationParams(window, parameters, DEFAULT_CALIBRATION_WEIGHTS);
+    lastOptimizeAt = Date.now();
+    if (!fit) {
+      lastOptimizeError = "Not enough motion/position data in window";
+      return;
+    }
 
-  const blended = blendParams(parameters, fit.params, PARAM_BLEND_ALPHA);
-  await applyParametersToSim(blended);
-  updateCount += 1;
-  lastOptimizeError = null;
-  recomputeReplayMetrics();
+    const blended = blendParams(parameters, fit.params, PARAM_BLEND_ALPHA);
+    await applyParametersToSim(blended);
+    updateCount += 1;
+    lastOptimizeError = null;
+    await recomputeReplayMetrics();
+  } catch (e) {
+    lastOptimizeAt = Date.now();
+    lastOptimizeError =
+      e instanceof Error ? e.message : "Twin calibration optimize failed";
+  }
 }
 
 async function calibrationTick(): Promise<void> {
@@ -147,7 +163,8 @@ async function calibrationTick(): Promise<void> {
 
     const live = liveMetricsFromCompare(compare);
     metrics = { ...metrics, ...live };
-    recomputeReplayMetrics();
+    // Non-blocking: replay can be slow; errors are stored in lastOptimizeError.
+    void recomputeReplayMetrics();
 
     if (
       lastOptimizeAt === null ||
@@ -155,6 +172,9 @@ async function calibrationTick(): Promise<void> {
     ) {
       await runOptimizeStep();
     }
+  } catch (e) {
+    lastOptimizeError =
+      e instanceof Error ? e.message : "Live calibration tick failed";
   } finally {
     sampleInFlight = false;
   }
@@ -223,10 +243,10 @@ export async function stopLiveTwinCalibration(): Promise<LiveTwinCalibrationStat
   return getLiveTwinCalibrationStatus();
 }
 
-export function resetLiveTwinCalibrationWindow(): LiveTwinCalibrationStatus {
+export async function resetLiveTwinCalibrationWindow(): Promise<LiveTwinCalibrationStatus> {
   window = [];
   lastOptimizeAt = null;
-  recomputeReplayMetrics();
+  await recomputeReplayMetrics();
   return getLiveTwinCalibrationStatus();
 }
 
@@ -237,7 +257,7 @@ export async function resetLiveTwinCalibrationToBaseline(): Promise<LiveTwinCali
   window = [];
   updateCount = 0;
   lastOptimizeError = null;
-  recomputeReplayMetrics();
+  await recomputeReplayMetrics();
   return getLiveTwinCalibrationStatus();
 }
 

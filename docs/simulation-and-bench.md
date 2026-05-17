@@ -1,6 +1,6 @@
 # Simulation & bench mode — technical design
 
-This document extends the stack overview in [`TECHDOC.md`](./TECHDOC.md). It describes how to run the application **without physical motor or sensor hardware**, how to combine **live hardware with a coupled plant simulation** for comparison, **§2.2** (fake motor + fake sensor as **two facades over one plant**), how **`CartPendulumPlant`** maps onto gRPC (**§3.5**), and the **`@real-pendulum/cart-pendulum-sim`** package.
+This document extends the stack overview in [`TECHDOC.md`](./TECHDOC.md). It describes how to run the application **without physical motor or sensor hardware**, how to combine **live hardware with a coupled plant simulation** for comparison, **§2.2** (fake motor + fake sensor as **two facades over one plant**), how **`CartPendulumPlant`** maps onto gRPC (**§3.5**), and the **`@real-pendulum/physics-sim`** MuJoCo service.
 
 ---
 
@@ -83,7 +83,7 @@ In the coupled design, **fake motor** and **fake sensor** processes are **not** 
 
 ### 3.5 How physics drives fake motor and sensor gRPC
 
-When **`control-api`** is pointed at **fake** motor and/or sensor processes (instead of the DLL-backed motor service and USB-backed sensor service), the **same protobuf RPCs** apply, but **state comes from one coupled `CartPendulumPlant`** (from **`@real-pendulum/cart-pendulum-sim`**, **`cartPendulumPlant.ts`**) instead of Teknic and the Sensor Board. That plant integrates **cart motion** (velocity lagging jog commands) and **pendulum dynamics** (gravity **plus** cart horizontal acceleration coupling into \(\ddot\theta\)); see **§5** for the equations and TypeScript API.
+When **`control-api`** is pointed at **fake** motor and/or sensor processes (instead of the DLL-backed motor service and USB-backed sensor service), the **same protobuf RPCs** apply, but **state comes from one coupled `CartPendulumPlant`** (in-memory mirror synced via **`@real-pendulum/physics-sim/client`**) instead of Teknic and the Sensor Board. Physics runs in **MuJoCo** (`apps/physics-sim`); see **§5** for the HTTP API and plant mirror types.
 
 The **fake motor** and **fake sensor** handlers are **facades** over this one object (**§2.2**): **`GetStatus`** and **`GetSensorStatus`** must reflect the **same** step of physics.
 
@@ -100,11 +100,11 @@ The **fake motor** and **fake sensor** handlers are **facades** over this one ob
 
 1. Operator **jog** in the UI → **`control-api`** → **`SetJogVelocity`** (RPM) on the fake motor.  
 2. Fake maps **RPM → `vCmdMps`**, stores on **`plant.state.vCmdMps`**.  
-3. On each poll (or timer), fake computes **`dt`**, runs **`stepCartPendulum(plant, dt)`** → updates **`xM`**, **`vMps`**, **`θ`**, **`ω`**, encoder integral.  
+3. On each poll (or timer), fake computes **`dt`**, calls **`physics-sim` `POST /step`** → updates **`xM`**, **`vMps`**, **`θ`**, **`ω`**, encoder integral.  
 4. **`GetStatus`** returns **`xM` / `vMps`** (via counts + RPM fields expected by the UI).  
 5. **`GetSensorStatus`** returns **`encoderTicksInt(plant)`**, **limit booleans** from **`xM`** vs thresholds, **`connected`**.
 
-> **Time stepping (do not skip):** Physics must **not** advance only when a write RPC arrives. Between calls, integrate with real **`dt`** (wall clock or fixed sim clock): on each **`GetStatus`** and/or a **background timer**, compute **`dt`** since the last step and call **`stepCartPendulum(plant, dt)`**. A purely **request-driven** integrator (advancing only on `SetJogVelocity`) produces **inconsistent** motion and wrong coupling when the UI polls slowly.
+> **Time stepping (do not skip):** Physics must **not** advance only when a write RPC arrives. Between calls, integrate with real **`dt`** (wall clock or fixed sim clock): on each **`GetStatus`** and/or a **background timer**, compute **`dt`** since the last step and call **`physics-sim` `/step`**. A purely **request-driven** integrator (advancing only on `SetJogVelocity`) produces **inconsistent** motion and wrong coupling when the UI polls slowly.
 
 ```mermaid
 flowchart TB
@@ -142,7 +142,7 @@ Limit positions can mirror **recorded travel limits** (file-backed) or fixed dem
 
 #### Why one shared plant (reprise)
 
-This repeats **§2.2** for readers who jump straight here: if motor and sensor fakes used **independent** integrators, the rail UI and encoder would **drift apart** and limits would not match cart motion. **One plant**, two gRPC facades, keeps **rail position, encoder angle, and limit switches** aligned with the **same** `stepCartPendulum` call.
+This repeats **§2.2** for readers who jump straight here: if motor and sensor fakes used **independent** integrators, the rail UI and encoder would **drift apart** and limits would not match cart motion. **One plant**, two gRPC facades, keeps **rail position, encoder angle, and limit switches** aligned with the **same** MuJoCo step.
 
 #### Implementation pointers
 
@@ -195,49 +195,37 @@ Pick one pattern (or evolve from A → B):
 
 ---
 
-## 5. Coupled cart–pendulum plant (`@real-pendulum/cart-pendulum-sim`)
+## 5. Coupled cart–pendulum physics
 
-**Package:** `packages/cart-pendulum-sim`  
-**Role:** deterministic **physics step** usable from a fake motor process, fake sensor process, or a combined sim daemon—**not** wired into gRPC yet by default. **How this state is exposed on `motor.v1` / `sensor.v1` RPCs** is specified in **§3.5** above.
+**Runtime engine:** [`apps/physics-sim`](../apps/physics-sim/) — **Python + MuJoCo** HTTP service (default `http://127.0.0.1:58871`).  
+**TypeScript bridge:** `apps/physics-sim/client` (`physicsSimClient`, replay helpers).  
+**gRPC facades:** `apps/motor-service` coupled sim (§3.5) steps the live plant over HTTP on each status poll.
 
 ### 5.1 State & parameters
 
 - **State:** `xM` (cart position, m, +right), `vMps`, `thetaRad` (angle CCW from straight down), `omegaRps`, `vCmdMps` (commanded cart velocity from motor/jog model), `encoderTicksFloat` (continuous integral for quadrature ticks).
-- **Config:** `gravity`, `pendulumLengthM`, `cartVelocityTrackingPerSec` (α in ẍ = α·(v_cmd − v)), `angularDampingPerSec`, `maxInternalStepSec`. Encoder ticks/radian comes from **`config.pendulum.encoderCountsPerRevolution`** (shared with hardware).
+- **Config:** `gravity`, `pendulumLengthM`, `cartVelocityTrackingPerSec` (cart velocity actuator gain), `angularDampingPerSec` (hinge damping), `maxInternalStepSec`. Encoder ticks/radian comes from **`config.pendulum.encoderCountsPerRevolution`** (shared with hardware).
 
-### 5.2 Equations (implemented)
+### 5.2 MuJoCo model
 
-**Cart velocity tracking** (simple motor proxy):
+- Cart **slide** joint on +X; pendulum **hinge** on +Y (swing in X–Z).
+- Cart **velocity actuator** tracks `vCmdMps`; pendulum motion couples through rigid-body dynamics.
+- Tunables are patched at runtime via `PATCH /config` (see `apps/physics-sim/README.md`).
 
-\[
-\dot x = v,\qquad \dot v = \alpha\,(v_{\text{cmd}} - v)
-\]
+### 5.3 HTTP API (live plant + stateless replay)
 
-so cart acceleration \(a = \ddot x\) is non-zero during transients and couples into the pendulum.
+| Method | Path | Purpose |
+|--------|------|---------|
+| POST | `/step` | Advance live plant `{ dt, vCmdMps? }` |
+| POST | `/replay` | Stateless twin replay for calibration |
+| PATCH | `/config` | Update plant parameters |
 
-**Pendulum** (point mass at length \(L\); hanging pendulum, pivot on cart):
-
-\[
-\ddot\theta = -\frac{g}{L}\sin\theta - \frac{a}{L}\cos\theta - c\,\omega
-\]
-
-- Gravity: \(-(g/L)\sin\theta\)
-- **Cart coupling:** \(-(a/L)\cos\theta\)
-- Optional damping: \(-c\,\omega\)
-
-**Encoder:** \(\Delta\text{ticks} \approx \omega\,\Delta t \times\) `encoderTicksPerRadian` (default matches 2400 counts per revolution).
-
-### 5.3 Integration
-
-- **RK4** on \((x, v, \theta, \omega)\) with **substeps** bounded by `maxInternalStepSec` (default \(1/240\) s) for stability when the outer wall clock step is large (e.g. UI poll interval).
-
-### 5.4 Public API (TypeScript)
+### 5.4 TypeScript exports
 
 | Export | Purpose |
 |--------|---------|
-| `createCartPendulumPlant(config?, initial?)` | Construct plant + mutable `state`. |
-| `stepCartPendulum(plant, dtSec)` | Advance time; reads `plant.state.vCmdMps`. |
-| `encoderTicksInt(plant)` | Rounded ticks for protos / UI. |
+| `physicsSimStep`, `physicsSimReset`, `physicsSimReplay` | HTTP client to MuJoCo service |
+| `createCartPendulumPlant`, `encoderTicksInt` | In-memory state mirror (synced from physics-sim) |
 
 ### 5.5 Wiring checklist (implementers)
 
@@ -253,7 +241,7 @@ so cart acceleration \(a = \ddot x\) is non-zero during transients and couples i
 | Phase | Deliverable |
 |-------|-------------|
 | **1** | Documented scripts: fake motor (+ minimal status) sufficient for web smoke; CI runs control-api tests against fakes. |
-| **2** | Fake **sensor** + limit logic from sim `xM`; encoder from `cart-pendulum-sim`. |
+| **2** | Fake **sensor** + limit logic from sim `xM`; encoder from physics-sim. |
 | **3** | **Coupled** plant in one process; homing against sim limits end-to-end. |
 | **4** | **Bench:** second gRPC client pair + tRPC read (and optional guarded write) + web split view. |
 | **5** | Optional **replay / log comparison** and parameter tuning UI (L, g, damping) for education. |
@@ -262,7 +250,7 @@ so cart acceleration \(a = \ddot x\) is non-zero during transients and couples i
 
 ## 7. Testing strategy (cross-reference)
 
-- **Unit:** `npm test -w @real-pendulum/cart-pendulum-sim` — physics invariants and coupling regressions.
+- **Unit:** `pip install -r apps/physics-sim/requirements.txt && npm test -w @real-pendulum/physics-sim` (MuJoCo). Node tests auto-start physics-sim via Vitest global setup.
 - **Integration:** control-api against fake motor + fake sensor in CI (no DLL, no serial). See also [`testing-strategy.md`](./testing-strategy.md).
 
 ---
@@ -281,4 +269,4 @@ so cart acceleration \(a = \ddot x\) is non-zero during transients and couples i
 |------|--------|
 | 2026-05-12 | Review pass: §2 split + no branching logic; §2.2 dual facades; §3 intro; velocity table + E2E jog flow; time step callout; bench wording; §3.5 “Why” reprise. |
 | 2026-05-12 | Simulator gRPC URLs default to coupled sim host/port (**`SIM_COUPLED_GRPC_PORT`**); **`MOTOR_SIM_GRPC_URL`** optional. |
-| 2026-05-12 | Initial doc: simulation, bench mode, and `cart-pendulum-sim` integration notes. |
+| 2026-05-12 | Initial doc: simulation, bench mode, and physics-sim integration notes. |

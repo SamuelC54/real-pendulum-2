@@ -231,7 +231,7 @@ function RailPendulumLeg({
 
 /**
  * Linear rail (motor position in cm) plus a pendulum angle from the Sensor Board rotary
- * encoder ticks. In **twin** mode, shows separate **Hardware** and **Simulator** schematics.
+ * encoder ticks.
  */
 export const RailPendulumSchematic = memo(function RailPendulumSchematic() {
   const mode = useAtomValue(grpcBackendModeAtom);
@@ -272,18 +272,20 @@ export const RailPendulumSchematic = memo(function RailPendulumSchematic() {
           />
         </div>
         <p className="text-muted-foreground mt-3 text-[10px] leading-snug">
-          Twin mode: each schematic uses its own motor position, travel limits, and encoder. Hardware
-          is the physical boards; Simulator is the coupled plant gRPC backends.
+          Twin mode: hardware and simulator schematics. Open the Digital Twin tab for the large 3D
+          view.
         </p>
       </div>
     );
   }
 
+  const isSim = mode === "sim";
+
   return (
     <div className="w-full max-w-md border-t border-border pt-4">
       <RailPendulumLeg
-        legLabel="Rail & pendulum"
-        variant="hardware"
+        legLabel={isSim ? "Simulator" : "Rail & pendulum"}
+        variant={isSim ? "simulator" : "hardware"}
         motorConnected={motor.data?.connected ?? false}
         sensorConnected={sensor.data?.connected ?? false}
         pos={motor.data?.positionCm}
@@ -293,8 +295,9 @@ export const RailPendulumSchematic = memo(function RailPendulumSchematic() {
         ticks={sensor.data?.encoderTicks ?? 0}
       />
       <p className="text-muted-foreground mt-2 text-[10px] leading-snug">
-        Cart follows Teknic measured position (cm: left negative, right positive). Rod and bob
-        follow the quadrature encoder on the Sensor Board (same phase as the dial card).
+        {isSim
+          ? "2D schematic for the simulator. Use the Digital Twin tab for the large 3D view."
+          : "Cart follows Teknic measured position (cm: left negative, right positive). Rod and bob follow the quadrature encoder on the Sensor Board (same phase as the dial card)."}
       </p>
     </div>
   );

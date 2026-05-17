@@ -1,4 +1,7 @@
-import type { CoupledSimParameters } from "@real-pendulum/app-config/coupled-sim-parameters";
+import type {
+  CoupledSimParameters,
+  CoupledSimParametersPatch,
+} from "@real-pendulum/app-config/coupled-sim-parameters";
 
 /** Tunable coupled-sim fields (sim only — hardware is never modified). */
 export type TwinCalibrationParams = {
@@ -21,21 +24,14 @@ export const DEFAULT_CALIBRATION_WEIGHTS: TwinCalibrationWeights = {
 export function paramsFromCoupledSim(c: CoupledSimParameters): TwinCalibrationParams {
   return {
     mpsPerRpm: c.mpsPerRpm,
-    pendulumLengthM: c.plant.pendulumLengthM,
-    cartVelocityTrackingPerSec: c.plant.cartVelocityTrackingPerSec,
-    angularDampingPerSec: c.plant.angularDampingPerSec,
+    pendulumLengthM: c.pendulumLengthM,
+    cartVelocityTrackingPerSec: c.cartVelocityTrackingPerSec,
+    angularDampingPerSec: c.angularDampingPerSec,
   };
 }
 
-export function coupledSimPatchFromParams(p: TwinCalibrationParams) {
-  return {
-    mpsPerRpm: p.mpsPerRpm,
-    plant: {
-      pendulumLengthM: p.pendulumLengthM,
-      cartVelocityTrackingPerSec: p.cartVelocityTrackingPerSec,
-      angularDampingPerSec: p.angularDampingPerSec,
-    },
-  };
+export function coupledSimPatchFromParams(p: TwinCalibrationParams): CoupledSimParametersPatch {
+  return { ...p };
 }
 
 export type TwinCalibrationMetrics = {

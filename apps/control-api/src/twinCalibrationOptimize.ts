@@ -1,4 +1,3 @@
-import { nelderMead } from "fmin";
 import { replayCalibrationLoss, replayTwinTrace } from "./tuningReplay.js";
 import type { TuningSample } from "./tuningSample.js";
 import {
@@ -32,24 +31,6 @@ function clamp(params: TwinCalibrationParams): TwinCalibrationParams {
   };
 }
 
-function toVector(p: TwinCalibrationParams): number[] {
-  return [
-    Math.log10(Math.max(p.mpsPerRpm, BOUNDS.mpsPerRpm.min)),
-    p.cartVelocityTrackingPerSec,
-    p.pendulumLengthM,
-    p.angularDampingPerSec,
-  ];
-}
-
-function fromVector(v: number[]): TwinCalibrationParams {
-  return clamp({
-    mpsPerRpm: 10 ** v[0]!,
-    cartVelocityTrackingPerSec: v[1]!,
-    pendulumLengthM: v[2]!,
-    angularDampingPerSec: v[3]!,
-  });
-}
-
 function subsample(samples: TuningSample[], max: number): TuningSample[] {
   if (samples.length <= max) return samples;
   const out: TuningSample[] = [];
@@ -61,11 +42,11 @@ function subsample(samples: TuningSample[], max: number): TuningSample[] {
 }
 
 /** Scale mpsPerRpm so replayed cart travel matches recorded travel. */
-export function estimateMpsPerRpmFromTravel(
+export async function estimateMpsPerRpmFromTravel(
   samples: TuningSample[],
   params: TwinCalibrationParams,
-): number {
-  const trace = replayTwinTrace(samples, params);
+): Promise<number> {
+  const trace = await replayTwinTrace(samples, params);
   let realTravel = 0;
   let simTravel = 0;
   for (let i = 1; i < samples.length; i++) {
@@ -85,30 +66,42 @@ export function estimateMpsPerRpmFromTravel(
 }
 
 /**
- * Fit sim parameters on a telemetry window using Nelder–Mead (fmin) on replay loss.
+ * Fit sim parameters on a telemetry window using MuJoCo replay loss.
  * Robot commands are fixed; only the digital twin parameters change.
  */
-export function fitTwinCalibrationParams(
+export async function fitTwinCalibrationParams(
   samples: TuningSample[],
   start: TwinCalibrationParams,
   weights: TwinCalibrationWeights = DEFAULT_CALIBRATION_WEIGHTS,
-): { params: TwinCalibrationParams; score: number } | null {
+): Promise<{ params: TwinCalibrationParams; score: number } | null> {
   if (samples.length < MIN_CALIBRATION_SAMPLES) return null;
   if (!samples.some((s) => s.realMotorCm != null)) return null;
 
   const window = subsample(samples, MAX_SAMPLES_FOR_FIT);
-  let seed = clamp(start);
-  seed = { ...seed, mpsPerRpm: estimateMpsPerRpmFromTravel(window, seed) };
+  let current = clamp(start);
+  current = { ...current, mpsPerRpm: await estimateMpsPerRpmFromTravel(window, current) };
+  let score = await replayCalibrationLoss(window, current, weights);
 
-  const x0 = toVector(seed);
-  const result = nelderMead(
-    (v) => replayCalibrationLoss(window, fromVector(v), weights),
-    x0,
-    { maxIterations: 120, minErrorDelta: 1e-5 },
-  );
+  const scales = [0.82, 0.91, 1, 1.09, 1.18];
+  for (let pass = 0; pass < 6; pass++) {
+    for (const key of [
+      "mpsPerRpm",
+      "cartVelocityTrackingPerSec",
+      "pendulumLengthM",
+      "angularDampingPerSec",
+    ] as const) {
+      for (const scale of scales) {
+        const trial = clamp({ ...current, [key]: current[key] * scale });
+        const trialScore = await replayCalibrationLoss(window, trial, weights);
+        if (trialScore < score) {
+          score = trialScore;
+          current = trial;
+        }
+      }
+    }
+  }
 
-  const params = fromVector(result.x);
-  return { params, score: result.fx };
+  return { params: current, score };
 }
 
 export function blendParams(

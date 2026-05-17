@@ -10,16 +10,12 @@ import {
   configToForm,
   formToConfigSnippet,
   formToPatch,
+  formToTwinParams,
   summarizeTuningError,
+  twinParamsToForm,
   type SimConfigForm,
   type TuningSample,
 } from "@/lib/tuningMath";
-import {
-  applyOptimizedToForm,
-  MIN_OPTIMIZE_SAMPLES,
-  optimizeSimTuning,
-  type TuningParamChange,
-} from "@/lib/tuningOptimize";
 import { grpcBackendModeAtom } from "@/stores/grpcBackendMode";
 import { TUNING_COMPARE_POLL_IDLE_MS } from "@/stores/tuningSession";
 import { tuningErrorWeightsAtom, tuningProfileAtom } from "@/stores/tuningProfile";
@@ -57,7 +53,15 @@ function DeltaCell({ real, sim }: { real: number | null; sim: number | null }) {
   );
 }
 
-function OptimizedParamRow({ change }: { change: TuningParamChange }) {
+function OptimizedParamRow({
+  change,
+}: {
+  change: {
+    label: string;
+    currentValue: number;
+    optimizedValue: number;
+  };
+}) {
   return (
     <li className="border-border/60 border-b py-2 last:border-0 last:pb-0">
       <span className="font-mono text-xs font-medium">{change.label}</span>
@@ -157,15 +161,27 @@ export function TuningPage() {
 
   const summary = useMemo(() => summarizeTuningError(samples, weights), [samples, weights]);
 
-  const optimization = useMemo(() => {
-    if (!form || samples.length < MIN_OPTIMIZE_SAMPLES) return null;
-    return optimizeSimTuning(samples, form, weights);
-  }, [samples, form, weights]);
+  const MIN_OPTIMIZE_SAMPLES = 8;
+  const offlineFitParams = useMemo(() => (form ? formToTwinParams(form) : null), [form]);
+  const fitReplay = trpc.tuning.fitReplayOffline.useQuery(
+    {
+      samples,
+      params: offlineFitParams ?? {
+        mpsPerRpm: 0,
+        pendulumLengthM: 0.35,
+        cartVelocityTrackingPerSec: 12,
+        angularDampingPerSec: 0,
+      },
+      weights,
+    },
+    { enabled: offlineFitParams != null && samples.length >= MIN_OPTIMIZE_SAMPLES },
+  );
+  const optimization = fitReplay.data ?? null;
 
   const applyOptimizedProfile = useCallback(() => {
-    if (!form || !optimization) return;
-    setForm(applyOptimizedToForm(form, optimization.optimized));
-  }, [form, optimization]);
+    if (!optimization) return;
+    setForm(twinParamsToForm(optimization.optimized));
+  }, [optimization]);
 
   const live = compare.data;
   const realPos = live?.real.motor.positionCm;
@@ -348,13 +364,15 @@ export function TuningPage() {
         <Card className="p-4">
           <h2 className="text-sm font-medium">Replay validation (offline)</h2>
           <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
-            Optional: fit parameters from a saved recording in the browser (for debugging). Prefer live
+            Optional: fit parameters from a saved recording via MuJoCo replay (control-api). Prefer live
             calibration above during normal use.
           </p>
           {samples.length < MIN_OPTIMIZE_SAMPLES ? (
             <p className="text-muted-foreground mt-3 text-xs">
               Record at least {MIN_OPTIMIZE_SAMPLES} samples (a short jog is enough) to run optimization.
             </p>
+          ) : fitReplay.isFetching ? (
+            <p className="text-muted-foreground mt-3 text-xs">Running MuJoCo replay fit…</p>
           ) : optimization == null ? (
             <p className="text-muted-foreground mt-3 text-xs">
               Need cart position in the recording — jog or move while Record is on.
@@ -391,7 +409,7 @@ export function TuningPage() {
                 size="sm"
                 variant="secondary"
                 className="mt-3"
-                disabled={!form || optimization.changes.length === 0}
+                disabled={optimization.changes.length === 0}
                 onClick={applyOptimizedProfile}
               >
                 Apply optimized to form

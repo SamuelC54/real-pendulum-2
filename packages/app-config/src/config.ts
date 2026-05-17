@@ -65,6 +65,9 @@ export type AppConfig = {
   sim: {
     /** Coupled motor+sensor gRPC (default when sim URLs unset). */
     coupledGrpcPort: number;
+    /** MuJoCo physics HTTP service (`apps/physics-sim`). */
+    physicsSimHttpPort: number;
+    physicsSimHttpUrl?: string;
     motorSimGrpcUrl?: string;
     sensorSimGrpcUrl?: string;
     /** Plant tuning lives in `config/coupled-sim.parameters.json` (see `@real-pendulum/app-config/coupled-sim-parameters`). */
@@ -147,6 +150,8 @@ export const config: AppConfig = {
 
   sim: {
     coupledGrpcPort: 58870,
+    physicsSimHttpPort: 58871,
+    physicsSimHttpUrl: undefined,
     motorSimGrpcUrl: undefined,
     sensorSimGrpcUrl: undefined,
     limitLeftXM: -0.2,
@@ -185,6 +190,12 @@ export function sensorGrpcBaseUrl(): string {
 
 export function coupledSimGrpcBaseUrl(): string {
   return `http://127.0.0.1:${config.sim.coupledGrpcPort}`;
+}
+
+export function physicsSimHttpBaseUrl(): string {
+  const raw = config.sim.physicsSimHttpUrl?.trim();
+  if (raw) return raw.startsWith("http") ? raw : `http://${raw}`;
+  return `http://127.0.0.1:${config.sim.physicsSimHttpPort}`;
 }
 
 export function webControlApiBaseUrl(): string {

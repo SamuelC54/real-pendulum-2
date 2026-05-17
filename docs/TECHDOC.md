@@ -56,7 +56,7 @@ real-pendulum-2/
     web/                 # React + Vite + TypeScript + Tailwind + shadcn/ui
   packages/
     motor-proto/         # Buf-generated motor + sensor protobufs
-    cart-pendulum-sim/   # @real-pendulum/cart-pendulum-sim — coupled cart + pendulum step (simulation)
+    physics-sim/         # MuJoCo HTTP service + `@real-pendulum/physics-sim/client` TS bridge
   docs/
     TECHDOC.md
     simulation-and-bench.md
@@ -185,7 +185,7 @@ Avoid committing secrets; keep machine-specific paths in local config overrides 
 
 - **[Testing strategy](./testing-strategy.md)** — Vitest layers, Playwright E2E (`e2e/`, `scripts/e2e-stack.mjs`), CI jobs (Ubuntu + Windows native), and Teknic SDK notes for **`native-windows`**.
 - **[Hardware smoke checklist](./hardware-smoke-checklist.md)** — manual verification when motion or native code changes.
-- **[Simulation & bench](./simulation-and-bench.md)** — solo simulation, real+sim comparison, **`@real-pendulum/cart-pendulum-sim`**, **§3.5** (physics → fake motor/sensor gRPC), config sketches, roadmap.
+- **[Simulation & bench](./simulation-and-bench.md)** — solo simulation, real+sim comparison, **`physics-sim`**, **§3.5** (physics → fake motor/sensor gRPC), config sketches, roadmap.
 
 ---
 

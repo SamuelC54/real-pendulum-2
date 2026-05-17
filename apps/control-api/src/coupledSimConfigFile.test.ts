@@ -8,9 +8,13 @@ import {
   writeCoupledSimParametersFile,
 } from "@real-pendulum/app-config/coupled-sim-parameters";
 
-vi.mock("./tuningSimAdmin.js", () => ({
-  applyCoupledSimRuntimePatch: vi.fn(async () => ({ ok: true })),
-}));
+vi.mock("./tuningSimAdmin.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./tuningSimAdmin.js")>();
+  return {
+    ...actual,
+    applyCoupledSimRuntimePatch: vi.fn(async () => ({ ok: true })),
+  };
+});
 
 import { applyCoupledSimRuntimePatch } from "./tuningSimAdmin.js";
 import {
@@ -21,12 +25,9 @@ import {
 
 const sampleConfig: CoupledSimParameters = {
   mpsPerRpm: 5e-5,
-  plant: {
-    pendulumLengthM: 0.35,
-    cartVelocityTrackingPerSec: 12,
-    angularDampingPerSec: 0.04,
-    maxInternalStepSec: 1 / 240,
-  },
+  pendulumLengthM: 0.35,
+  cartVelocityTrackingPerSec: 12,
+  angularDampingPerSec: 0.04,
 };
 
 describe("coupledSimConfigFile", () => {
@@ -60,20 +61,22 @@ describe("coupledSimConfigFile", () => {
 
   it("patch merges into JSON and calls runtime apply", async () => {
     writeCoupledSimParametersFile(sampleConfig, tmpDir);
-    const r = await patchCoupledSimConfigFile({ plant: { pendulumLengthM: 0.5 } }, tmpDir);
+    const r = await patchCoupledSimConfigFile({ pendulumLengthM: 0.5 }, tmpDir);
     expect(r.ok).toBe(true);
-    expect(r.config?.plant.pendulumLengthM).toBe(0.5);
+    expect(r.config?.pendulumLengthM).toBe(0.5);
     expect(r.runtimeApplied).toBe(true);
-    expect(applyCoupledSimRuntimePatch).toHaveBeenCalledWith({ plant: { pendulumLengthM: 0.5 } });
+    expect(applyCoupledSimRuntimePatch).toHaveBeenCalledWith({
+      plant: { pendulumLengthM: 0.5 },
+    });
     const onDisk = JSON.parse(fs.readFileSync(parametersPath, "utf8")) as {
-      plant: { pendulumLengthM: number };
+      pendulumLengthM: number;
     };
-    expect(onDisk.plant.pendulumLengthM).toBe(0.5);
+    expect(onDisk.pendulumLengthM).toBe(0.5);
   });
 
   it("rejects invalid JSON values", () => {
     fs.mkdirSync(path.dirname(parametersPath), { recursive: true });
-    fs.writeFileSync(parametersPath, JSON.stringify({ mpsPerRpm: "not-a-number", plant: {} }));
+    fs.writeFileSync(parametersPath, JSON.stringify({ mpsPerRpm: "not-a-number" }));
     const r = getCoupledSimConfigFromFile(tmpDir);
     expect(r.ok).toBe(false);
     expect(r.error).toMatch(/mpsPerRpm/i);

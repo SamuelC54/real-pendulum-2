@@ -23,7 +23,7 @@
     "@connectrpc/connect": "^2.1.0",
     "@connectrpc/connect-node": "^2.1.0",
     "@real-pendulum/app-config": "*",
-    "@real-pendulum/cart-pendulum-sim": "^0.0.1",
+    "@real-pendulum/physics-sim": "*",
     "@real-pendulum/motor-proto": "*",
     "@real-pendulum/motor-service": "*",
     "@real-pendulum/sensor-service": "*",
