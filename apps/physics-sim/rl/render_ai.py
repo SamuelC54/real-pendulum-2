@@ -80,11 +80,11 @@ def main() -> None:
             if done:
                 obs, _ = env.reset()
             if step % 500 == 0:
-                raw = info.get("raw_obs")
+                raw = info.get("raw_state")
                 rpm = float(info.get("rpm", 0.0))
                 print(
                     f"  step {step}: reward={reward:.3f} rpm={rpm:.0f} "
-                    f"raw_obs={np.round(raw, 4) if raw is not None else '?'}"
+                    f"raw_state={np.round(raw, 4) if raw is not None else '?'}"
                 )
     finally:
         env.close()

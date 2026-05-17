@@ -11,6 +11,7 @@ Example::
     cd apps/physics-sim
     pip install -r requirements-rl.txt
     python -m rl.train --total-timesteps 500000 --save-every 10000
+    python -m rl.train --curriculum auto --domain-randomization
 """
 
 from __future__ import annotations
@@ -24,8 +25,59 @@ from stable_baselines3.common.callbacks import BaseCallback, CheckpointCallback
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import VecNormalize
 
-from rl.env import CartPendulumRpmEnv, EnvConfig
+from rl.env import (
+    CartPendulumRpmEnv,
+    CurriculumConfig,
+    DomainRandomizationConfig,
+    EnvConfig,
+)
 from rl.paths import GEN_DIR, generation_dir, latest_generation
+
+# Fraction of --total-timesteps at which curriculum advances (balance → recovery → swing-up).
+_AUTO_CURRICULUM_FRACTIONS = (0.0, 0.2, 0.45)
+_AUTO_CURRICULUM_PHASES = ("balance", "recovery", "swing_up")
+
+
+class CurriculumCallback(BaseCallback):
+    """Advance reset distribution on all parallel envs during training."""
+
+    def __init__(
+        self,
+        total_timesteps: int,
+        fractions: tuple[float, ...] = _AUTO_CURRICULUM_FRACTIONS,
+        phases: tuple[str, ...] = _AUTO_CURRICULUM_PHASES,
+        verbose: int = 0,
+    ) -> None:
+        super().__init__(verbose)
+        if len(fractions) != len(phases):
+            raise ValueError("curriculum fractions and phases must have the same length")
+        self.total_timesteps = max(1, total_timesteps)
+        self.fractions = fractions
+        self.phases = phases
+        self._current_phase: str | None = None
+
+    def _phase_for_timestep(self, timestep: int) -> str:
+        progress = min(1.0, timestep / self.total_timesteps)
+        idx = 0
+        for i, frac in enumerate(self.fractions):
+            if progress >= frac:
+                idx = i
+        return self.phases[min(idx, len(self.phases) - 1)]
+
+    def _on_training_start(self) -> None:
+        self._apply_phase(self._phase_for_timestep(self.num_timesteps))
+
+    def _on_step(self) -> bool:
+        phase = self._phase_for_timestep(self.num_timesteps)
+        if phase != self._current_phase:
+            self._apply_phase(phase)
+        return True
+
+    def _apply_phase(self, phase: str) -> None:
+        self.training_env.env_method("set_curriculum_phase", phase)
+        self._current_phase = phase
+        if self.verbose:
+            print(f"[rl] curriculum phase → {phase} @ {self.num_timesteps} steps")
 
 
 class GenerationCallback(BaseCallback):
@@ -58,6 +110,7 @@ class GenerationCallback(BaseCallback):
             "algorithm": "PPO",
             "normalized": isinstance(venv, VecNormalize),
             "action_space": "normalized",
+            "observation_dim": 5,
         }
         (dest / "meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
         if self.verbose:
@@ -66,8 +119,26 @@ class GenerationCallback(BaseCallback):
         return True
 
 
-def _build_env(cfg: EnvConfig, seed: int) -> CartPendulumRpmEnv:
+def _build_env(cfg: EnvConfig) -> CartPendulumRpmEnv:
     return CartPendulumRpmEnv(config=cfg)
+
+
+def _env_config_from_args(args: argparse.Namespace) -> EnvConfig:
+    curriculum = CurriculumConfig(enabled=False, phase="swing_up")
+    if args.curriculum != "off":
+        curriculum.enabled = True
+        if args.curriculum == "auto":
+            curriculum.phase = "swing_up"
+        elif args.curriculum == "mixed":
+            curriculum.phase = "mixed"
+            curriculum.balance_weight = 0.2
+            curriculum.recovery_weight = 0.3
+            curriculum.swing_up_weight = 0.5
+        else:
+            curriculum.phase = args.curriculum
+
+    domain_randomization = DomainRandomizationConfig(enabled=args.domain_randomization)
+    return EnvConfig(curriculum=curriculum, domain_randomization=domain_randomization)
 
 
 def main() -> None:
@@ -78,16 +149,26 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--no-normalize", action="store_true")
     parser.add_argument("--resume", type=int, default=None, help="Continue from rl/gen/<n>/model.zip")
+    parser.add_argument(
+        "--curriculum",
+        choices=("off", "auto", "mixed", "balance", "recovery", "swing_up", "hanging"),
+        default="auto",
+        help="Reset distribution: auto schedules phases; off uses hanging default",
+    )
+    parser.add_argument(
+        "--domain-randomization",
+        action="store_true",
+        help="Randomize plant/motor scales each episode",
+    )
     args = parser.parse_args()
 
-    cfg = EnvConfig()
+    cfg = _env_config_from_args(args)
     GEN_DIR.mkdir(parents=True, exist_ok=True)
     (GEN_DIR / "_latest").mkdir(parents=True, exist_ok=True)
 
     def make_env() -> CartPendulumRpmEnv:
-        return _build_env(cfg, args.seed)
+        return _build_env(cfg)
 
-    # Parallel envs collect rollouts faster; VecNormalize stabilizes PPO inputs/rewards.
     vec = make_vec_env(make_env, n_envs=args.n_envs, seed=args.seed)
     if not args.no_normalize:
         vec = VecNormalize(vec, norm_obs=True, norm_reward=True, clip_obs=5.0)
@@ -113,7 +194,6 @@ def main() -> None:
             ent_coef=0.05,
         )
 
-    # _latest: SB3 rolling backup; GenerationCallback: numbered gen/ folders for the app.
     checkpoint = CheckpointCallback(
         save_freq=max(args.save_every // args.n_envs, 1),
         save_path=str(GEN_DIR / "_latest"),
@@ -121,7 +201,7 @@ def main() -> None:
         save_replay_buffer=False,
         save_vecnormalize=True,
     )
-    callbacks = [
+    callbacks: list[BaseCallback] = [
         checkpoint,
         GenerationCallback(
             save_every=args.save_every,
@@ -129,6 +209,10 @@ def main() -> None:
             verbose=1,
         ),
     ]
+    if cfg.curriculum.enabled and args.curriculum == "auto":
+        callbacks.append(
+            CurriculumCallback(total_timesteps=args.total_timesteps, verbose=1),
+        )
 
     model.learn(total_timesteps=args.total_timesteps, callback=callbacks, progress_bar=True)
 
@@ -138,6 +222,8 @@ def main() -> None:
         meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.is_file() else {}
         meta["finished"] = True
         meta["total_timesteps"] = args.total_timesteps
+        meta["curriculum"] = args.curriculum
+        meta["domain_randomization"] = args.domain_randomization
         meta_path.write_text(json.dumps(meta, indent=2), encoding="utf-8")
         print(f"[rl] done — latest generation: {final_gen}")
 

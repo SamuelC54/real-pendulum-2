@@ -25,10 +25,12 @@ from cart_pendulum.plant import CartPendulumPlant
 from .env import (
     CartPendulumRpmEnv,
     EnvConfig,
-    is_plant_healthy,
-    observation_from_plant,
-    observation_from_raw,
-    rpm_from_policy_action,
+    is_balanced,
+    is_balanced_from_logged_state,
+    parse_normalized_action,
+    policy_observation_from_logged_state,
+    policy_observation_from_plant,
+    rpm_from_normalized_action,
 )
 from .paths import (
     generation_dir,
@@ -125,7 +127,6 @@ class RlService:
         self._infer_thread: threading.Thread | None = None
         self._infer_model: PPO | None = None
         self._infer_venv: VecNormalize | None = None
-        self._infer_action_space: str | None = None
         self._infer_cfg = EnvConfig()
 
     def bind_plant(self, plant: CartPendulumPlant, plant_lock: threading.Lock) -> None:
@@ -149,7 +150,6 @@ class RlService:
     def _release_policy(self) -> None:
         self._infer_model = None
         self._infer_venv = None
-        self._infer_action_space = None
 
     def _load_policy(self, generation: int) -> None:
         path = generation_model_path(generation)
@@ -158,7 +158,6 @@ class RlService:
 
         vec_path = generation_dir(generation) / "vecnormalize.pkl"
         meta = load_meta(generation)
-        self._infer_action_space = meta.get("action_space")
         self._infer_cfg = EnvConfig()
 
         model = PPO.load(str(path))
@@ -177,25 +176,24 @@ class RlService:
         self._infer_model = model
         self._infer_venv = infer_venv
 
-    def predict(self, raw_observation: list[float] | np.ndarray) -> dict[str, float]:
-        """Run loaded policy on physical [x_m, θ, v_mps, ω]; used for hardware inference."""
+    def predict(self, logged_state: list[float] | np.ndarray) -> dict[str, float]:
+        """Run loaded policy on logged ``[x_m, θ, v_mps, ω]`` (hardware inference)."""
         with self._lock:
             if self._infer_model is None:
                 raise RuntimeError("No policy loaded")
             model = self._infer_model
             infer_venv = self._infer_venv
-            action_space = self._infer_action_space
             cfg = self._infer_cfg
 
-        raw = np.asarray(raw_observation, dtype=np.float32).reshape(4)
-        obs = observation_from_raw(raw, cfg).reshape(1, -1)
+        raw = np.asarray(logged_state, dtype=np.float32).reshape(4)
+        obs = policy_observation_from_logged_state(raw, cfg).reshape(1, -1)
         if infer_venv is not None:
             obs = infer_venv.normalize_obs(obs)
         action, _ = model.predict(obs, deterministic=True)
-        raw_action = float(np.asarray(action, dtype=np.float64).reshape(-1)[0])
-        rpm = rpm_from_policy_action(raw_action, cfg, action_space=action_space)
+        cmd = parse_normalized_action(action)
+        rpm = rpm_from_normalized_action(cmd, cfg)
         v_cmd = -rpm * cfg.mps_per_rpm
-        reward = 1.0 if is_plant_healthy_from_raw(raw, cfg) else 0.0
+        reward = 1.0 if is_balanced_from_logged_state(raw, cfg) else 0.0
         with self._lock:
             if self._inference.target == "hardware" and self._inference.active:
                 self._inference.rpm = rpm
@@ -337,7 +335,6 @@ class RlService:
 
         model = self._infer_model
         infer_venv = self._infer_venv
-        action_space = self._infer_action_space
         cfg = self._infer_cfg
         assert model is not None
 
@@ -347,20 +344,16 @@ class RlService:
                     with self._plant_lock:
                         plant = self._plant
                         assert plant is not None
-                        obs = observation_from_plant(plant, cfg)
+                        obs = policy_observation_from_plant(plant, cfg)
                         obs_in = obs.reshape(1, -1)
                         if infer_venv is not None:
                             obs_in = infer_venv.normalize_obs(obs_in)
                         action, _ = model.predict(obs_in, deterministic=True)
-                        raw_action = float(np.asarray(action, dtype=np.float64).reshape(-1)[0])
-                        rpm = rpm_from_policy_action(
-                            raw_action,
-                            cfg,
-                            action_space=action_space,
-                        )
+                        cmd = parse_normalized_action(action)
+                        rpm = rpm_from_normalized_action(cmd, cfg)
                         plant.state.v_cmd_mps = -rpm * cfg.mps_per_rpm
                         plant.step(cfg.dt_sec)
-                        reward = 1.0 if is_plant_healthy(plant, cfg) else 0.0
+                        reward = 1.0 if is_balanced(plant, cfg) else 0.0
                     with self._lock:
                         self._inference.rpm = rpm
                         self._inference.v_cmd_mps = plant.state.v_cmd_mps
@@ -395,19 +388,6 @@ class RlService:
             if was_hardware or self._infer_model is not None:
                 self._release_policy()
         return self.status()
-
-
-def is_plant_healthy_from_raw(raw: np.ndarray, cfg: EnvConfig) -> bool:
-    """Upright check from physical observation [x_m, θ, v_mps, ω] (hardware path)."""
-    if not np.isfinite(raw).all():
-        return False
-    x_m = float(raw[0])
-    theta_rad = float(raw[1])
-    if abs(x_m) > cfg.x_limit_m:
-        return False
-    from .env import _pole_angle_error
-
-    return abs(_pole_angle_error(theta_rad)) < cfg.healthy_angle_rad
 
 
 rl_service = RlService()

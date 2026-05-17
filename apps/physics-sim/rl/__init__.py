@@ -9,6 +9,36 @@ Package layout:
   render_ai.py — Offline MuJoCo viewer for a saved generation
 """
 
-from .env import CartPendulumRpmEnv, EnvConfig, RewardConfig
+from .env import (
+    CartPendulumRpmEnv,
+    CurriculumConfig,
+    DomainRandomizationConfig,
+    EnvConfig,
+    RewardBreakdown,
+    RewardConfig,
+    is_balanced,
+    is_balanced_from_logged_state,
+    is_state_valid,
+    policy_observation_from_logged_state,
+    policy_observation_from_plant,
+    raw_state_from_plant,
+    parse_normalized_action,
+    rpm_from_normalized_action,
+)
 
-__all__ = ["CartPendulumRpmEnv", "EnvConfig", "RewardConfig"]
+__all__ = [
+    "CartPendulumRpmEnv",
+    "CurriculumConfig",
+    "DomainRandomizationConfig",
+    "EnvConfig",
+    "RewardBreakdown",
+    "RewardConfig",
+    "is_balanced",
+    "is_balanced_from_logged_state",
+    "is_state_valid",
+    "policy_observation_from_logged_state",
+    "policy_observation_from_plant",
+    "raw_state_from_plant",
+    "parse_normalized_action",
+    "rpm_from_normalized_action",
+]

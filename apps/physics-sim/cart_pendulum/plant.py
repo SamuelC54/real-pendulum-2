@@ -71,6 +71,11 @@ class CartPendulumPlant:
     def __post_init__(self) -> None:
         self._rebuild_model()
 
+    @property
+    def mujoco_handles(self) -> tuple[mujoco.MjModel, mujoco.MjData]:
+        """Public access for viewers (avoids reaching into ``_model`` / ``_data``)."""
+        return self._model, self._data
+
     def _rebuild_model(self) -> None:
         self._model = mujoco.MjModel.from_xml_path(str(_MODEL_PATH))
         self._data = mujoco.MjData(self._model)
