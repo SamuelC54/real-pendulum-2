@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { estimateMpsPerRpmFromTravel, fitTwinCalibrationParams } from "./twinCalibrationOptimize.js";
+import { fitTwinCalibrationParams } from "./twinCalibrationOptimize.js";
 import { replayTwinTrace } from "./tuningReplay.js";
 import type { TuningSample } from "./tuningSample.js";
 import type { TwinCalibrationParams } from "./twinCalibrationTypes.js";
@@ -35,18 +35,13 @@ async function synthesizeSamples(
 }
 
 describe("twinCalibrationOptimize", () => {
-  it("estimateMpsPerRpmFromTravel scales toward true speed", async () => {
-    const samples = await synthesizeSamples(trueParams, 20, 60);
-    const wrong = { ...trueParams, mpsPerRpm: 0.00004 };
-    const est = await estimateMpsPerRpmFromTravel(samples, wrong);
-    expect(est).toBeGreaterThan(wrong.mpsPerRpm);
-    expect(est).toBeCloseTo(trueParams.mpsPerRpm, 4);
-  });
-
   it("fitTwinCalibrationParams improves replay score", async () => {
     const samples = await synthesizeSamples(trueParams, 24, 80);
     const guess = { ...trueParams, mpsPerRpm: 0.00004 };
-    const fit = await fitTwinCalibrationParams(samples, guess);
+    const fit = await fitTwinCalibrationParams(samples, guess, {
+      position: 1,
+      encoder: 0.5,
+    });
     expect(fit).not.toBeNull();
     expect(fit!.score).toBeLessThan(0.5);
   });

@@ -4,7 +4,9 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PHYSICS_SIM_DIR = path.resolve(__dirname, "../apps/physics-sim");
-const PHYSICS_SIM_URL = process.env.PHYSICS_SIM_URL?.trim() || "http://127.0.0.1:58871";
+/** Isolated port so dev physics-sim on 58871 does not shadow test server code. */
+const TEST_PORT = 58971;
+const PHYSICS_SIM_URL = `http://127.0.0.1:${TEST_PORT}`;
 
 let proc: ChildProcess | null = null;
 
@@ -17,21 +19,37 @@ async function physicsSimHealthy(): Promise<boolean> {
   }
 }
 
-async function waitForHealth(timeoutMs: number): Promise<void> {
+async function physicsSimSupportsCalibrate(): Promise<boolean> {
+  try {
+    const res = await fetch(`${PHYSICS_SIM_URL}/calibrate`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ samples: [], start: {} }),
+      signal: AbortSignal.timeout(2000),
+    });
+    return res.status !== 404;
+  } catch {
+    return false;
+  }
+}
+
+async function waitForReady(timeoutMs: number): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    if (await physicsSimHealthy()) return;
+    if ((await physicsSimHealthy()) && (await physicsSimSupportsCalibrate())) return;
     await new Promise((r) => setTimeout(r, 100));
   }
   throw new Error(
-    "physics-sim did not become healthy. Install deps: pip install -r apps/physics-sim/requirements.txt",
+    "physics-sim did not become ready. Install deps: pip install -r apps/physics-sim/requirements.txt",
   );
 }
 
 export async function setup(): Promise<void> {
-  if (await physicsSimHealthy()) return;
+  process.env.PHYSICS_SIM_URL = PHYSICS_SIM_URL;
 
-  proc = spawn("python", ["-m", "cart_pendulum.server", "--port", "58871"], {
+  if ((await physicsSimHealthy()) && (await physicsSimSupportsCalibrate())) return;
+
+  proc = spawn("python", ["-m", "cart_pendulum.server", "--port", String(TEST_PORT)], {
     cwd: PHYSICS_SIM_DIR,
     stdio: "pipe",
     shell: process.platform === "win32",
@@ -41,7 +59,7 @@ export async function setup(): Promise<void> {
     console.error("[vitest-physics-sim] failed to spawn:", err.message);
   });
 
-  await waitForHealth(15_000);
+  await waitForReady(15_000);
 }
 
 export async function teardown(): Promise<void> {

@@ -14,6 +14,9 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/**/*.test.ts"],
+    env: {
+      PHYSICS_SIM_URL: "http://127.0.0.1:58971",
+    },
     globalSetup: ["../../scripts/vitest-physics-sim.ts"],
   },
 });

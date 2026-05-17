@@ -86,3 +86,21 @@ export async function physicsSimReplay(options: {
   });
   return body.trace;
 }
+
+export type PhysicsSimCalibrationFit = {
+  params: Record<string, number>;
+  score: number;
+};
+
+export async function physicsSimCalibrate(options: {
+  samples: unknown[];
+  start: Record<string, number>;
+  weights?: { position: number; encoder: number };
+  defaults?: Record<string, number>;
+}): Promise<PhysicsSimCalibrationFit | null> {
+  const body = await physicsFetch<{ fit: PhysicsSimCalibrationFit | null }>("/calibrate", {
+    method: "POST",
+    body: JSON.stringify(options),
+  });
+  return body.fit;
+}

@@ -11,6 +11,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from .plant import CartPendulumPlant, PlantConfig, PlantState
+from .calibrate import fit_twin_calibration_params
 from .replay import replay_twin_trace
 
 _live_plant = CartPendulumPlant()
@@ -137,6 +138,20 @@ class PhysicsSimHandler(BaseHTTPRequestHandler):
                     ]
                 },
             )
+            return
+
+        if path == "/calibrate":
+            try:
+                samples = body.get("samples") or []
+                start = body.get("start") or body.get("params") or {}
+                weights = body.get("weights") or {"position": 1.0, "encoder": 0.5}
+                defaults = {**_replay_defaults, **(body.get("defaults") or {})}
+                fit = fit_twin_calibration_params(samples, start, weights, defaults)
+            except Exception as e:
+                traceback.print_exc()
+                _json_response(self, 500, {"error": str(e)})
+                return
+            _json_response(self, 200, {"fit": fit})
             return
 
         _json_response(self, 404, {"error": "not found"})

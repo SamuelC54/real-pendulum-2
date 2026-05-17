@@ -33,5 +33,6 @@ python -m cart_pendulum.server --port 58871
 | POST | `/reset` | `{ "initial"?, "config"? }` — reset live plant |
 | PATCH | `/config` | Patch plant parameters |
 | POST | `/replay` | Stateless replay for calibration (`samples`, `params`, `defaults`) |
+| POST | `/calibrate` | SciPy parameter fit (`samples`, `start`, `weights?`, `defaults?`) → `{ fit }` |
 
 The **live** plant is a singleton in the server process. **Replay** builds a fresh plant per request.
