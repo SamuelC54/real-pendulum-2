@@ -191,7 +191,17 @@ class PhysicsSimHandler(BaseHTTPRequestHandler):
                     if gen is None:
                         _json_response(self, 400, {"error": "generation required"})
                         return
-                    out = rl_service.start_inference(int(gen))
+                    target = body.get("target", "sim")
+                    if target == "hardware":
+                        out = rl_service.load_policy(int(gen), target="hardware")
+                    else:
+                        out = rl_service.start_inference(int(gen))
+                elif path == "/rl/inference/predict":
+                    obs = body.get("observation")
+                    if not isinstance(obs, list) or len(obs) != 4:
+                        _json_response(self, 400, {"error": "observation must be [x_m, theta, vx, omega]"})
+                        return
+                    out = rl_service.predict(obs)
                 elif path == "/rl/inference/stop":
                     out = rl_service.stop_inference()
                 else:

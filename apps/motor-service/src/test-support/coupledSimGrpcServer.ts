@@ -263,7 +263,7 @@ async function advancePhysics(model: CoupledSimGrpcModel, lastMs: { t: number })
 
   try {
     const rl = await physicsSimRlStatus();
-    if (rl.inference.active) {
+    if (rl.inference.active && rl.inference.target === "sim") {
       // RL thread steps the HTTP plant; we only mirror state + show commanded RPM.
       const payload = await physicsSimGetState();
       applyPhysicsPayloadToPlant(model.plant, payload);

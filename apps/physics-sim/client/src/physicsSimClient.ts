@@ -102,6 +102,7 @@ export type PhysicsSimRlStatus = {
   };
   inference: {
     active: boolean;
+    target: "sim" | "hardware" | null;
     generation: number | null;
     rpm: number;
     vCmdMps: number;
@@ -132,10 +133,28 @@ export async function physicsSimRlTrainStop(): Promise<PhysicsSimRlStatus> {
   return physicsFetch<PhysicsSimRlStatus>("/rl/train/stop", { method: "POST", body: "{}" });
 }
 
-export async function physicsSimRlInferenceStart(generation: number): Promise<PhysicsSimRlStatus> {
+export async function physicsSimRlInferenceStart(
+  generation: number,
+  options?: { target?: "sim" | "hardware" },
+): Promise<PhysicsSimRlStatus> {
   return physicsFetch<PhysicsSimRlStatus>("/rl/inference/start", {
     method: "POST",
-    body: JSON.stringify({ generation }),
+    body: JSON.stringify({ generation, target: options?.target ?? "sim" }),
+  });
+}
+
+export type PhysicsSimRlPredictResult = {
+  rpm: number;
+  vCmdMps: number;
+  lastReward: number;
+};
+
+export async function physicsSimRlInferencePredict(
+  observation: [number, number, number, number],
+): Promise<PhysicsSimRlPredictResult> {
+  return physicsFetch<PhysicsSimRlPredictResult>("/rl/inference/predict", {
+    method: "POST",
+    body: JSON.stringify({ observation }),
   });
 }
 

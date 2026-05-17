@@ -62,13 +62,21 @@ def raw_observation(plant: CartPendulumPlant) -> np.ndarray:
     )
 
 
+def observation_from_raw(
+    raw: np.ndarray,
+    config: EnvConfig | None = None,
+) -> np.ndarray:
+    """Policy input from physical [x_m, θ, v_mps, ω] (hardware or logged traces)."""
+    cfg = config or EnvConfig()
+    return _normalize_obs(np.asarray(raw, dtype=np.float32), cfg.obs_scale)
+
+
 def observation_from_plant(
     plant: CartPendulumPlant,
     config: EnvConfig | None = None,
 ) -> np.ndarray:
     """Policy input: normalized MuJoCo-style qpos + qvel."""
-    cfg = config or EnvConfig()
-    return _normalize_obs(raw_observation(plant), cfg.obs_scale)
+    return observation_from_raw(raw_observation(plant), config)
 
 
 def _normalize_obs(raw: np.ndarray, scale: tuple[float, ...]) -> np.ndarray:

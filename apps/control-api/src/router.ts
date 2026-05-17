@@ -709,8 +709,13 @@ export const appRouter = t.router({
     }),
     inference: t.router({
       start: baseProcedure
-        .input(z.object({ generation: z.number().int().nonnegative() }))
-        .mutation(async ({ input }) => startRlInference(input.generation)),
+        .input(
+          z.object({
+            generation: z.number().int().nonnegative(),
+            target: z.enum(["sim", "hardware"]).default("sim"),
+          }),
+        )
+        .mutation(async ({ input }) => startRlInference(input.generation, input.target)),
       stop: baseProcedure.mutation(() => stopRlInference()),
     }),
   }),

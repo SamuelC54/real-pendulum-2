@@ -9,6 +9,7 @@ export {
   physicsSimCalibrate,
   physicsSimGetState,
   physicsSimHealthCheck,
+  physicsSimRlInferencePredict,
   physicsSimRlInferenceStart,
   physicsSimRlInferenceStop,
   physicsSimRlStatus,
@@ -20,6 +21,7 @@ export {
   physicsSimStep,
   type PhysicsReplayPoint,
   type PhysicsSimCalibrationFit,
+  type PhysicsSimRlPredictResult,
   type PhysicsSimRlStatus,
   type PhysicsSimStatePayload,
 } from "./physicsSimClient.js";

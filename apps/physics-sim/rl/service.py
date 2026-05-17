@@ -2,10 +2,8 @@
 Background PPO training and live-plant inference for the physics-sim HTTP API.
 
 Training spins up its own vectorized Gym envs (separate from the live twin plant).
-Inference runs on the *shared* ``CartPendulumPlant`` used by ``/step`` — same MuJoCo
-model as manual jog, but actions come from a saved policy instead of the client.
-
-Endpoints are wired in ``cart_pendulum/server.py`` (``rl_service`` singleton).
+Sim inference steps the shared ``CartPendulumPlant`` at 30 Hz. Hardware inference only
+loads the policy here; control-api polls sensors and calls :meth:`RlService.predict`.
 """
 
 from __future__ import annotations
@@ -14,7 +12,7 @@ import threading
 import traceback
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 from stable_baselines3 import PPO
@@ -29,6 +27,7 @@ from .env import (
     EnvConfig,
     is_plant_healthy,
     observation_from_plant,
+    observation_from_raw,
     rpm_from_policy_action,
 )
 from .paths import (
@@ -41,6 +40,7 @@ from .paths import (
 from .train import GenerationCallback
 
 _MAX_METRICS = 400
+InferenceTarget = Literal["sim", "hardware"]
 
 
 @dataclass
@@ -62,6 +62,7 @@ class TrainingStatus:
 @dataclass
 class InferenceStatus:
     active: bool = False
+    target: InferenceTarget | None = None
     generation: int | None = None
     rpm: float = 0.0
     v_cmd_mps: float = 0.0
@@ -124,10 +125,11 @@ class RlService:
         self._infer_thread: threading.Thread | None = None
         self._infer_model: PPO | None = None
         self._infer_venv: VecNormalize | None = None
+        self._infer_action_space: str | None = None
         self._infer_cfg = EnvConfig()
 
     def bind_plant(self, plant: CartPendulumPlant, plant_lock: threading.Lock) -> None:
-        """Called once at server startup so inference can drive the live twin."""
+        """Called once at server startup so sim inference can drive the live twin."""
         self._plant = plant
         self._plant_lock = plant_lock
 
@@ -144,6 +146,68 @@ class RlService:
             if generation is not None:
                 self._training.latestGeneration = generation
 
+    def _release_policy(self) -> None:
+        self._infer_model = None
+        self._infer_venv = None
+        self._infer_action_space = None
+
+    def _load_policy(self, generation: int) -> None:
+        path = generation_model_path(generation)
+        if not path.is_file():
+            raise FileNotFoundError(f"Missing checkpoint: {path}")
+
+        vec_path = generation_dir(generation) / "vecnormalize.pkl"
+        meta = load_meta(generation)
+        self._infer_action_space = meta.get("action_space")
+        self._infer_cfg = EnvConfig()
+
+        model = PPO.load(str(path))
+        infer_venv: VecNormalize | None = None
+        if vec_path.is_file():
+            venv = make_vec_env(lambda: CartPendulumRpmEnv(config=self._infer_cfg), n_envs=1)
+            infer_venv = VecNormalize.load(str(vec_path), venv)
+            infer_venv.training = False
+            infer_venv.norm_reward = False
+        elif meta.get("normalized"):
+            raise FileNotFoundError(
+                f"Generation {generation} was trained with VecNormalize but "
+                f"{vec_path.name} is missing; retrain or pick another checkpoint."
+            )
+
+        self._infer_model = model
+        self._infer_venv = infer_venv
+
+    def predict(self, raw_observation: list[float] | np.ndarray) -> dict[str, float]:
+        """Run loaded policy on physical [x_m, θ, v_mps, ω]; used for hardware inference."""
+        with self._lock:
+            if self._infer_model is None:
+                raise RuntimeError("No policy loaded")
+            model = self._infer_model
+            infer_venv = self._infer_venv
+            action_space = self._infer_action_space
+            cfg = self._infer_cfg
+
+        raw = np.asarray(raw_observation, dtype=np.float32).reshape(4)
+        obs = observation_from_raw(raw, cfg).reshape(1, -1)
+        if infer_venv is not None:
+            obs = infer_venv.normalize_obs(obs)
+        action, _ = model.predict(obs, deterministic=True)
+        raw_action = float(np.asarray(action, dtype=np.float64).reshape(-1)[0])
+        rpm = rpm_from_policy_action(raw_action, cfg, action_space=action_space)
+        v_cmd = -rpm * cfg.mps_per_rpm
+        reward = 1.0 if is_plant_healthy_from_raw(raw, cfg) else 0.0
+        with self._lock:
+            if self._inference.target == "hardware" and self._inference.active:
+                self._inference.rpm = rpm
+                self._inference.v_cmd_mps = v_cmd
+                self._inference.lastReward = reward
+                self._inference.stepCount += 1
+        return {
+            "rpm": rpm,
+            "vCmdMps": v_cmd,
+            "lastReward": reward,
+        }
+
     def status(self) -> dict[str, Any]:
         with self._lock:
             return {
@@ -156,6 +220,7 @@ class RlService:
                 },
                 "inference": {
                     "active": self._inference.active,
+                    "target": self._inference.target,
                     "generation": self._inference.generation,
                     "rpm": self._inference.rpm,
                     "vCmdMps": self._inference.v_cmd_mps,
@@ -237,13 +302,25 @@ class RlService:
             self._training.active = False
         return self.status()
 
+    def load_policy(self, generation: int, *, target: InferenceTarget) -> dict[str, Any]:
+        """Load checkpoint for hardware inference (control-api drives the plant)."""
+        with self._lock:
+            if self._training.active:
+                raise RuntimeError("Stop training before starting AI")
+            if self._inference.active:
+                raise RuntimeError("Stop AI inference before loading another policy")
+            self._load_policy(generation)
+            self._inference = InferenceStatus(
+                active=True,
+                target=target,
+                generation=generation,
+            )
+        return self.status()
+
     def start_inference(self, generation: int) -> dict[str, Any]:
-        """Load ``rl/gen/<generation>/`` and step the live plant at env dt (30 Hz)."""
+        """Load policy and step the live MuJoCo plant at env dt (30 Hz)."""
         if self._plant is None or self._plant_lock is None:
             raise RuntimeError("Live plant not bound")
-        path = generation_model_path(generation)
-        if not path.is_file():
-            raise FileNotFoundError(f"Missing checkpoint: {path}")
 
         with self._lock:
             if self._inference.active:
@@ -251,27 +328,18 @@ class RlService:
             if self._training.active:
                 raise RuntimeError("Stop training before starting AI")
             self._infer_stop.clear()
-            self._inference = InferenceStatus(active=True, generation=generation)
-
-        vec_path = generation_dir(generation) / "vecnormalize.pkl"
-        meta = load_meta(generation)
-        action_space = meta.get("action_space")
-
-        self._infer_cfg = EnvConfig()
-        model = PPO.load(str(path))
-        infer_venv: VecNormalize | None = None
-        if vec_path.is_file():
-            # Dummy vec env only to host normalization stats from training.
-            venv = make_vec_env(lambda: CartPendulumRpmEnv(config=self._infer_cfg), n_envs=1)
-            infer_venv = VecNormalize.load(str(vec_path), venv)
-            infer_venv.training = False
-            infer_venv.norm_reward = False
-        elif meta.get("normalized"):
-            raise FileNotFoundError(
-                f"Generation {generation} was trained with VecNormalize but "
-                f"{vec_path.name} is missing; retrain or pick another checkpoint."
+            self._load_policy(generation)
+            self._inference = InferenceStatus(
+                active=True,
+                target="sim",
+                generation=generation,
             )
-        self._infer_venv = infer_venv
+
+        model = self._infer_model
+        infer_venv = self._infer_venv
+        action_space = self._infer_action_space
+        cfg = self._infer_cfg
+        assert model is not None
 
         def run() -> None:
             try:
@@ -279,7 +347,7 @@ class RlService:
                     with self._plant_lock:
                         plant = self._plant
                         assert plant is not None
-                        obs = observation_from_plant(plant, self._infer_cfg)
+                        obs = observation_from_plant(plant, cfg)
                         obs_in = obs.reshape(1, -1)
                         if infer_venv is not None:
                             obs_in = infer_venv.normalize_obs(obs_in)
@@ -287,18 +355,18 @@ class RlService:
                         raw_action = float(np.asarray(action, dtype=np.float64).reshape(-1)[0])
                         rpm = rpm_from_policy_action(
                             raw_action,
-                            self._infer_cfg,
+                            cfg,
                             action_space=action_space,
                         )
-                        plant.state.v_cmd_mps = -rpm * self._infer_cfg.mps_per_rpm
-                        plant.step(self._infer_cfg.dt_sec)
-                        reward = 1.0 if is_plant_healthy(plant, self._infer_cfg) else 0.0
+                        plant.state.v_cmd_mps = -rpm * cfg.mps_per_rpm
+                        plant.step(cfg.dt_sec)
+                        reward = 1.0 if is_plant_healthy(plant, cfg) else 0.0
                     with self._lock:
                         self._inference.rpm = rpm
                         self._inference.v_cmd_mps = plant.state.v_cmd_mps
                         self._inference.lastReward = reward
                         self._inference.stepCount += 1
-                    threading.Event().wait(self._infer_cfg.dt_sec)
+                    threading.Event().wait(cfg.dt_sec)
             except Exception as e:
                 traceback.print_exc()
                 with self._lock:
@@ -306,6 +374,8 @@ class RlService:
             finally:
                 with self._lock:
                     self._inference.active = False
+                    self._inference.target = None
+                    self._release_policy()
                     if self._plant is not None and self._plant_lock is not None:
                         with self._plant_lock:
                             self._plant.state.v_cmd_mps = 0.0
@@ -317,9 +387,27 @@ class RlService:
     def stop_inference(self) -> dict[str, Any]:
         self._infer_stop.set()
         with self._lock:
+            was_hardware = self._inference.target == "hardware"
             self._inference.active = False
+            self._inference.target = None
             self._inference.rpm = 0.0
+            self._inference.v_cmd_mps = 0.0
+            if was_hardware or self._infer_model is not None:
+                self._release_policy()
         return self.status()
+
+
+def is_plant_healthy_from_raw(raw: np.ndarray, cfg: EnvConfig) -> bool:
+    """Upright check from physical observation [x_m, θ, v_mps, ω] (hardware path)."""
+    if not np.isfinite(raw).all():
+        return False
+    x_m = float(raw[0])
+    theta_rad = float(raw[1])
+    if abs(x_m) > cfg.x_limit_m:
+        return False
+    from .env import _pole_angle_error
+
+    return abs(_pole_angle_error(theta_rad)) < cfg.healthy_angle_rad
 
 
 rl_service = RlService()

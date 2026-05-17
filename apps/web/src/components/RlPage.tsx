@@ -26,6 +26,9 @@ export function RlPage() {
   const [saveEvery, setSaveEvery] = useState(10_000);
   const [generation, setGeneration] = useState<number | "latest">("latest");
 
+  const twinMotor = trpc.twin.status.get.useQuery(undefined, { refetchInterval: 2000 });
+  const twinSensor = trpc.twin.sensor.status.get.useQuery(undefined, { refetchInterval: 2000 });
+
   const statusQuery = trpc.rl.status.useQuery(undefined, {
     refetchInterval: (q) => {
       const d = q.state.data;
@@ -51,6 +54,10 @@ export function RlPage() {
   const training = status?.training;
   const inference = status?.inference;
   const generations = status?.generations ?? [];
+  const hardwareReady =
+    twinMotor.data?.real.connected === true && twinSensor.data?.real.connected === true;
+  const inferenceTarget = inference?.target;
+  const inferenceBusy = inference?.active === true;
 
   const selectedGen = useMemo(() => {
     if (generation === "latest") {
@@ -93,7 +100,7 @@ export function RlPage() {
         </p>
       ) : null}
 
-      <section className="grid gap-5 lg:grid-cols-2">
+      <section className="grid gap-5 lg:grid-cols-2 xl:grid-cols-3">
         <div className="rounded-lg border border-border bg-card p-4 shadow-sm">
           <h2 className="text-sm font-medium">Training</h2>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -125,7 +132,7 @@ export function RlPage() {
           <div className="mt-4 flex flex-wrap gap-2">
             <button
               type="button"
-              disabled={training?.active || trainStart.isPending || !!inference?.active}
+              disabled={training?.active || trainStart.isPending || inferenceBusy}
               onClick={() => trainStart.mutate({ totalTimesteps, saveEvery })}
               className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50"
             >
@@ -186,7 +193,7 @@ export function RlPage() {
             <span className="text-muted-foreground">Generation</span>
             <select
               value={generation === "latest" ? "latest" : String(generation)}
-              disabled={inference?.active}
+              disabled={inferenceBusy}
               onChange={(e) => {
                 const v = e.target.value;
                 setGeneration(v === "latest" ? "latest" : Number(v));
@@ -204,15 +211,20 @@ export function RlPage() {
           <div className="mt-4 flex flex-wrap gap-2">
             <button
               type="button"
-              disabled={selectedGen == null || inference?.active || training?.active || inferStart.isPending}
-              onClick={() => selectedGen != null && inferStart.mutate({ generation: selectedGen })}
+              disabled={
+                selectedGen == null || inferenceBusy || training?.active || inferStart.isPending
+              }
+              onClick={() =>
+                selectedGen != null &&
+                inferStart.mutate({ generation: selectedGen, target: "sim" })
+              }
               className="rounded-md bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700 disabled:opacity-50"
             >
-              Start AI
+              Start AI (sim)
             </button>
             <button
               type="button"
-              disabled={!inference?.active || inferStop.isPending}
+              disabled={!inferenceBusy || inferenceTarget !== "sim" || inferStop.isPending}
               onClick={() => inferStop.mutate()}
               className="rounded-md border border-sky-500/40 px-4 py-2 text-sm font-medium hover:bg-sky-500/10 disabled:opacity-50"
             >
@@ -222,7 +234,13 @@ export function RlPage() {
           <dl className="mt-4 grid grid-cols-2 gap-2 font-mono text-xs tabular-nums">
             <div>
               <dt className="text-muted-foreground">Status</dt>
-              <dd>{inference?.active ? "Running" : "Idle"}</dd>
+              <dd>
+                {inferenceTarget === "sim" && inferenceBusy
+                  ? "Running"
+                  : inferenceTarget === "hardware" && inferenceBusy
+                    ? "— (hardware)"
+                    : "Idle"}
+              </dd>
             </div>
             <div>
               <dt className="text-muted-foreground">RPM command</dt>
@@ -241,7 +259,96 @@ export function RlPage() {
               <dd>{fmt(inference?.stepCount)}</dd>
             </div>
           </dl>
-          {inference?.error ? (
+          {inferenceTarget === "sim" && inference?.error ? (
+            <p className="mt-2 text-xs text-red-600 dark:text-red-400">{inference.error}</p>
+          ) : null}
+        </div>
+
+        <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-4 shadow-sm dark:bg-amber-500/10">
+          <h2 className="text-sm font-medium text-amber-950 dark:text-amber-100">
+            Run AI on hardware
+          </h2>
+          <p className="text-muted-foreground mt-1 text-xs">
+            Commands the real Teknic motor from encoder + rail position at 30 Hz. Connect{" "}
+            <strong className="text-foreground font-medium">hardware</strong> motor and sensor on
+            Control (not Sim). Travel limits still apply. Use a checkpoint trained with swing-up
+            reward shaping.
+          </p>
+          <p className="text-muted-foreground mt-2 text-xs">
+            Motor: {twinMotor.data?.real.connected ? "connected" : "disconnected"} · Sensor:{" "}
+            {twinSensor.data?.real.connected ? "connected" : "disconnected"}
+          </p>
+          <label className="mt-3 flex flex-col gap-1 text-xs">
+            <span className="text-muted-foreground">Generation</span>
+            <select
+              value={generation === "latest" ? "latest" : String(generation)}
+              disabled={inferenceBusy}
+              onChange={(e) => {
+                const v = e.target.value;
+                setGeneration(v === "latest" ? "latest" : Number(v));
+              }}
+              className="border-input bg-background h-9 rounded-md border px-2 font-mono text-sm"
+            >
+              <option value="latest">Latest ({generations[generations.length - 1] ?? "none"})</option>
+              {generations.map((g) => (
+                <option key={g} value={g}>
+                  {g}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={
+                selectedGen == null ||
+                !hardwareReady ||
+                inferenceBusy ||
+                training?.active ||
+                inferStart.isPending
+              }
+              onClick={() =>
+                selectedGen != null &&
+                inferStart.mutate({ generation: selectedGen, target: "hardware" })
+              }
+              className="rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+            >
+              Start AI (hardware)
+            </button>
+            <button
+              type="button"
+              disabled={!inferenceBusy || inferenceTarget !== "hardware" || inferStop.isPending}
+              onClick={() => inferStop.mutate()}
+              className="rounded-md border border-amber-500/50 px-4 py-2 text-sm font-medium hover:bg-amber-500/10 disabled:opacity-50"
+            >
+              Stop AI
+            </button>
+          </div>
+          <dl className="mt-4 grid grid-cols-2 gap-2 font-mono text-xs tabular-nums">
+            <div>
+              <dt className="text-muted-foreground">Status</dt>
+              <dd>
+                {inferenceTarget === "hardware" && inferenceBusy
+                  ? "Running"
+                  : inferenceTarget === "sim" && inferenceBusy
+                    ? "— (sim)"
+                    : "Idle"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">RPM command</dt>
+              <dd>{inferenceTarget === "hardware" ? fmt(inference?.rpm, 1) : "—"}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Live score</dt>
+              <dd>{inferenceTarget === "hardware" ? fmt(inference?.lastReward, 3) : "—"}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">Steps</dt>
+              <dd>{inferenceTarget === "hardware" ? fmt(inference?.stepCount) : "—"}</dd>
+            </div>
+          </dl>
+          {inferenceTarget === "hardware" && inference?.error ? (
             <p className="mt-2 text-xs text-red-600 dark:text-red-400">{inference.error}</p>
           ) : null}
         </div>
