@@ -1,6 +1,7 @@
 import math
 
 import numpy as np
+import pytest
 
 from rl.env import (
     CartPendulumRpmEnv,
@@ -31,7 +32,14 @@ def test_env_reset_step_shape():
 
 
 def test_balance_healthy_reward_and_termination():
-    env = CartPendulumRpmEnv(config=EnvConfig(max_episode_steps=100))
+    env = CartPendulumRpmEnv(
+        config=EnvConfig(
+            max_episode_steps=100,
+            upright_reward=1.0,
+            idle_penalty=0.0,
+            spin_penalty_per_rev=0.0,
+        )
+    )
     env.reset(seed=0, options={"initial_theta_rad": UPRIGHT_THETA_RAD, "initial_x_m": 0.0})
     assert is_plant_healthy(env.plant, env.cfg)
     _, reward, terminated, _, info = env.step(np.array([0.0], dtype=np.float32))
@@ -66,11 +74,81 @@ def test_balance_reset_starts_hanging_not_terminated():
 
 
 def test_balance_edge_terminates_with_penalty():
-    env = CartPendulumRpmEnv(config=EnvConfig(x_limit_m=0.45, edge_penalty=2.0))
-    env.reset(seed=0, options={"initial_x_m": 0.46, "initial_theta_rad": 0.0})
+    env = CartPendulumRpmEnv(config=EnvConfig(x_limit_m=0.2, limit_penalty=10.0))
+    env.reset(seed=0, options={"initial_x_m": 0.21, "initial_theta_rad": 0.0})
     _, reward, terminated, _, _ = env.step(np.array([0.0], dtype=np.float32))
     assert terminated
-    assert reward < 0.0
+    assert reward <= -10.0
+    env.close()
+
+
+def test_spin_penalty_on_rotation():
+    env = CartPendulumRpmEnv(
+        config=EnvConfig(
+            spin_penalty_per_rev=1.0,
+            swing_up_reward=0.0,
+            upright_reward=0.0,
+            center_reward=0.0,
+            idle_penalty=0.0,
+            rpm_penalty=0.0,
+        )
+    )
+    env.reset(seed=0, options={"initial_theta_rad": 0.0, "initial_x_m": 0.0})
+    env._prev_theta_rad = 0.0
+    env.plant.state.theta_rad = math.pi
+    env.plant.sync_state_to_mujoco()
+    reward, _, spin_penalty = env._step_reward(0.0)
+    assert spin_penalty == pytest.approx(0.5, rel=0.02)
+    assert reward == pytest.approx(-0.5, rel=0.02)
+    assert env._spin_rev_accum == pytest.approx(0.5, rel=0.02)
+    env.close()
+
+
+def test_idle_penalty_only_within_ten_degrees_of_hanging():
+    env = CartPendulumRpmEnv(
+        config=EnvConfig(
+            center_reward=0.0,
+            upright_reward=1.0,
+            idle_penalty=0.25,
+            swing_up_reward=0.0,
+            spin_penalty_per_rev=0.0,
+            rpm_penalty=0.0,
+        )
+    )
+    env.reset(seed=0, options={"initial_theta_rad": 0.0, "initial_x_m": 0.0})
+    _, r_idle_hanging, _, _, _ = env.step(np.array([0.0], dtype=np.float32))
+    assert r_idle_hanging == pytest.approx(-0.25, rel=0.05)
+
+    env.reset(
+        seed=0,
+        options={"initial_theta_rad": UPRIGHT_THETA_RAD, "initial_x_m": 0.0},
+    )
+    _, r_upright, _, _, _ = env.step(np.array([0.0], dtype=np.float32))
+    assert r_upright >= 1.0
+
+    env.close()
+
+
+def test_center_reward_only_when_upright():
+    env = CartPendulumRpmEnv(
+        config=EnvConfig(
+            center_reward=0.4,
+            upright_reward=0.0,
+            idle_penalty=0.0,
+            swing_up_reward=0.0,
+            spin_penalty_per_rev=0.0,
+        )
+    )
+    env.reset(seed=0, options={"initial_theta_rad": 0.0, "initial_x_m": 0.0})
+    _, r_hang, _, _, _ = env.step(np.array([0.0], dtype=np.float32))
+    assert r_hang == 0.0
+
+    env.reset(
+        seed=0,
+        options={"initial_theta_rad": UPRIGHT_THETA_RAD, "initial_x_m": 0.0},
+    )
+    _, r_upright, _, _, _ = env.step(np.array([0.0], dtype=np.float32))
+    assert r_upright >= 0.35
     env.close()
 
 
@@ -79,16 +157,23 @@ def test_balance_center_and_upright_reward():
         config=EnvConfig(
             center_reward=0.1,
             upright_reward=1.0,
-            center_radius_m=0.2,
+            x_limit_m=0.2,
         )
     )
     env.reset(
         seed=0,
         options={"initial_theta_rad": UPRIGHT_THETA_RAD, "initial_x_m": 0.0},
     )
-    _, reward, terminated, _, _ = env.step(np.array([0.0], dtype=np.float32))
-    assert reward >= 1.0 + 0.05
+    _, reward_center, terminated, _, _ = env.step(np.array([0.0], dtype=np.float32))
+    assert reward_center >= 1.0 + 0.05
     assert not terminated
+
+    env.reset(
+        seed=0,
+        options={"initial_theta_rad": UPRIGHT_THETA_RAD, "initial_x_m": 0.1},
+    )
+    _, reward_offset, _, _, _ = env.step(np.array([0.0], dtype=np.float32))
+    assert reward_offset < reward_center
     env.close()
 
 
@@ -100,13 +185,45 @@ def test_max_rpm_default():
 
 
 def test_swing_up_shaping_reward():
-    env = CartPendulumRpmEnv(config=EnvConfig(swing_up_reward=0.5, upright_reward=0.0))
+    env = CartPendulumRpmEnv(
+        config=EnvConfig(
+            swing_up_reward=0.5,
+            upright_reward=0.0,
+            idle_penalty=0.0,
+            spin_penalty_per_rev=0.0,
+        )
+    )
     env.reset(seed=0)
     _, r_hang, _, _, _ = env.step(np.array([0.0], dtype=np.float32))
     env.plant.state.theta_rad = UPRIGHT_THETA_RAD - 0.1
     env.plant.sync_state_to_mujoco()
     _, r_near, _, _, _ = env.step(np.array([0.0], dtype=np.float32))
     assert r_near > r_hang
+    env.close()
+
+
+def test_high_rpm_penalty_reduces_reward():
+    env = CartPendulumRpmEnv(
+        config=EnvConfig(
+            rpm_penalty=0.5,
+            max_rpm=1500.0,
+            swing_up_reward=0.0,
+            upright_reward=1.0,
+            center_reward=0.0,
+        )
+    )
+    env.reset(
+        seed=0,
+        options={"initial_theta_rad": UPRIGHT_THETA_RAD, "initial_x_m": 0.0},
+    )
+    _, r_low, _, _, _ = env.step(np.array([50.0 / 1500.0], dtype=np.float32))
+    env.reset(
+        seed=0,
+        options={"initial_theta_rad": UPRIGHT_THETA_RAD, "initial_x_m": 0.0},
+    )
+    _, r_high, _, _, info = env.step(np.array([1.0], dtype=np.float32))
+    assert r_high < r_low
+    assert info["rpm_penalty"] > 0.0
     env.close()
 
 
