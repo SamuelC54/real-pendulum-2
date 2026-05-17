@@ -150,7 +150,7 @@ export const CartPendulumViewer = memo(function CartPendulumViewer({
       )}
     >
       <Canvas
-        shadows
+        shadows="percentage"
         style={{ width: "100%", height: "100%" }}
         camera={{
           position: CAMERA_POSITION,
