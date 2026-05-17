@@ -75,9 +75,11 @@ const JogDirectionButton = memo(function JogDirectionButton({
 
 export const JogControls = memo(function JogControls({
   showMoveToHome = false,
+  className,
 }: {
   /** Profile move to 0 cm (shown on the Tuning page). */
   showMoveToHome?: boolean;
+  className?: string;
 }) {
   const {
     connected,
@@ -113,7 +115,7 @@ export const JogControls = memo(function JogControls({
   const slidersDisabled = !connected || connectionBusy;
 
   return (
-    <Card className="flex flex-col gap-4 p-6" aria-label="Jog controls">
+    <Card className={cn("flex flex-col gap-4 p-6", className)} aria-label="Jog controls">
       <div className="mx-auto flex w-full max-w-md flex-col gap-3">
         <div className="flex items-center justify-between gap-3">
           <label

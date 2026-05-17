@@ -8,12 +8,13 @@ import { PositionMoveControls } from "@/components/PositionMoveControls";
 import { SensorLedCard } from "@/components/SensorLedCard";
 import { BackendAutoConnect } from "@/components/BackendAutoConnect";
 import { KeyboardJogListener } from "@/components/KeyboardJogListener";
+import { DigitalTwinPage } from "@/components/DigitalTwinPage";
 import { TuningPage } from "@/components/TuningPage";
 import { grpcBackendModeAtom } from "@/stores/grpcBackendMode";
 import { trpc } from "@/trpc";
 import { cn } from "@/lib/utils";
 
-export type AppPage = "control" | "tuning";
+export type AppPage = "control" | "tuning" | "digital-twin";
 
 function ControlPage() {
   return (
@@ -103,16 +104,30 @@ export function AppShell() {
                 <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-red-500" aria-hidden />
               ) : null}
             </NavTab>
+            <NavTab active={page === "digital-twin"} onClick={() => setPage("digital-twin")}>
+              Digital twin
+            </NavTab>
           </nav>
         }
       />
-      <main className="mx-auto max-w-7xl px-6 py-4">
+      <main
+        className={cn(
+          "mx-auto px-6 py-4",
+          page === "digital-twin" ? "max-w-[96rem]" : "max-w-7xl",
+        )}
+      >
         <TuningRecordingBanner />
         <div className={page === "control" ? undefined : "hidden"} aria-hidden={page !== "control"}>
           <ControlPage />
         </div>
         <div className={page === "tuning" ? undefined : "hidden"} aria-hidden={page !== "tuning"}>
           <TuningPage />
+        </div>
+        <div
+          className={page === "digital-twin" ? undefined : "hidden"}
+          aria-hidden={page !== "digital-twin"}
+        >
+          <DigitalTwinPage />
         </div>
       </main>
     </div>

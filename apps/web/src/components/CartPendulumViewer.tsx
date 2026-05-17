@@ -21,6 +21,8 @@ type ViewerProps = {
   encoderTicks: number;
   connected: boolean;
   className?: string;
+  /** `fill` expands to the parent height (Digital Twin page). */
+  variant?: "compact" | "fill";
 };
 
 function ViewerEnvironment() {
@@ -135,11 +137,15 @@ export const CartPendulumViewer = memo(function CartPendulumViewer({
   encoderTicks,
   connected,
   className,
+  variant = "compact",
 }: ViewerProps) {
   return (
     <div
       className={cn(
-        "relative h-56 w-full overflow-hidden rounded-md border border-sky-500/35 bg-sky-950/20 dark:bg-sky-950/40",
+        "relative w-full overflow-hidden rounded-md border border-sky-500/35 bg-sky-950/20 dark:bg-sky-950/40",
+        variant === "fill"
+          ? "h-full min-h-[min(68vh,40rem)]"
+          : "h-56",
         className,
       )}
     >

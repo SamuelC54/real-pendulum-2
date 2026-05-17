@@ -2,7 +2,6 @@ import { memo } from "react";
 import { useAtomValue } from "jotai";
 import { boundsFromTravelLimitsCm } from "@/lib/railPositionCm";
 import { cn } from "@/lib/utils";
-import { CartPendulumViewer } from "@/components/CartPendulumViewer";
 import { useMotorStatusQuery, useSensorStatusQuery } from "@/services/useMotorStatusQuery";
 import { grpcBackendModeAtom } from "@/stores/grpcBackendMode";
 
@@ -232,7 +231,7 @@ function RailPendulumLeg({
 
 /**
  * Linear rail (motor position in cm) plus a pendulum angle from the Sensor Board rotary
- * encoder ticks. In **twin** mode, shows separate **Hardware** and **Simulator** schematics.
+ * encoder ticks.
  */
 export const RailPendulumSchematic = memo(function RailPendulumSchematic() {
   const mode = useAtomValue(grpcBackendModeAtom);
@@ -260,41 +259,33 @@ export const RailPendulumSchematic = memo(function RailPendulumSchematic() {
             limitRight={sensor.data?.limitRightPressed ?? false}
             ticks={sensor.data?.encoderTicks ?? 0}
           />
-          <div className="flex flex-col gap-3">
-            <RailPendulumLeg
-              legLabel="Simulator"
-              variant="simulator"
-              motorConnected={twinSim?.connected ?? false}
-              sensorConnected={twinSimSensor?.connected ?? false}
-              pos={twinSim?.positionCm}
-              travelLimits={twinSim?.travelLimits}
-              limitLeft={twinSimSensor?.limitLeftPressed ?? false}
-              limitRight={twinSimSensor?.limitRightPressed ?? false}
-              ticks={twinSimSensor?.encoderTicks ?? 0}
-            />
-            <CartPendulumViewer
-              positionCm={twinSim?.positionCm}
-              encoderTicks={twinSimSensor?.encoderTicks ?? 0}
-              connected={Boolean(twinSim?.connected && twinSimSensor?.connected)}
-            />
-          </div>
+          <RailPendulumLeg
+            legLabel="Simulator"
+            variant="simulator"
+            motorConnected={twinSim?.connected ?? false}
+            sensorConnected={twinSimSensor?.connected ?? false}
+            pos={twinSim?.positionCm}
+            travelLimits={twinSim?.travelLimits}
+            limitLeft={twinSimSensor?.limitLeftPressed ?? false}
+            limitRight={twinSimSensor?.limitRightPressed ?? false}
+            ticks={twinSimSensor?.encoderTicks ?? 0}
+          />
         </div>
         <p className="text-muted-foreground mt-3 text-[10px] leading-snug">
-          Twin mode: hardware schematic plus a 3D view for the simulator (poses from coupled-sim
-          telemetry). Physics runs in physics-sim on the backend.
+          Twin mode: hardware and simulator schematics. Open the Digital Twin tab for the large 3D
+          view.
         </p>
       </div>
     );
   }
 
-  const showSim3d = mode === "sim";
-  const sim3dConnected = Boolean(motor.data?.connected && sensor.data?.connected);
+  const isSim = mode === "sim";
 
   return (
     <div className="w-full max-w-md border-t border-border pt-4">
       <RailPendulumLeg
-        legLabel={showSim3d ? "Simulator" : "Rail & pendulum"}
-        variant={showSim3d ? "simulator" : "hardware"}
+        legLabel={isSim ? "Simulator" : "Rail & pendulum"}
+        variant={isSim ? "simulator" : "hardware"}
         motorConnected={motor.data?.connected ?? false}
         sensorConnected={sensor.data?.connected ?? false}
         pos={motor.data?.positionCm}
@@ -303,17 +294,9 @@ export const RailPendulumSchematic = memo(function RailPendulumSchematic() {
         limitRight={sensor.data?.limitRightPressed ?? false}
         ticks={sensor.data?.encoderTicks ?? 0}
       />
-      {showSim3d ? (
-        <CartPendulumViewer
-          className="mt-3"
-          positionCm={motor.data?.positionCm}
-          encoderTicks={sensor.data?.encoderTicks ?? 0}
-          connected={sim3dConnected}
-        />
-      ) : null}
       <p className="text-muted-foreground mt-2 text-[10px] leading-snug">
-        {showSim3d
-          ? "2D schematic plus Three.js view; physics runs in physics-sim on the backend."
+        {isSim
+          ? "2D schematic for the simulator. Use the Digital Twin tab for the large 3D view."
           : "Cart follows Teknic measured position (cm: left negative, right positive). Rod and bob follow the quadrature encoder on the Sensor Board (same phase as the dial card)."}
       </p>
     </div>
