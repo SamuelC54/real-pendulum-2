@@ -17,7 +17,6 @@ export async function startRlTraining(options: {
   totalTimesteps?: number;
   saveEvery?: number;
   nEnvs?: number;
-  task?: "balance" | "center";
 }): Promise<PhysicsSimRlStatus> {
   return physicsSimRlTrainStart(options);
 }

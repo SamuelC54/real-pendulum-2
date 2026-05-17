@@ -126,9 +126,7 @@ export function RlPage() {
             <button
               type="button"
               disabled={training?.active || trainStart.isPending || !!inference?.active}
-              onClick={() =>
-                trainStart.mutate({ totalTimesteps, saveEvery, task: "balance" })
-              }
+              onClick={() => trainStart.mutate({ totalTimesteps, saveEvery })}
               className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50"
             >
               Start training
@@ -178,7 +176,11 @@ export function RlPage() {
         <div className="rounded-lg border border-sky-500/30 bg-sky-500/5 p-4 shadow-sm dark:bg-sky-500/10">
           <h2 className="text-sm font-medium text-sky-950 dark:text-sky-100">Run AI on simulator</h2>
           <p className="text-muted-foreground mt-1 text-xs">
-            Loads a checkpoint and drives the live MuJoCo plant. Use Simulator on Control and Digital twin to watch.
+            Loads a checkpoint and drives the live MuJoCo plant (30 Hz). On Control, connect{" "}
+            <strong className="text-foreground font-medium">Sim</strong> motor + sensor so status
+            polls show commanded RPM and the digital twin updates. Checkpoints trained before
+            swing-up reward shaping may sit near 0 RPM — train a new generation after updating
+            physics-sim.
           </p>
           <label className="mt-3 flex flex-col gap-1 text-xs">
             <span className="text-muted-foreground">Generation</span>
@@ -224,7 +226,11 @@ export function RlPage() {
             </div>
             <div>
               <dt className="text-muted-foreground">RPM command</dt>
-              <dd>{fmt(inference?.rpm, 0)}</dd>
+              <dd>{fmt(inference?.rpm, 1)}</dd>
+            </div>
+            <div>
+              <dt className="text-muted-foreground">v_cmd (m/s)</dt>
+              <dd>{fmt(inference?.vCmdMps, 4)}</dd>
             </div>
             <div>
               <dt className="text-muted-foreground">Live score</dt>

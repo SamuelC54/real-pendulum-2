@@ -1,4 +1,12 @@
-"""Background PPO training and live-plant inference (HTTP-controlled)."""
+"""
+Background PPO training and live-plant inference for the physics-sim HTTP API.
+
+Training spins up its own vectorized Gym envs (separate from the live twin plant).
+Inference runs on the *shared* ``CartPendulumPlant`` used by ``/step`` — same MuJoCo
+model as manual jog, but actions come from a saved policy instead of the client.
+
+Endpoints are wired in ``cart_pendulum/server.py`` (``rl_service`` singleton).
+"""
 
 from __future__ import annotations
 
@@ -16,8 +24,20 @@ from stable_baselines3.common.vec_env import VecNormalize
 
 from cart_pendulum.plant import CartPendulumPlant
 
-from .env import CartPendulumRpmEnv, EnvConfig, is_plant_healthy, observation_from_plant, raw_observation
-from .paths import generation_dir, generation_model_path, latest_generation, list_generations
+from .env import (
+    CartPendulumRpmEnv,
+    EnvConfig,
+    is_plant_healthy,
+    observation_from_plant,
+    rpm_from_policy_action,
+)
+from .paths import (
+    generation_dir,
+    generation_model_path,
+    latest_generation,
+    list_generations,
+    load_meta,
+)
 from .train import GenerationCallback
 
 _MAX_METRICS = 400
@@ -44,6 +64,7 @@ class InferenceStatus:
     active: bool = False
     generation: int | None = None
     rpm: float = 0.0
+    v_cmd_mps: float = 0.0
     lastReward: float = 0.0
     stepCount: int = 0
     error: str | None = None
@@ -58,6 +79,8 @@ class RlStatus:
 
 
 class _MetricsCallback(BaseCallback):
+    """Push mean episode return to the RL page chart after each PPO rollout."""
+
     def __init__(self, service: "RlService", verbose: int = 0) -> None:
         super().__init__(verbose)
         self._service = service
@@ -77,6 +100,8 @@ class _MetricsCallback(BaseCallback):
 
 
 class _StopCallback(BaseCallback):
+    """Cooperative cancel when the user hits stop in the UI."""
+
     def __init__(self, stop_event: threading.Event) -> None:
         super().__init__(0)
         self._stop = stop_event
@@ -102,6 +127,7 @@ class RlService:
         self._infer_cfg = EnvConfig()
 
     def bind_plant(self, plant: CartPendulumPlant, plant_lock: threading.Lock) -> None:
+        """Called once at server startup so inference can drive the live twin."""
         self._plant = plant
         self._plant_lock = plant_lock
 
@@ -132,6 +158,7 @@ class RlService:
                     "active": self._inference.active,
                     "generation": self._inference.generation,
                     "rpm": self._inference.rpm,
+                    "vCmdMps": self._inference.v_cmd_mps,
                     "lastReward": self._inference.lastReward,
                     "stepCount": self._inference.stepCount,
                     "error": self._inference.error,
@@ -153,7 +180,6 @@ class RlService:
         total_timesteps: int = 200_000,
         save_every: int = 10_000,
         n_envs: int = 4,
-        task: str = "balance",
     ) -> dict[str, Any]:
         with self._lock:
             if self._training.active:
@@ -170,10 +196,17 @@ class RlService:
 
         def run() -> None:
             try:
-                cfg = EnvConfig(task=task)
+                cfg = EnvConfig()
                 vec = make_vec_env(lambda: CartPendulumRpmEnv(config=cfg), n_envs=n_envs)
                 vec = VecNormalize(vec, norm_obs=True, norm_reward=True, clip_obs=5.0)
-                model = PPO("MlpPolicy", vec, verbose=0, n_steps=2048, batch_size=256)
+                model = PPO(
+                    "MlpPolicy",
+                    vec,
+                    verbose=0,
+                    n_steps=2048,
+                    batch_size=256,
+                    ent_coef=0.05,
+                )
                 start_gen = (latest_generation() or 0) + 1
                 callbacks = [
                     _StopCallback(self._train_stop),
@@ -181,7 +214,6 @@ class RlService:
                     GenerationCallback(
                         save_every=save_every,
                         start_gen=start_gen,
-                        task=task,
                         verbose=0,
                     ),
                 ]
@@ -206,6 +238,7 @@ class RlService:
         return self.status()
 
     def start_inference(self, generation: int) -> dict[str, Any]:
+        """Load ``rl/gen/<generation>/`` and step the live plant at env dt (30 Hz)."""
         if self._plant is None or self._plant_lock is None:
             raise RuntimeError("Live plant not bound")
         path = generation_model_path(generation)
@@ -221,23 +254,23 @@ class RlService:
             self._inference = InferenceStatus(active=True, generation=generation)
 
         vec_path = generation_dir(generation) / "vecnormalize.pkl"
-        meta_path = generation_dir(generation) / "meta.json"
-        task = "balance"
-        if meta_path.is_file():
-            import json
+        meta = load_meta(generation)
+        action_space = meta.get("action_space")
 
-            meta = json.loads(meta_path.read_text(encoding="utf-8"))
-            task = str(meta.get("task", task))
-
-        self._infer_cfg = EnvConfig(task=task)
+        self._infer_cfg = EnvConfig()
         model = PPO.load(str(path))
-        self._infer_model = model
         infer_venv: VecNormalize | None = None
         if vec_path.is_file():
+            # Dummy vec env only to host normalization stats from training.
             venv = make_vec_env(lambda: CartPendulumRpmEnv(config=self._infer_cfg), n_envs=1)
             infer_venv = VecNormalize.load(str(vec_path), venv)
             infer_venv.training = False
             infer_venv.norm_reward = False
+        elif meta.get("normalized"):
+            raise FileNotFoundError(
+                f"Generation {generation} was trained with VecNormalize but "
+                f"{vec_path.name} is missing; retrain or pick another checkpoint."
+            )
         self._infer_venv = infer_venv
 
         def run() -> None:
@@ -250,13 +283,19 @@ class RlService:
                         obs_in = obs.reshape(1, -1)
                         if infer_venv is not None:
                             obs_in = infer_venv.normalize_obs(obs_in)
-                        rpm = float(model.predict(obs_in, deterministic=True)[0][0])
-                        rpm = float(np.clip(rpm, -self._infer_cfg.max_rpm, self._infer_cfg.max_rpm))
+                        action, _ = model.predict(obs_in, deterministic=True)
+                        raw_action = float(np.asarray(action, dtype=np.float64).reshape(-1)[0])
+                        rpm = rpm_from_policy_action(
+                            raw_action,
+                            self._infer_cfg,
+                            action_space=action_space,
+                        )
                         plant.state.v_cmd_mps = -rpm * self._infer_cfg.mps_per_rpm
                         plant.step(self._infer_cfg.dt_sec)
                         reward = 1.0 if is_plant_healthy(plant, self._infer_cfg) else 0.0
                     with self._lock:
                         self._inference.rpm = rpm
+                        self._inference.v_cmd_mps = plant.state.v_cmd_mps
                         self._inference.lastReward = reward
                         self._inference.stepCount += 1
                     threading.Event().wait(self._infer_cfg.dt_sec)

@@ -1,8 +1,14 @@
-"""Gymnasium environment: RPM command → MuJoCo cart–pendulum.
+"""
+Gymnasium environment: motor RPM → ``CartPendulumPlant`` (MuJoCo).
 
-Balance task follows Gymnasium ``InvertedPendulum-v5`` patterns (qpos/qvel obs, +1
-survival reward, angle-based termination). See:
-https://gymnasium.farama.org/environments/mujoco/inverted_pendulum/
+Coordinate conventions (see ``models/cart_pendulum.xml``):
+  - Cart slides on +X; pendulum hinge axis is +Y (swing in X–Z).
+  - θ = 0: bob hangs toward −Z. θ ≈ π: inverted (balance target).
+  - Teknic jog sign: positive RPM → negative ``v_cmd_mps`` (see ``step``).
+
+Task: swing-up from hanging, balance upright, small bonus near rail center, penalize edges.
+
+Training uses the same plant as the digital twin (``cart_pendulum/plant.py``).
 """
 
 from __future__ import annotations
@@ -17,18 +23,16 @@ from gymnasium import spaces
 
 from cart_pendulum.plant import CartPendulumPlant, PlantConfig, PlantState
 
-# Match web jog slider (`apps/web/src/lib/jogMath.ts`).
-DEFAULT_MAX_RPM = 4000.0
+DEFAULT_MAX_RPM = 1500.0
 DEFAULT_MPS_PER_RPM = 0.0007
-# In this model θ=0 is hanging down; upright (classic cart-pole) is θ≈π.
+HANGING_THETA_RAD = 0.0
 UPRIGHT_THETA_RAD = math.pi
-# InvertedPendulum-v5: pole is upright when |angle| < 0.2 rad (around target pose).
 DEFAULT_HEALTHY_ANGLE_RAD = 0.2
 
 
 @dataclass
 class EnvConfig:
-    """Task and plant settings for RL."""
+    """Hyperparameters shared by training, inference, and tests."""
 
     dt_sec: float = 1.0 / 30.0
     max_episode_steps: int = 1000
@@ -39,15 +43,18 @@ class EnvConfig:
     cart_velocity_tracking_per_sec: float = 12.0
     angular_damping_per_sec: float = 0.04
     x_limit_m: float = 0.45
-    task: str = "balance"  # "balance" (upright) | "center" (hang down, stay centered)
     healthy_angle_rad: float = DEFAULT_HEALTHY_ANGLE_RAD
     reset_noise_scale: float = 0.01
-    # Observation scales for roughly normalized Box in [-1, 1].
+    upright_reward: float = 1.0
+    swing_up_reward: float = 0.25
+    center_reward: float = 0.05
+    center_radius_m: float = 0.15
+    edge_penalty: float = 1.0
     obs_scale: tuple[float, float, float, float] = (0.5, math.pi, 2.0, 10.0)
 
 
 def raw_observation(plant: CartPendulumPlant) -> np.ndarray:
-    """MuJoCo-style qpos + qvel: cart x, hinge θ, cart vx, hinge ω."""
+    """Physical state for logging / denormalized metrics (not clipped)."""
     s = plant.state
     return np.array(
         [s.x_m, s.theta_rad, s.v_mps, s.omega_rps],
@@ -59,6 +66,7 @@ def observation_from_plant(
     plant: CartPendulumPlant,
     config: EnvConfig | None = None,
 ) -> np.ndarray:
+    """Policy input: normalized MuJoCo-style qpos + qvel."""
     cfg = config or EnvConfig()
     return _normalize_obs(raw_observation(plant), cfg.obs_scale)
 
@@ -68,36 +76,48 @@ def _normalize_obs(raw: np.ndarray, scale: tuple[float, ...]) -> np.ndarray:
     return np.clip(scaled, -5.0, 5.0).astype(np.float32)
 
 
-def _target_theta_rad(task: str) -> float:
-    return UPRIGHT_THETA_RAD if task == "balance" else 0.0
+def rpm_from_policy_action(
+    action: float,
+    cfg: EnvConfig,
+    *,
+    action_space: str | None,
+) -> float:
+    """Map policy output to motor RPM (legacy checkpoints used raw RPM bounds)."""
+    if action_space == "normalized":
+        return float(np.clip(action, -1.0, 1.0)) * cfg.max_rpm
+    return float(np.clip(action, -cfg.max_rpm, cfg.max_rpm))
 
 
-def _pole_angle_error(theta_rad: float, task: str) -> float:
-    """Signed shortest angle to the task target pose (rad)."""
-    target = _target_theta_rad(task)
-    return math.atan2(math.sin(theta_rad - target), math.cos(theta_rad - target))
+def _pole_angle_error(theta_rad: float) -> float:
+    """Shortest signed angle from current θ to upright (rad)."""
+    return math.atan2(
+        math.sin(theta_rad - UPRIGHT_THETA_RAD),
+        math.cos(theta_rad - UPRIGHT_THETA_RAD),
+    )
 
 
 def is_plant_healthy(plant: CartPendulumPlant, config: EnvConfig | None = None) -> bool:
-    """Shared health check for env steps and live inference metrics."""
+    """
+    Upright + on-rail check for UI / inference metrics.
+
+    Training does not terminate on fall—only on rail edge—so the agent can learn swing-up.
+    """
     cfg = config or EnvConfig()
     s = plant.state
     if not np.isfinite([s.x_m, s.theta_rad, s.v_mps, s.omega_rps]).all():
         return False
     if abs(s.x_m) > cfg.x_limit_m:
         return False
-    angle_err = abs(_pole_angle_error(s.theta_rad, cfg.task))
-    if cfg.task == "balance":
-        return angle_err < cfg.healthy_angle_rad
-    return angle_err < cfg.healthy_angle_rad and abs(s.x_m) < 0.15
+    return abs(_pole_angle_error(s.theta_rad)) < cfg.healthy_angle_rad
 
 
 class CartPendulumRpmEnv(gym.Env):
     """
-    Observation (4, qpos+qvel): cart x, θ, cart vx, ω.
-    Action (1): commanded motor RPM in [-max_rpm, max_rpm] (Teknic sign: +rpm → v_cmd < 0).
+    One RL step = one policy decision at ``cfg.dt_sec``; plant integrates MuJoCo
+    internally at 240 Hz.
 
-  Balance reward: +1 per step while healthy (|θ − π| < healthy_angle_rad), like InvertedPendulum-v5.
+    Action: normalized motor command ∈ [-1, 1] (scaled to RPM in ``step``).
+    Observation: normalized [x, θ, vx, ω].
     """
 
     metadata = {
@@ -116,8 +136,8 @@ class CartPendulumRpmEnv(gym.Env):
         self.render_mode = render_mode
         self.plant = CartPendulumPlant(config=self._plant_config())
         self.action_space = spaces.Box(
-            low=np.array([-self.cfg.max_rpm], dtype=np.float32),
-            high=np.array([self.cfg.max_rpm], dtype=np.float32),
+            low=np.array([-1.0], dtype=np.float32),
+            high=np.array([1.0], dtype=np.float32),
             dtype=np.float32,
         )
         self.observation_space = spaces.Box(
@@ -145,22 +165,44 @@ class CartPendulumRpmEnv(gym.Env):
     def _is_healthy(self) -> bool:
         return is_plant_healthy(self.plant, self.cfg)
 
-    def _reward_and_terminated(self) -> tuple[float, bool, bool]:
+    def _balance_reward(self) -> tuple[float, bool]:
+        """
+        + swing_up_reward × (π − |θ − π|) / π  (dense signal while not yet balanced)
+        + upright_reward when |θ − π| is small
+        + center_reward (linear in |x|) when near rail center
+        − edge_penalty ramp from 85% of x_limit, full penalty + terminate at limit
+        """
         cfg = self.cfg
-        healthy = self._is_healthy()
+        s = self.plant.state
+        if not np.isfinite([s.x_m, s.theta_rad, s.v_mps, s.omega_rps]).all():
+            return -cfg.edge_penalty, True
 
-        if cfg.task == "balance":
-            # InvertedPendulum-v5: +1 while upright, episode ends when unhealthy.
-            reward = 1.0 if healthy else 0.0
-            terminated = not healthy
-        else:
-            s = self.plant.state
-            reward = float(-abs(s.x_m) - 0.1 * abs(_pole_angle_error(s.theta_rad, cfg.task)))
-            terminated = not np.isfinite([s.x_m, s.theta_rad, s.v_mps, s.omega_rps]).all() or abs(
-                s.x_m
-            ) > cfg.x_limit_m
+        x_abs = abs(s.x_m)
+        angle_err = abs(_pole_angle_error(s.theta_rad))
+        reward = 0.0
 
-        truncated = self._step_count >= cfg.max_episode_steps
+        if cfg.swing_up_reward > 0.0:
+            reward += cfg.swing_up_reward * max(0.0, (math.pi - angle_err) / math.pi)
+
+        if angle_err < cfg.healthy_angle_rad:
+            reward += cfg.upright_reward
+
+        if cfg.center_radius_m > 0.0:
+            reward += cfg.center_reward * max(0.0, 1.0 - x_abs / cfg.center_radius_m)
+
+        if x_abs >= cfg.x_limit_m:
+            return reward - cfg.edge_penalty, True
+
+        edge_start = 0.85 * cfg.x_limit_m
+        if x_abs > edge_start:
+            t = (x_abs - edge_start) / max(1e-6, cfg.x_limit_m - edge_start)
+            reward -= cfg.edge_penalty * t
+
+        return reward, False
+
+    def _reward_and_terminated(self) -> tuple[float, bool, bool]:
+        reward, terminated = self._balance_reward()
+        truncated = self._step_count >= self.cfg.max_episode_steps
         return reward, terminated, truncated
 
     def reset(
@@ -172,14 +214,12 @@ class CartPendulumRpmEnv(gym.Env):
         super().reset(seed=seed)
         opts = options or {}
         rng = self.np_random
-        cfg = self.cfg
-        scale = cfg.reset_noise_scale
-        target_theta = _target_theta_rad(cfg.task)
+        scale = self.cfg.reset_noise_scale
 
         x0 = float(rng.uniform(-scale, scale))
-        theta0 = float(target_theta + rng.uniform(-scale, scale))
         v0 = float(rng.uniform(-scale, scale))
         omega0 = float(rng.uniform(-scale, scale))
+        theta0 = float(HANGING_THETA_RAD + rng.uniform(-scale, scale))
 
         if "initial_theta_rad" in opts:
             theta0 = float(opts["initial_theta_rad"])
@@ -202,7 +242,8 @@ class CartPendulumRpmEnv(gym.Env):
         }
 
     def step(self, action: np.ndarray) -> tuple[np.ndarray, float, bool, bool, dict[str, Any]]:
-        rpm = float(np.clip(action[0], -self.cfg.max_rpm, self.cfg.max_rpm))
+        cmd = float(np.clip(action[0], -1.0, 1.0))
+        rpm = cmd * self.cfg.max_rpm
         self.plant.state.v_cmd_mps = -rpm * self.cfg.mps_per_rpm
         self.plant.step(self.cfg.dt_sec)
         self._step_count += 1
@@ -215,8 +256,8 @@ class CartPendulumRpmEnv(gym.Env):
             "x_m": self.plant.state.x_m,
             "theta_rad": self.plant.state.theta_rad,
             "is_healthy": healthy,
-            "reward_survive": reward if self.cfg.task == "balance" else None,
-            "pole_angle_error_rad": _pole_angle_error(self.plant.state.theta_rad, self.cfg.task),
+            "reward_survive": self.cfg.upright_reward if healthy else 0.0,
+            "pole_angle_error_rad": _pole_angle_error(self.plant.state.theta_rad),
         }
         return obs, reward, terminated, truncated, info
 

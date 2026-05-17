@@ -701,7 +701,6 @@ export const appRouter = t.router({
               totalTimesteps: z.number().int().positive().optional(),
               saveEvery: z.number().int().positive().optional(),
               nEnvs: z.number().int().min(1).max(16).optional(),
-              task: z.enum(["balance", "center"]).optional(),
             })
             .optional(),
         )

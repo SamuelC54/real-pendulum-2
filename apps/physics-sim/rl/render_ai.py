@@ -1,11 +1,15 @@
 """
-Run a trained policy in the MuJoCo viewer (legacy-style ``--gen`` flag).
+Run a trained policy in the MuJoCo viewer (offline debug, not the HTTP server).
+
+Loads the same checkpoint layout as training (``rl/gen/<n>/``). If training used
+VecNormalize, pass the saved ``vecnormalize.pkl`` via the env wrapper so observations
+match what the policy saw during learning.
 
 Example::
 
     cd apps/physics-sim
-    python -m rl.render_ai --gen 42
     python -m rl.render_ai --gen latest
+    python -m rl.render_ai --gen 42 --realtime
 """
 
 from __future__ import annotations
@@ -30,7 +34,6 @@ def main() -> None:
     )
     parser.add_argument("--steps", type=int, default=50_000)
     parser.add_argument("--realtime", action="store_true", help="Sleep to match sim dt")
-    parser.add_argument("--task", choices=("balance", "center"), default=None)
     args = parser.parse_args()
 
     if args.gen == "latest":
@@ -45,7 +48,7 @@ def main() -> None:
         raise SystemExit(f"Missing {model_path}. Train with: python -m rl.train")
 
     meta = load_meta(gen)
-    cfg = EnvConfig(task=args.task or meta.get("task", "balance"))
+    cfg = EnvConfig()
     base = CartPendulumRpmEnv(config=cfg, render_mode="human")
     vec_path = generation_dir(gen) / "vecnormalize.pkl"
     if meta.get("normalized") and vec_path.is_file():
@@ -61,6 +64,7 @@ def main() -> None:
 
     obs, _ = env.reset()
     print(f"[rl] generation {gen} — meta: {meta}")
+    # Viewer is on the underlying env; vec wrapper only normalizes obs for predict/step.
     render_env = base if meta.get("normalized") else env
     try:
         for step in range(args.steps):

@@ -257,24 +257,28 @@ async function syncPlantToPhysics(model: CoupledSimGrpcModel): Promise<void> {
 }
 
 async function advancePhysics(model: CoupledSimGrpcModel, lastMs: { t: number }): Promise<void> {
-  if (!model.motorConnected) return;
   const now = Date.now();
   const dt = Math.min(0.25, Math.max(0, (now - lastMs.t) / 1000));
   lastMs.t = now;
-  if (dt <= 0) return;
 
   try {
     const rl = await physicsSimRlStatus();
     if (rl.inference.active) {
+      // RL thread steps the HTTP plant; we only mirror state + show commanded RPM.
       const payload = await physicsSimGetState();
       applyPhysicsPayloadToPlant(model.plant, payload);
       model.lastCommandedRpm = rl.inference.rpm;
-      enforceTravelLimitOnPlant(model);
+      if (model.motorConnected) {
+        enforceTravelLimitOnPlant(model);
+      }
       return;
     }
   } catch {
     /* physics-sim or RL API unavailable — fall through to normal step */
   }
+
+  if (!model.motorConnected) return;
+  if (dt <= 0) return;
 
   const payload = await physicsSimStep({
     dt,

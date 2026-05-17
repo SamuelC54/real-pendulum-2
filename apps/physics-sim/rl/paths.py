@@ -1,4 +1,4 @@
-"""Generation checkpoints under ``rl/gen/<n>/``."""
+"""Checkpoint layout: ``apps/physics-sim/rl/gen/<generation>/``."""
 
 from __future__ import annotations
 
@@ -23,6 +23,7 @@ def generation_meta_path(generation: int) -> Path:
 
 
 def list_generations() -> list[int]:
+    """Sorted generation ids that have a ``model.zip``."""
     if not GEN_DIR.is_dir():
         return []
     out: list[int] = []

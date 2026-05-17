@@ -104,6 +104,7 @@ export type PhysicsSimRlStatus = {
     active: boolean;
     generation: number | null;
     rpm: number;
+    vCmdMps: number;
     lastReward: number;
     stepCount: number;
     error: string | null;
@@ -120,7 +121,6 @@ export async function physicsSimRlTrainStart(body: {
   totalTimesteps?: number;
   saveEvery?: number;
   nEnvs?: number;
-  task?: string;
 }): Promise<PhysicsSimRlStatus> {
   return physicsFetch<PhysicsSimRlStatus>("/rl/train/start", {
     method: "POST",

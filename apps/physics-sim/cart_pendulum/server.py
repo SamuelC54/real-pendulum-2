@@ -183,7 +183,6 @@ class PhysicsSimHandler(BaseHTTPRequestHandler):
                         total_timesteps=int(body.get("totalTimesteps", 200_000)),
                         save_every=int(body.get("saveEvery", 10_000)),
                         n_envs=int(body.get("nEnvs", 4)),
-                        task=str(body.get("task", "balance")),
                     )
                 elif path == "/rl/train/stop":
                     out = rl_service.stop_training()
