@@ -5,6 +5,7 @@ __pycache__/
 .venv/
 *.log
 .DS_Store
+.ipynb_checkpoints/
 # Legacy local overrides (unused; see packages/app-config/src/config.ts)
 local-config.override
 tools/protoc/
@@ -19,3 +20,5 @@ apps/physics-sim/rl/gen/_latest/
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+notebooks/mujoco
