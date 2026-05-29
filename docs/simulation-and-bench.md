@@ -197,7 +197,7 @@ Pick one pattern (or evolve from A → B):
 ## 5. Coupled cart–pendulum physics
 
 **Runtime engine:** [`apps/physics-sim`](../apps/physics-sim/) — **Python + MuJoCo** HTTP service (default `http://127.0.0.1:58871`).  
-**TypeScript bridge:** `apps/physics-sim/client` (`physicsSimClient`, replay helpers).  
+**TypeScript bridge:** `apps/physics-sim/client` (`physicsSimClient`).  
 **gRPC facades:** `apps/motor-service` coupled sim (§3.5) steps the live plant over HTTP on each status poll.
 
 ### 5.1 State & parameters
@@ -211,19 +211,19 @@ Pick one pattern (or evolve from A → B):
 - Cart **velocity actuator** tracks `vCmdMps`; pendulum motion couples through rigid-body dynamics.
 - Tunables are patched at runtime via `PATCH /config` (see `apps/physics-sim/README.md`).
 
-### 5.3 HTTP API (live plant + stateless replay)
+### 5.3 HTTP API (live plant)
 
 | Method | Path | Purpose |
 |--------|------|---------|
 | POST | `/step` | Advance live plant `{ dt, vCmdMps? }` |
-| POST | `/replay` | Stateless twin replay for calibration |
+| POST | `/move_absolute` | Cart position setpoint via `cart_pos` actuator |
 | PATCH | `/config` | Update plant parameters |
 
 ### 5.4 TypeScript exports
 
 | Export | Purpose |
 |--------|---------|
-| `physicsSimStep`, `physicsSimReset`, `physicsSimReplay` | HTTP client to MuJoCo service |
+| `physicsSimStep`, `physicsSimReset`, `physicsSimMoveAbsolute` | HTTP client to MuJoCo service |
 | `createCartPendulumPlant`, `encoderTicksInt` | In-memory state mirror (synced from physics-sim) |
 
 ### 5.5 Wiring checklist (implementers)
@@ -243,7 +243,7 @@ Pick one pattern (or evolve from A → B):
 | **2** | Simulated **sensor** + limit logic from sim `xM`; encoder from physics-sim. |
 | **3** | **Coupled** plant in one process; homing against sim limits end-to-end. |
 | **4** | **Bench:** second gRPC client pair + tRPC read (and optional guarded write) + web split view. |
-| **5** | Optional **replay / log comparison** and parameter tuning UI (L, g, damping) for education. |
+| **5** | Optional **log comparison** UI for education. |
 
 ---
 

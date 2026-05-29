@@ -11,8 +11,6 @@ from typing import Any
 from urllib.parse import urlparse
 
 from .plant import CartPendulumPlant, PlantConfig, PlantState
-from .calibrate import fit_twin_calibration_params
-from .replay import replay_twin_trace
 
 try:
     from controllers import service as controller_service
@@ -21,12 +19,6 @@ except ImportError:
 
 _live_plant = CartPendulumPlant()
 _live_lock = threading.Lock()
-_replay_defaults: dict[str, float] = {
-    "gravity": 9.80665,
-    "encoderTicksPerRadian": 2400.0 / (2.0 * 3.141592653589793),
-    "limitLeftXM": -0.2,
-    "limitRightXM": 0.2,
-}
 
 
 def _json_response(handler: BaseHTTPRequestHandler, code: int, body: Any) -> None:
@@ -154,48 +146,6 @@ class PhysicsSimHandler(BaseHTTPRequestHandler):
                 _live_plant.sync_state_to_mujoco()
                 _live_plant.sync_encoder_from_theta()
             _json_response(self, 200, _state_payload())
-            return
-
-        if path == "/replay":
-            try:
-                samples = body.get("samples") or []
-                params = body.get("params") or {}
-                defaults = {**_replay_defaults, **(body.get("defaults") or {})}
-                trace = replay_twin_trace(
-                    samples,
-                    params,
-                    gravity=float(defaults["gravity"]),
-                    encoder_ticks_per_radian=float(defaults["encoderTicksPerRadian"]),
-                    limit_left_x_m=float(defaults["limitLeftXM"]),
-                    limit_right_x_m=float(defaults["limitRightXM"]),
-                )
-            except Exception as e:
-                traceback.print_exc()
-                _json_response(self, 500, {"error": str(e)})
-                return
-            _json_response(
-                self,
-                200,
-                {
-                    "trace": [
-                        {"motorCm": p.motor_cm, "encoderTicks": p.encoder_ticks} for p in trace
-                    ]
-                },
-            )
-            return
-
-        if path == "/calibrate":
-            try:
-                samples = body.get("samples") or []
-                start = body.get("start") or body.get("params") or {}
-                weights = body.get("weights") or {"position": 1.0, "encoder": 0.5}
-                defaults = {**_replay_defaults, **(body.get("defaults") or {})}
-                fit = fit_twin_calibration_params(samples, start, weights, defaults)
-            except Exception as e:
-                traceback.print_exc()
-                _json_response(self, 500, {"error": str(e)})
-                return
-            _json_response(self, 200, {"fit": fit})
             return
 
         if path.startswith("/controllers/"):

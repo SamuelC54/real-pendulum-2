@@ -1,4 +1,3 @@
-import { useAtomValue } from "jotai";
 import { useState, type ReactNode } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { HomingControls } from "@/components/HomingControls";
@@ -11,12 +10,9 @@ import { BackendAutoConnect } from "@/components/BackendAutoConnect";
 import { KeyboardJogListener } from "@/components/KeyboardJogListener";
 import { DigitalTwinPage } from "@/components/DigitalTwinPage";
 import { ControllersPage } from "@/components/ControllersPage";
-import { TuningPage } from "@/components/TuningPage";
-import { grpcBackendModeAtom } from "@/stores/grpcBackendMode";
-import { trpc } from "@/trpc";
 import { cn } from "@/lib/utils";
 
-export type AppPage = "control" | "controllers" | "tuning" | "digital-twin";
+export type AppPage = "control" | "controllers" | "digital-twin";
 
 function ControlPage() {
   return (
@@ -59,33 +55,8 @@ function NavTab({
   );
 }
 
-function TuningRecordingBanner() {
-  const mode = useAtomValue(grpcBackendModeAtom);
-  const recordStatus = trpc.tuning.record.status.useQuery(undefined, {
-    enabled: mode === "twin",
-    refetchInterval: (q) => (q.state.data?.recording ? 400 : false),
-  });
-  const recording = recordStatus.data?.recording ?? false;
-  if (!recording || mode !== "twin") return null;
-  return (
-    <p
-      className="mb-4 flex items-center gap-2 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-800 dark:text-red-200"
-      role="status"
-    >
-      <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-red-500" aria-hidden />
-      Twin tuning recording — switch back to Tuning to stop or export.
-    </p>
-  );
-}
-
 export function AppShell() {
   const [page, setPage] = useState<AppPage>("control");
-  const mode = useAtomValue(grpcBackendModeAtom);
-  const recordStatus = trpc.tuning.record.status.useQuery(undefined, {
-    enabled: mode === "twin",
-    refetchInterval: (q) => (q.state.data?.recording ? 400 : false),
-  });
-  const recording = recordStatus.data?.recording ?? false;
 
   return (
     <div className="min-h-dvh bg-background text-foreground">
@@ -103,12 +74,6 @@ export function AppShell() {
             <NavTab active={page === "controllers"} onClick={() => setPage("controllers")}>
               Controllers
             </NavTab>
-            <NavTab active={page === "tuning"} onClick={() => setPage("tuning")}>
-              Tuning
-              {recording ? (
-                <span className="ml-1.5 inline-block h-1.5 w-1.5 rounded-full bg-red-500" aria-hidden />
-              ) : null}
-            </NavTab>
             <NavTab active={page === "digital-twin"} onClick={() => setPage("digital-twin")}>
               Digital twin
             </NavTab>
@@ -121,16 +86,12 @@ export function AppShell() {
           page === "digital-twin" ? "max-w-[96rem]" : "max-w-7xl",
         )}
       >
-        <TuningRecordingBanner />
         <MotionLatchBanner />
         <div className={page === "control" ? undefined : "hidden"} aria-hidden={page !== "control"}>
           <ControlPage />
         </div>
         <div className={page === "controllers" ? undefined : "hidden"} aria-hidden={page !== "controllers"}>
           <ControllersPage />
-        </div>
-        <div className={page === "tuning" ? undefined : "hidden"} aria-hidden={page !== "tuning"}>
-          <TuningPage />
         </div>
         <div
           className={page === "digital-twin" ? undefined : "hidden"}

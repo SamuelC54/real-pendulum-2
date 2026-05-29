@@ -36,8 +36,6 @@ import * as sensor from "@real-pendulum/sensor-service/sdk";
 import { runRailHoming } from "./homing.js";
 import { resetTravelLimitsStateForTests } from "./railTravelLimits.js";
 import { appRouter } from "./router.js";
-import { resetTuningRecordForTests } from "./tuningRecord.js";
-
 describe("appRouter (motor mocked)", () => {
   beforeEach(() => {
     vi.mocked(motor.connectMotor).mockReset();
@@ -188,31 +186,6 @@ describe("appRouter (motor mocked)", () => {
     expect(r.real).toEqual({ ok: true, error: "" });
     expect(r.sim.ok).toBe(false);
     expect(r.sim.error).toContain("Motor service not reachable");
-  });
-
-  it("tuning.record start/stop captures samples on the server", async () => {
-    resetTuningRecordForTests();
-    try {
-      vi.mocked(motor.getMotorStatus).mockResolvedValue({
-        connected: true,
-        commandedRpm: 5,
-        detail: "ok",
-        measuredPosition: 0,
-      });
-      const caller = appRouter.createCaller({});
-      expect((await caller.tuning.record.status()).recording).toBe(false);
-      await caller.tuning.record.start();
-      await vi.waitFor(async () => (await caller.tuning.record.status()).sampleCount > 0, {
-        timeout: 300,
-      });
-      const stopped = await caller.tuning.record.stop();
-      expect(stopped.recording).toBe(false);
-      expect(stopped.sampleCount).toBeGreaterThan(0);
-      await caller.tuning.record.clear();
-      expect((await caller.tuning.record.status()).sampleCount).toBe(0);
-    } finally {
-      resetTuningRecordForTests();
-    }
   });
 
   it("twin.status.get returns real and sim motor snapshots", async () => {

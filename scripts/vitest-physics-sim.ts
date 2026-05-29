@@ -19,24 +19,10 @@ async function physicsSimHealthy(): Promise<boolean> {
   }
 }
 
-async function physicsSimSupportsCalibrate(): Promise<boolean> {
-  try {
-    const res = await fetch(`${PHYSICS_SIM_URL}/calibrate`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ samples: [], start: {} }),
-      signal: AbortSignal.timeout(2000),
-    });
-    return res.status !== 404;
-  } catch {
-    return false;
-  }
-}
-
 async function waitForReady(timeoutMs: number): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    if ((await physicsSimHealthy()) && (await physicsSimSupportsCalibrate())) return;
+    if (await physicsSimHealthy()) return;
     await new Promise((r) => setTimeout(r, 100));
   }
   throw new Error(
@@ -47,7 +33,7 @@ async function waitForReady(timeoutMs: number): Promise<void> {
 export async function setup(): Promise<void> {
   process.env.PHYSICS_SIM_URL = PHYSICS_SIM_URL;
 
-  if ((await physicsSimHealthy()) && (await physicsSimSupportsCalibrate())) return;
+  if (await physicsSimHealthy()) return;
 
   proc = spawn("python", ["-m", "cart_pendulum.server", "--port", String(TEST_PORT)], {
     cwd: PHYSICS_SIM_DIR,

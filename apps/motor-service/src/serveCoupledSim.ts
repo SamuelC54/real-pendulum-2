@@ -7,7 +7,7 @@
  * Point **both** URLs at the printed address, e.g.:
  *   `MOTOR_GRPC_URL=http://127.0.0.1:58870` and `SENSOR_GRPC_URL=http://127.0.0.1:58870`
  *
- * Sim tuning: edit **`config/coupled-sim.parameters.json`** (or use the Tuning UI / control-api).
+ * Sim parameters: edit **`config/coupled-sim.parameters.json`** (loaded at startup).
  */
 import { config } from "@real-pendulum/app-config";
 import { resolveCoupledSimParametersPath } from "@real-pendulum/app-config/coupled-sim-parameters";

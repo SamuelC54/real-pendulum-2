@@ -70,7 +70,7 @@ export type AppConfig = {
     physicsSimHttpUrl?: string;
     motorSimGrpcUrl?: string;
     sensorSimGrpcUrl?: string;
-    /** Plant tuning lives in `config/coupled-sim.parameters.json` (see `@real-pendulum/app-config/coupled-sim-parameters`). */
+    /** Plant parameters in `config/coupled-sim.parameters.json` (see `@real-pendulum/app-config/coupled-sim-parameters`). */
     /** Cart position (m) where coupled-sim left/right limit switches assert. */
     limitLeftXM: number;
     limitRightXM: number;

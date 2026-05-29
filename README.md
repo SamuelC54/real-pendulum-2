@@ -51,7 +51,7 @@ UI mode: **`npm run test:e2e:ui`**, **`npm run test:e2e:real:ui`** — or **`npx
 
 ### Configuration
 
-Edit **`packages/app-config/src/config.ts`** for ports, homing, coupled-sim tuning, Teknic native build paths, flash options, and E2E sim-stack ports (`config.e2e`). Services accept optional CLI overrides (`--port`, `--motor-grpc-url`) when spawned by scripts.
+Edit **`packages/app-config/src/config.ts`** for ports, homing, coupled-sim parameters, Teknic native build paths, flash options, and E2E sim-stack ports (`config.e2e`). Services accept optional CLI overrides (`--port`, `--motor-grpc-url`) when spawned by scripts.
 
 **Teknic motion limits** are in **`TeknicCfg`** (`apps/motor-service/native/teknic_motor/teknic_cfg.h`) — rebuild the DLL after changes. **`FindComHubPorts`** only sees the **SC4-HUB** USB adapter; for motor diagnostic USB set **`TeknicCfg::kManualComWhenDiscoveryEmpty`** ≥ 1.
 

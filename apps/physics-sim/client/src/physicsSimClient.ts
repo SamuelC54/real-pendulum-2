@@ -6,8 +6,6 @@ export type PhysicsSimStatePayload = {
   config: CartPendulumConfig;
 };
 
-export type PhysicsReplayPoint = { motorCm: number; encoderTicks: number };
-
 function physicsSimBaseUrl(): string {
   const raw = process.env.PHYSICS_SIM_URL?.trim();
   if (raw) return raw.startsWith("http") ? raw : `http://${raw}`;
@@ -88,23 +86,6 @@ export async function physicsSimPatchConfig(
   });
 }
 
-export async function physicsSimReplay(options: {
-  samples: unknown[];
-  params: Record<string, number>;
-  defaults?: Record<string, number>;
-}): Promise<PhysicsReplayPoint[]> {
-  const body = await physicsFetch<{ trace: PhysicsReplayPoint[] }>("/replay", {
-    method: "POST",
-    body: JSON.stringify(options),
-  });
-  return body.trace;
-}
-
-export type PhysicsSimCalibrationFit = {
-  params: Record<string, number>;
-  score: number;
-};
-
 export type PhysicsSimControllerMeta = {
   id: string;
   name: string;
@@ -174,17 +155,4 @@ export async function physicsSimControllersTick(state: {
 
 export async function physicsSimGetState(): Promise<PhysicsSimStatePayload> {
   return physicsFetch<PhysicsSimStatePayload>("/state");
-}
-
-export async function physicsSimCalibrate(options: {
-  samples: unknown[];
-  start: Record<string, number>;
-  weights?: { position: number; encoder: number };
-  defaults?: Record<string, number>;
-}): Promise<PhysicsSimCalibrationFit | null> {
-  const body = await physicsFetch<{ fit: PhysicsSimCalibrationFit | null }>("/calibrate", {
-    method: "POST",
-    body: JSON.stringify(options),
-  });
-  return body.fit;
 }

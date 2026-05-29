@@ -1,10 +1,6 @@
 import { config } from "@real-pendulum/app-config";
 import { initTRPC } from "@trpc/server";
 import superjson from "superjson";
-import {
-  coupledSimParametersPatchSchema,
-  coupledSimParametersSchema,
-} from "@real-pendulum/app-config/coupled-sim-parameters";
 import { z } from "zod";
 import { friendlyMotorGrpcError } from "./motorErrors.js";
 import { friendlySensorGrpcError } from "./sensorErrors.js";
@@ -30,35 +26,12 @@ import { startRecoveryJog, stopRecoveryJog } from "./motionLatchRecovery.js";
 import { homingResultForClient } from "./homingApi.js";
 import type { MotorStatusForClient } from "./motorStatusApi.js";
 import { readMotorStatusPayload, readSensorStatusPayload, type SensorStatusPayload } from "./statusPayload.js";
-import { fetchTuningCompare } from "./tuningCompare.js";
-import {
-  clearTuningSamples,
-  exportTuningSamplesCsv,
-  getTuningRecordStatus,
-  getTuningSamples,
-  startTuningRecord,
-  stopTuningRecord,
-} from "./tuningRecord.js";
-import {
-  getLiveTwinCalibrationStatus,
-  resetLiveTwinCalibrationToBaseline,
-  resetLiveTwinCalibrationWindow,
-  startLiveTwinCalibration,
-  stopLiveTwinCalibration,
-} from "./liveTwinCalibration.js";
-import { fitOfflineReplayOptimization } from "./tuningOfflineFit.js";
-import { DEFAULT_CALIBRATION_WEIGHTS } from "./twinCalibrationTypes.js";
 import { displayCountsPerCm, teknicMeasuredToCm } from "./railPositionCm.js";
 import {
   moveToPositionCmRespectingTravelLimits,
   setJogVelocityRpmRespectingTravelLimits,
 } from "./railLimitGuards.js";
 import { withHardwareGrpc, withSimGrpc } from "./twinGrpc.js";
-import {
-  getCoupledSimConfigFromFile,
-  patchCoupledSimConfigFile,
-  putCoupledSimConfigFile,
-} from "./coupledSimConfigFile.js";
 import {
   getControllerStatus,
   listControllers,
@@ -146,27 +119,6 @@ const grpcWireMiddleware = t.middleware(async ({ ctx, next }) => {
 
 const baseProcedure = t.procedure;
 const publicProcedure = t.procedure.use(grpcWireMiddleware);
-
-const tuningSampleSchema = z.object({
-  t: z.number(),
-  commandedRpm: z.number(),
-  realMotorCm: z.number().nullable(),
-  simMotorCm: z.number().nullable(),
-  realEncoderTicks: z.number(),
-  simEncoderTicks: z.number(),
-});
-
-const twinCalibrationParamsSchema = z.object({
-  mpsPerRpm: z.number(),
-  pendulumLengthM: z.number(),
-  cartVelocityTrackingPerSec: z.number(),
-  angularDampingPerSec: z.number(),
-});
-
-const tuningWeightsSchema = z.object({
-  position: z.number(),
-  encoder: z.number(),
-});
 
 export const appRouter = t.router({
   meta: t.router({
@@ -656,54 +608,6 @@ export const appRouter = t.router({
           return { real, sim };
         }),
       }),
-    }),
-  }),
-  tuning: t.router({
-    /** Live hardware vs simulation snapshot for the tuning UI (Twin backends). */
-    compare: baseProcedure.query(() => fetchTuningCompare()),
-    /** Offline replay fit via MuJoCo (browser validation path). */
-    fitReplayOffline: baseProcedure
-      .input(
-        z.object({
-          samples: z.array(tuningSampleSchema),
-          params: twinCalibrationParamsSchema,
-          weights: tuningWeightsSchema.optional(),
-        }),
-      )
-      .mutation(async ({ input }) =>
-        fitOfflineReplayOptimization(
-          input.samples,
-          input.params,
-          input.weights ?? DEFAULT_CALIBRATION_WEIGHTS,
-        ),
-      ),
-    record: t.router({
-      status: baseProcedure.query(() => getTuningRecordStatus()),
-      samples: baseProcedure.query(() => [...getTuningSamples()]),
-      exportCsv: baseProcedure.query(() => exportTuningSamplesCsv()),
-      start: baseProcedure.mutation(() => startTuningRecord()),
-      stop: baseProcedure.mutation(() => stopTuningRecord()),
-      clear: baseProcedure.mutation(() => clearTuningSamples()),
-    }),
-    /** Live digital-twin calibration (sim parameters only; hardware unchanged). */
-    calibration: t.router({
-      status: baseProcedure.query(() => getLiveTwinCalibrationStatus()),
-      start: baseProcedure
-        .input(z.object({ persistToFileOnStop: z.boolean().optional() }).optional())
-        .mutation(async ({ input }) => startLiveTwinCalibration(input ?? undefined)),
-      stop: baseProcedure.mutation(() => stopLiveTwinCalibration()),
-      resetWindow: baseProcedure.mutation(async () => resetLiveTwinCalibrationWindow()),
-      resetToBaseline: baseProcedure.mutation(() => resetLiveTwinCalibrationToBaseline()),
-    }),
-    simConfig: t.router({
-      /** Read `config/coupled-sim.parameters.json` (strict — all fields required). */
-      get: baseProcedure.query(() => getCoupledSimConfigFromFile()),
-      patch: baseProcedure
-        .input(coupledSimParametersPatchSchema)
-        .mutation(async ({ input }) => patchCoupledSimConfigFile(input)),
-      put: baseProcedure
-        .input(coupledSimParametersSchema)
-        .mutation(async ({ input }) => putCoupledSimConfigFile(input)),
     }),
   }),
   /** Limit-switch latch: full motion stop until operator releases. */

@@ -7,7 +7,6 @@ import { RailPendulumSchematic } from "@/components/RailPendulumSchematic";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
-import { MoveToHomeButton } from "@/components/MoveToHomeButton";
 import { isJogBlockedByTravelLimit, JOG_RPM_SLIDER_MAX, POSITION_MOVE_ACC_SLIDER_MAX } from "@/lib/jogMath";
 import { useMotorSession } from "@/services/motorSession";
 import { useSensorStatusQuery } from "@/services/useMotorStatusQuery";
@@ -74,14 +73,7 @@ const JogDirectionButton = memo(function JogDirectionButton({
   );
 });
 
-export const JogControls = memo(function JogControls({
-  showMoveToHome = false,
-  className,
-}: {
-  /** Profile move to 0 cm (shown on the Tuning page). */
-  showMoveToHome?: boolean;
-  className?: string;
-}) {
+export const JogControls = memo(function JogControls({ className }: { className?: string }) {
   const {
     connected,
     applyPointerHold,
@@ -188,10 +180,6 @@ export const JogControls = memo(function JogControls({
           <OctagonAlert aria-hidden />
           Stop
         </Button>
-
-        {showMoveToHome ? (
-          <MoveToHomeButton connected={connected} connectionBusy={connectionBusy} />
-        ) : null}
 
         {latched ? (
           <p className="text-muted-foreground text-center text-xs leading-relaxed">

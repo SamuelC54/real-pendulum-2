@@ -1,6 +1,6 @@
 # Physics sim (MuJoCo)
 
-Python **MuJoCo** cart–pendulum engine used by the coupled gRPC sim and twin calibration replay.
+Python **MuJoCo** cart–pendulum engine used by the coupled gRPC sim.
 
 ## Setup
 
@@ -33,7 +33,5 @@ python -m cart_pendulum.server --port 58871
 | POST | `/reset` | `{ "initial"?, "config"? }` — reset live plant |
 | PATCH | `/config` | Patch plant parameters |
 | POST | `/move_absolute` | `{ "xM", "toleranceM"?, "maxTimeSec"? }` — cart_pos setpoint + physics steps |
-| POST | `/replay` | Stateless replay for calibration (`samples`, `params`, `defaults`) |
-| POST | `/calibrate` | SciPy parameter fit (`samples`, `start`, `weights?`, `defaults?`) → `{ fit }` |
 
-The **live** plant is a singleton in the server process. **Replay** builds a fresh plant per request.
+The **live** plant is a singleton in the server process.
