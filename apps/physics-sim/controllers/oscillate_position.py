@@ -18,6 +18,27 @@ METADATA = {
         "maxVelocityRpm": 80.0,
         "maxAccelerationRpmPerSec": 500.0,
     },
+    "paramLabels": {
+        "amplitudeCm": "Amplitude (cm)",
+        "toleranceCm": "Arrival tolerance (cm)",
+        "dwellSec": "Dwell (s)",
+        "maxVelocityRpm": "Max profile RPM",
+        "maxAccelerationRpmPerSec": "Max acceleration (RPM/s)",
+    },
+    "paramDescriptions": {
+        "amplitudeCm": "Half-span of the back-and-forth motion from the position at Start.",
+        "toleranceCm": "How close to the target counts as arrived before starting dwell.",
+        "dwellSec": "Pause at each end before reversing direction.",
+        "maxVelocityRpm": "Cap on Teknic profile speed for each absolute move.",
+        "maxAccelerationRpmPerSec": "Cap on Teknic profile acceleration for each absolute move.",
+    },
+    "paramOrder": [
+        "amplitudeCm",
+        "toleranceCm",
+        "dwellSec",
+        "maxVelocityRpm",
+        "maxAccelerationRpmPerSec",
+    ],
 }
 
 

@@ -4,7 +4,7 @@ import importlib
 import pkgutil
 from typing import Any, Callable, Protocol
 
-_SKIP_MODULES = frozenset({"registry", "service", "base"})
+_SKIP_MODULES = frozenset({"registry", "service", "base", "lqr_common"})
 
 
 class RailController(Protocol):
@@ -28,14 +28,22 @@ def list_metadata() -> list[dict[str, Any]]:
         meta = getattr(mod, "METADATA", None)
         if not isinstance(meta, dict) or "id" not in meta:
             continue
-        out.append(
-            {
-                "id": str(meta["id"]),
-                "name": str(meta.get("name", meta["id"])),
-                "description": str(meta.get("description", "")),
-                "defaultParams": dict(meta.get("defaultParams") or {}),
-            }
-        )
+        entry: dict[str, Any] = {
+            "id": str(meta["id"]),
+            "name": str(meta.get("name", meta["id"])),
+            "description": str(meta.get("description", "")),
+            "defaultParams": dict(meta.get("defaultParams") or {}),
+        }
+        labels = meta.get("paramLabels")
+        if isinstance(labels, dict):
+            entry["paramLabels"] = {str(k): str(v) for k, v in labels.items()}
+        descriptions = meta.get("paramDescriptions")
+        if isinstance(descriptions, dict):
+            entry["paramDescriptions"] = {str(k): str(v) for k, v in descriptions.items()}
+        order = meta.get("paramOrder")
+        if isinstance(order, list):
+            entry["paramOrder"] = [str(k) for k in order]
+        out.append(entry)
     return out
 
 

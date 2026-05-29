@@ -10,11 +10,14 @@ import {
 } from "@real-pendulum/physics-sim/client";
 import { isMotionBlockedByLatch } from "./motionLatch.js";
 import { moveToPositionCmRespectingTravelLimits } from "./railLimitGuards.js";
-import { readMotorStatusPayload } from "./statusPayload.js";
+import { readMotorStatusPayload, readSensorStatusPayload } from "./statusPayload.js";
 import { isHardwareInferenceLoopRunning } from "./rlHardwareInference.js";
 
 const TICK_MS = 200;
+const LQR_TICK_MS = 50;
 const ARRIVAL_TOLERANCE_CM = 0.5;
+
+let activeControllerId: string | null = null;
 
 let loopTimer: ReturnType<typeof setInterval> | null = null;
 let loopError: string | null = null;
@@ -28,6 +31,7 @@ function stopLoopTimer(): void {
   }
   lastCommandedCm = null;
   controllerStartedAtSec = null;
+  activeControllerId = null;
 }
 
 export function getControllerLoopError(): string | null {
@@ -63,7 +67,23 @@ async function controllerTick(): Promise<boolean> {
         ? Date.now() / 1000 - controllerStartedAtSec
         : Date.now() / 1000;
 
-    const out = await physicsSimControllersTick({ positionCm, timeSec });
+    const tickState: {
+      positionCm: number;
+      timeSec: number;
+      encoderTicks?: number;
+    } = { positionCm, timeSec };
+
+    if (activeControllerId === "lqr_position") {
+      const sensor = await readSensorStatusPayload();
+      if (!sensor.connected) {
+        throw new Error(
+          "Sensor board is not connected — LQR balance needs the pendulum encoder.",
+        );
+      }
+      tickState.encoderTicks = sensor.encoderTicks;
+    }
+
+    const out = await physicsSimControllersTick(tickState);
 
     if (out.done || out.idle) {
       await stopControllerRunner();
@@ -72,10 +92,12 @@ async function controllerTick(): Promise<boolean> {
 
     if (out.positionCm !== undefined && Number.isFinite(out.positionCm)) {
       const target = out.positionCm;
-      const needsMove =
-        lastCommandedCm === null ||
-        Math.abs(target - lastCommandedCm) > 1e-6 ||
-        Math.abs(positionCm - target) > ARRIVAL_TOLERANCE_CM;
+      const minDelta = out.minCommandDeltaCm ?? ARRIVAL_TOLERANCE_CM;
+      const needsMove = out.streamPosition
+        ? lastCommandedCm === null || Math.abs(target - lastCommandedCm) >= minDelta
+        : lastCommandedCm === null ||
+          Math.abs(target - lastCommandedCm) > 1e-6 ||
+          Math.abs(positionCm - target) > ARRIVAL_TOLERANCE_CM;
 
       if (needsMove) {
         const move = await moveToPositionCmRespectingTravelLimits(target, {
@@ -124,15 +146,27 @@ export async function startControllerRunner(
   controllerStartedAtSec = Date.now() / 1000;
 
   await physicsSimControllersStart(id, params);
+  activeControllerId = id;
   await assertMotorReady();
+  if (id === "lqr_position") {
+    const sensor = await readSensorStatusPayload();
+    if (!sensor.connected) {
+      activeControllerId = null;
+      await physicsSimControllersStop();
+      throw new Error(
+        "Connect the sensor board on the Control tab before starting LQR balance.",
+      );
+    }
+  }
   const finished = await controllerTick();
   if (finished || loopTimer != null) {
     return;
   }
 
+  const tickMs = id === "lqr_position" ? LQR_TICK_MS : TICK_MS;
   loopTimer = setInterval(() => {
     void controllerTick();
-  }, TICK_MS);
+  }, tickMs);
 }
 
 export async function stopControllerRunner(): Promise<void> {

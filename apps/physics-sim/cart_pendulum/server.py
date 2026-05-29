@@ -209,10 +209,12 @@ class PhysicsSimHandler(BaseHTTPRequestHandler):
                     if position_cm is None:
                         _json_response(self, 400, {"error": "positionCm required"})
                         return
-                    tick_state = {
+                    tick_state: dict[str, Any] = {
                         "positionCm": float(position_cm),
                         "timeSec": float(body.get("timeSec", 0)),
                     }
+                    if "encoderTicks" in body:
+                        tick_state["encoderTicks"] = float(body["encoderTicks"])
                     out = controller_service.tick(tick_state)
                 else:
                     _json_response(self, 404, {"error": "not found"})

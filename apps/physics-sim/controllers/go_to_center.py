@@ -17,6 +17,19 @@ METADATA = {
         "maxVelocityRpm": 80.0,
         "maxAccelerationRpmPerSec": 500.0,
     },
+    "paramLabels": {
+        "centerCm": "Target center (cm)",
+        "toleranceCm": "Arrival tolerance (cm)",
+        "maxVelocityRpm": "Max profile RPM",
+        "maxAccelerationRpmPerSec": "Max acceleration (RPM/s)",
+    },
+    "paramDescriptions": {
+        "centerCm": "Goal rail position (usually 0 cm / Teknic home).",
+        "toleranceCm": "Stop the controller when the cart is within this distance of the target.",
+        "maxVelocityRpm": "Cap on Teknic profile speed for the move.",
+        "maxAccelerationRpmPerSec": "Cap on Teknic profile acceleration for the move.",
+    },
+    "paramOrder": ["centerCm", "toleranceCm", "maxVelocityRpm", "maxAccelerationRpmPerSec"],
 }
 
 

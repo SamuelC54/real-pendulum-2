@@ -8,6 +8,12 @@ def test_list_includes_oscillate_position():
     assert "go_to_center" in ids
 
 
+def test_lqr_metadata_includes_param_descriptions():
+    lqr = next(m for m in list_metadata() if m["id"] == "lqr_position")
+    assert "targetClipMinCm" in lqr["paramDescriptions"]
+    assert lqr["paramDescriptions"]["targetClipMinCm"]
+
+
 def test_go_to_center_moves_then_done():
     start("go_to_center", {"centerCm": 0.0, "toleranceCm": 0.5})
     assert status()["active"] is True

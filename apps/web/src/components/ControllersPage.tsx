@@ -8,11 +8,13 @@ import { useMotorStatusQuery } from "@/services/useMotorStatusQuery";
 
 function ParamField({
   label,
+  description,
   value,
   onChange,
   disabled,
 }: {
   label: string;
+  description?: string;
   value: number;
   onChange: (v: number) => void;
   disabled: boolean;
@@ -20,6 +22,9 @@ function ParamField({
   return (
     <label className="flex flex-col gap-1 text-xs">
       <span className="text-muted-foreground font-medium">{label}</span>
+      {description ? (
+        <span className="text-muted-foreground/80 text-[10px] leading-snug">{description}</span>
+      ) : null}
       <input
         type="number"
         className="border-input bg-background rounded-md border px-2 py-1.5 font-mono text-sm"
@@ -91,6 +96,11 @@ export function ControllersPage() {
         </p>
       ) : null}
 
+      <p className="text-muted-foreground max-w-2xl text-xs leading-relaxed">
+        <strong className="text-foreground font-medium">LQR balance</strong> also needs the sensor
+        board connected (pendulum encoder). Stop the controller with the banner Stop when finished.
+      </p>
+
       {!connected ? (
         <p className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm">
           Connect the motor on the Control tab before starting a controller.
@@ -135,7 +145,11 @@ export function ControllersPage() {
           const defaults = c.defaultParams;
           const params = paramsFor(c.id, defaults);
           const isThisActive = active && activeId === c.id;
-          const paramKeys = Object.keys(defaults);
+          const paramKeys =
+            c.paramOrder?.filter((k) => k in defaults) ??
+            Object.keys(defaults);
+          const paramLabels = c.paramLabels ?? {};
+          const paramDescriptions = c.paramDescriptions ?? {};
 
           return (
             <Card key={c.id} className="flex flex-col gap-4 p-5">
@@ -150,7 +164,8 @@ export function ControllersPage() {
                   {paramKeys.map((key) => (
                     <ParamField
                       key={key}
-                      label={key}
+                      label={paramLabels[key] ?? key}
+                      description={paramDescriptions[key]}
                       value={params[key] ?? defaults[key] ?? 0}
                       disabled={active || busy}
                       onChange={(v) => setParam(c.id, key, v, defaults)}

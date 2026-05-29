@@ -167,6 +167,9 @@ export type PhysicsSimControllerMeta = {
   name: string;
   description: string;
   defaultParams: Record<string, number>;
+  paramLabels?: Record<string, string>;
+  paramDescriptions?: Record<string, string>;
+  paramOrder?: string[];
 };
 
 export type PhysicsSimControllerStatus = {
@@ -184,6 +187,9 @@ export type PhysicsSimControllerTickResult = {
   maxVelocityRpm?: number;
   maxAccelerationRpmPerSec?: number;
   done?: boolean;
+  /** When true, issue a new move when the setpoint changes (e.g. LQR). */
+  streamPosition?: boolean;
+  minCommandDeltaCm?: number;
 };
 
 export async function physicsSimControllersList(): Promise<PhysicsSimControllerMeta[]> {
@@ -215,6 +221,7 @@ export async function physicsSimControllersStop(): Promise<PhysicsSimControllerS
 export async function physicsSimControllersTick(state: {
   positionCm: number;
   timeSec: number;
+  encoderTicks?: number;
 }): Promise<PhysicsSimControllerTickResult> {
   return physicsFetch<PhysicsSimControllerTickResult>("/controllers/tick", {
     method: "POST",
