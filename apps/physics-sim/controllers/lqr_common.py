@@ -9,15 +9,15 @@ import mujoco
 import numpy as np
 import scipy.linalg
 
-_LQR_MODEL_PATH = (
-    Path(__file__).resolve().parent.parent / "models" / "cart_pendulum_lqr_position.xml"
-)
+_MODEL_PATH = Path(__file__).resolve().parent.parent / "models" / "cart_pendulum.xml"
 
 UPRIGHT_THETA_RAD = float(np.pi)
 
 
 def load_lqr_position_model() -> tuple[mujoco.MjModel, mujoco.MjData]:
-    model = mujoco.MjModel.from_xml_path(str(_LQR_MODEL_PATH))
+    """Shared plant XML; implicitfast required for mjd_transitionFD (RK4 is not supported)."""
+    model = mujoco.MjModel.from_xml_path(str(_MODEL_PATH))
+    model.opt.integrator = mujoco.mjtIntegrator.mjINT_IMPLICITFAST
     data = mujoco.MjData(model)
     return model, data
 

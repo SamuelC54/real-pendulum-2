@@ -1,5 +1,6 @@
 <!-- Cart on horizontal rail (slide +X) with pendulum in the X–Z plane (hinge axis +Y).
-     q_pendulum = 0: bob hangs toward −Z (straight down). Positive q rotates toward +X. -->
+     q_pendulum = 0: bob hangs toward −Z (straight down). Positive q rotates toward +X.
+     LQR design code switches integrator to implicitfast at load time (mjd_transitionFD). -->
 <mujoco model="cart_pendulum">
   <compiler angle="radian" autolimits="true"/>
   <option timestep="0.004166666666666667" gravity="0 0 -9.80665" integrator="RK4"/>
@@ -10,6 +11,9 @@
   </default>
 
   <worldbody>
+    <light name="main_light" pos="0 -1 1" dir="0 1 -1" diffuse="1 1 1"/>
+    <camera name="side" pos="0 -1.2 0.35" xyaxes="1 0 0 0 0 1"/>
+
     <geom name="rail" type="box" size="2 0.02 0.01" pos="0 0 0" rgba="0.35 0.35 0.4 1" contype="0" conaffinity="0"/>
     <body name="cart" pos="0 0 0.05">
       <!-- Belt: position servo on slide (kp from cartVelocityTrackingPerSec in plant.py). -->
@@ -28,4 +32,9 @@
     <position name="cart_pos" joint="cart_slide" kp="1200" kv="120"
               ctrllimited="true" ctrlrange="-1.8 1.8"/>
   </actuator>
+
+  <keyframe>
+    <!-- Upright balance pose for LQR (pendulum hinge ≈ π). -->
+    <key name="upright_0deg" qpos="0 3.14159265359" ctrl="0"/>
+  </keyframe>
 </mujoco>
