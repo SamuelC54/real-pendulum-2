@@ -17,6 +17,18 @@ vi.mock("@/services/useMotorStatusQuery", () => ({
     },
   }),
 }));
+
+vi.mock("@/trpc", () => ({
+  trpc: {
+    motion: {
+      latch: {
+        get: {
+          useQuery: () => ({ data: undefined }),
+        },
+      },
+    },
+  },
+}));
 import { MotorSessionContext, type MotorSessionValue } from "@/services/motorSession";
 import { holdingAtom } from "@/stores/jog";
 

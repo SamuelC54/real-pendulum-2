@@ -1,5 +1,9 @@
 import * as motor from "@real-pendulum/motor-service/sdk";
 import * as sensor from "@real-pendulum/sensor-service/sdk";
+import {
+  isMotionBlockedByLatch,
+  motionLatchErrorMessage,
+} from "./motionLatch.js";
 import { cmToTeknicMeasured, teknicMeasuredToCm } from "./railPositionCm.js";
 
 /** Limit-switch snapshot from sensor-service (same wire as `sensor.getSensorStatus`). */
@@ -41,12 +45,28 @@ export function guardMoveAbsolutePositionCm(
   return null;
 }
 
+function travelLimitJogErrorMessage(limits: TravelLimitSwitchState): string {
+  if (limits.limitLeftPressed) {
+    return "Left travel limit is active — cannot jog further left.";
+  }
+  if (limits.limitRightPressed) {
+    return "Right travel limit is active — cannot jog further right.";
+  }
+  return "Travel limit active — jog blocked in that direction.";
+}
+
 export async function setJogVelocityRpmRespectingTravelLimits(
   rpm: number,
   options?: { maxAccelerationRpmPerSec?: number },
 ): Promise<{ ok: boolean; error: string }> {
+  if (isMotionBlockedByLatch()) {
+    return { ok: false, error: motionLatchErrorMessage() };
+  }
   const limits = await sensor.getSensorStatus();
   const effective = clampJogRpmForTravelLimits(rpm, limits);
+  if (rpm !== 0 && effective === 0) {
+    return { ok: false, error: travelLimitJogErrorMessage(limits) };
+  }
   if (options?.maxAccelerationRpmPerSec !== undefined) {
     return motor.setJogVelocityRpm(effective, options);
   }
@@ -58,15 +78,22 @@ export async function moveToPositionCmRespectingTravelLimits(
   opts?: {
     maxVelocityRpm?: number;
     maxAccelerationRpmPerSec?: number;
+    /** Latch-recovery move to center — bypasses latch and limit-switch move guard. */
+    recovery?: boolean;
   },
 ): Promise<{ ok: boolean; error: string }> {
-  const limits = await sensor.getSensorStatus();
-  const st = await motor.getMotorStatus();
-  const currentCm =
-    st.measuredPosition !== undefined && Number.isFinite(st.measuredPosition)
-      ? teknicMeasuredToCm(st.measuredPosition)
-      : undefined;
-  const guard = guardMoveAbsolutePositionCm(positionCm, limits, currentCm);
-  if (guard) return { ok: false, error: guard };
+  if (!opts?.recovery) {
+    if (isMotionBlockedByLatch()) {
+      return { ok: false, error: motionLatchErrorMessage() };
+    }
+    const limits = await sensor.getSensorStatus();
+    const st = await motor.getMotorStatus();
+    const currentCm =
+      st.measuredPosition !== undefined && Number.isFinite(st.measuredPosition)
+        ? teknicMeasuredToCm(st.measuredPosition)
+        : undefined;
+    const travelGuard = guardMoveAbsolutePositionCm(positionCm, limits, currentCm);
+    if (travelGuard) return { ok: false, error: travelGuard };
+  }
   return motor.moveToPosition(cmToTeknicMeasured(positionCm), opts);
 }

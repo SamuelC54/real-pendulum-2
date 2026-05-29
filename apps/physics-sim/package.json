@@ -9,7 +9,9 @@
   "scripts": {
     "dev": "python -m cart_pendulum.server --port 58871",
     "start": "python -m cart_pendulum.server --port 58871",
-    "test": "python -m pytest tests -q"
+    "test": "python -m pytest tests -q",
+    "rl:train": "python -m rl.train",
+    "rl:render": "python -m rl.render_ai"
   },
   "dependencies": {
     "@real-pendulum/app-config": "*"

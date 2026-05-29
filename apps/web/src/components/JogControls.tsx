@@ -11,6 +11,7 @@ import { MoveToHomeButton } from "@/components/MoveToHomeButton";
 import { isJogBlockedByTravelLimit, JOG_RPM_SLIDER_MAX, POSITION_MOVE_ACC_SLIDER_MAX } from "@/lib/jogMath";
 import { useMotorSession } from "@/services/motorSession";
 import { useSensorStatusQuery } from "@/services/useMotorStatusQuery";
+import { trpc } from "@/trpc";
 import {
   holdingAtom,
   jogAccelRpmPerSecAtom,
@@ -96,6 +97,9 @@ export const JogControls = memo(function JogControls({
   const [jogAccelRpmPerSec, setJogAccelRpmPerSec] = useAtom(jogAccelRpmPerSecAtom);
   const [keyboardJogEnabled, setKeyboardJogEnabled] = useAtom(keyboardJogEnabledAtom);
   const sensor = useSensorStatusQuery();
+  const motionLatch = trpc.motion.latch.get.useQuery(undefined, {
+    refetchInterval: (q) => (q.state.data?.latched ? 400 : 150),
+  });
   const travelLimits = {
     connected: sensor.data?.connected ?? false,
     limitLeftPressed: sensor.data?.limitLeftPressed ?? false,
@@ -103,13 +107,13 @@ export const JogControls = memo(function JogControls({
   };
 
   const connectionBusy = connect.isPending || disconnect.isPending;
-  const jogMutating = setVelocity.isPending || stop.isPending;
-  // Do not disable jog/stop while a direction is held: setVelocity/stop pending would set
-  // `busy` and briefly disable both arrows (pointer still down), which looks like the other
-  // button "rerendering" / flashing. Still block when connect/disconnect runs or when idle and a
-  // jog RPC is in flight (avoids double-starts).
+  // Stop pending must not disable jog buttons (latch recovery); only block double-starts on setVelocity.
+  const latched = motionLatch.data?.latched === true;
   const disabled =
-    !connected || connectionBusy || (jogMutating && holding === null);
+    !connected ||
+    connectionBusy ||
+    latched ||
+    (setVelocity.isPending && holding === null);
   const leftBlocked = isJogBlockedByTravelLimit("left", travelLimits);
   const rightBlocked = isJogBlockedByTravelLimit("right", travelLimits);
   const slidersDisabled = !connected || connectionBusy;
@@ -189,7 +193,11 @@ export const JogControls = memo(function JogControls({
           <MoveToHomeButton connected={connected} connectionBusy={connectionBusy} />
         ) : null}
 
-        {leftBlocked || rightBlocked ? (
+        {latched ? (
+          <p className="text-muted-foreground text-center text-xs leading-relaxed">
+            Motion latched — use recovery controls in the banner above.
+          </p>
+        ) : leftBlocked || rightBlocked ? (
           <p className="text-muted-foreground text-center text-xs leading-relaxed">
             {leftBlocked ? "Left limit active — jog left blocked. " : null}
             {rightBlocked ? "Right limit active — jog right blocked." : null}

@@ -28,6 +28,9 @@ export const PositionMoveControls = memo(function PositionMoveControls() {
   const utils = trpc.useUtils();
   const status = useMotorStatusQuery();
   const sensor = useSensorStatusQuery();
+  const motionLatch = trpc.motion.latch.get.useQuery(undefined, {
+    refetchInterval: (q) => (q.state.data?.latched ? 400 : 150),
+  });
 
   const connected = status.data?.connected ?? false;
   const sensorConnected = sensor.data?.connected ?? false;
@@ -73,7 +76,8 @@ export const PositionMoveControls = memo(function PositionMoveControls() {
   const recordTravelLimit = mode === "twin" ? recordTwin : recordSingle;
 
   const busy = moveAbsolute.isPending;
-  const disabled = !connected || busy;
+  const latched = motionLatch.data?.latched === true;
+  const disabled = !connected || busy || latched;
 
   /** When serial opens, seed edge detector so the first poll is not a false rising edge. */
   useEffect(() => {

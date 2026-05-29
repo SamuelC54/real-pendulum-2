@@ -2,6 +2,7 @@ import { useAtomValue } from "jotai";
 import { useState, type ReactNode } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { HomingControls } from "@/components/HomingControls";
+import { MotionLatchBanner } from "@/components/MotionLatchBanner";
 import { JogControls } from "@/components/JogControls";
 import { MotorStatusBlocks } from "@/components/MotorStatusBlocks";
 import { PositionMoveControls } from "@/components/PositionMoveControls";
@@ -9,12 +10,13 @@ import { SensorLedCard } from "@/components/SensorLedCard";
 import { BackendAutoConnect } from "@/components/BackendAutoConnect";
 import { KeyboardJogListener } from "@/components/KeyboardJogListener";
 import { DigitalTwinPage } from "@/components/DigitalTwinPage";
+import { RlPage } from "@/components/RlPage";
 import { TuningPage } from "@/components/TuningPage";
 import { grpcBackendModeAtom } from "@/stores/grpcBackendMode";
 import { trpc } from "@/trpc";
 import { cn } from "@/lib/utils";
 
-export type AppPage = "control" | "tuning" | "digital-twin";
+export type AppPage = "control" | "tuning" | "digital-twin" | "rl";
 
 function ControlPage() {
   return (
@@ -107,6 +109,9 @@ export function AppShell() {
             <NavTab active={page === "digital-twin"} onClick={() => setPage("digital-twin")}>
               Digital twin
             </NavTab>
+            <NavTab active={page === "rl"} onClick={() => setPage("rl")}>
+              RL
+            </NavTab>
           </nav>
         }
       />
@@ -117,6 +122,7 @@ export function AppShell() {
         )}
       >
         <TuningRecordingBanner />
+        <MotionLatchBanner />
         <div className={page === "control" ? undefined : "hidden"} aria-hidden={page !== "control"}>
           <ControlPage />
         </div>
@@ -128,6 +134,9 @@ export function AppShell() {
           aria-hidden={page !== "digital-twin"}
         >
           <DigitalTwinPage />
+        </div>
+        <div className={page === "rl" ? undefined : "hidden"} aria-hidden={page !== "rl"}>
+          <RlPage />
         </div>
       </main>
     </div>

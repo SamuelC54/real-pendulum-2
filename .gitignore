@@ -5,12 +5,20 @@ __pycache__/
 .venv/
 *.log
 .DS_Store
+.ipynb_checkpoints/
 # Legacy local overrides (unused; see packages/app-config/src/config.ts)
 local-config.override
 tools/protoc/
 # Native CMake output (may include old vcpkg_installed/ from past experiments)
 apps/motor-service/native/build/
+# Training checkpoints (numeric gen folders only; ``gen/saved/`` is tracked)
+apps/physics-sim/rl/gen/[0-9]*/model.zip
+apps/physics-sim/rl/gen/[0-9]*/meta.json
+apps/physics-sim/rl/gen/[0-9]*/vecnormalize.pkl
+apps/physics-sim/rl/gen/_latest/
 /test-results/
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+notebooks/mujoco

@@ -11,11 +11,15 @@ import { isJogBlockedByTravelLimit } from "@/lib/jogMath";
 import { useMotorSession } from "@/services/motorSession";
 import { useSensorStatusQuery } from "@/services/useMotorStatusQuery";
 import { keyboardJogEnabledAtom } from "@/stores/jog";
+import { trpc } from "@/trpc";
 
 export function useKeyboardJog() {
   const enabled = useAtomValue(keyboardJogEnabledAtom);
   const { connected, connectionBusy, applyKeyboardJog } = useMotorSession();
   const sensor = useSensorStatusQuery();
+  const motionLatch = trpc.motion.latch.get.useQuery(undefined, {
+    refetchInterval: (q) => (q.state.data?.latched ? 400 : 150),
+  });
   const keysRef = useRef<ArrowKeyState>({ left: false, right: false });
   const applyKeyboardJogRef = useRef(applyKeyboardJog);
   const limitsRef = useRef({
@@ -30,6 +34,8 @@ export function useKeyboardJog() {
     limitLeftPressed: sensor.data?.limitLeftPressed ?? false,
     limitRightPressed: sensor.data?.limitRightPressed ?? false,
   };
+  const latchedRef = useRef(false);
+  latchedRef.current = motionLatch.data?.latched === true;
 
   useEffect(() => {
     if (!enabled) {
@@ -41,6 +47,7 @@ export function useKeyboardJog() {
     const sync = () => {
       const limits = limitsRef.current;
       let dir = jogDirectionFromArrowKeys(keysRef.current);
+      if (latchedRef.current) dir = null;
       if (dir === "left" && isJogBlockedByTravelLimit("left", limits)) dir = null;
       if (dir === "right" && isJogBlockedByTravelLimit("right", limits)) dir = null;
       void applyKeyboardJogRef.current(dir);

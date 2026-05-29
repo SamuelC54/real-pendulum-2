@@ -1,8 +1,8 @@
 import { useAtom } from "jotai";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Activity, CircleStop, Download, LineChart, Play, Trash2 } from "lucide-react";
+import { Activity, ChartLine, CircleStop, Download, Play, Trash2 } from "lucide-react";
 import { LiveTwinCalibrationCard } from "@/components/LiveTwinCalibrationCard";
-import { TuningRecordChart } from "@/components/TuningRecordChart";
+import { TuningErrorChart, TuningRecordChart } from "@/components/TuningRecordChart";
 import { JogControls } from "@/components/JogControls";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -332,7 +332,7 @@ export function TuningPage() {
 
       <Card className="p-4">
         <div className="mb-3 flex items-center gap-2 text-sm font-medium">
-          <LineChart className="h-4 w-4 text-violet-600" aria-hidden />
+          <ChartLine className="h-4 w-4 text-violet-600" aria-hidden />
           Record trace
           {recording ? (
             <span className="rounded bg-red-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-red-700 dark:text-red-300">
@@ -349,10 +349,11 @@ export function TuningPage() {
         <Card className="p-4">
           <h2 className="text-sm font-medium">Recorded session score</h2>
           <p className="text-muted-foreground mt-1 text-xs">
-            Lower is better. Based on {summary.sampleCount} recorded samples (debug / validation).
+            Lower is better. Twin error over the recorded window ({summary.sampleCount} samples).
           </p>
-          <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-            <dt className="text-muted-foreground">Weighted score</dt>
+          <TuningErrorChart samples={samples} weights={weights} />
+          <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-border/60 pt-3 text-sm">
+            <dt className="text-muted-foreground">Mean weighted score</dt>
             <dd className="font-mono font-semibold tabular-nums">{fmt(summary.score, 2)}</dd>
             <dt className="text-muted-foreground">Mean |Δ position| (cm)</dt>
             <dd className="font-mono tabular-nums">{fmt(summary.meanAbsPositionCm, 2)}</dd>

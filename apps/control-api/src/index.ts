@@ -3,6 +3,7 @@ import { cliPort, cliString } from "@real-pendulum/app-config/cli";
 import http from "node:http";
 import cors from "cors";
 import { createHTTPHandler } from "@trpc/server/adapters/standalone";
+import "./motionLatchStop.js";
 import { appRouter } from "./router.js";
 import type { GrpcBackendMode } from "./grpcRequestContext.js";
 

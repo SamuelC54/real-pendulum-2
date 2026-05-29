@@ -9,14 +9,14 @@ import {
 } from "react";
 import { useAtomValue, useSetAtom } from "jotai";
 import { dispatchJogForceStop } from "@/lib/keyboardJog";
-import { jogRpmForDirection, shouldReleaseJogHoldForTravelLimit } from "@/lib/jogMath";
+import { jogRpmForDirection } from "@/lib/jogMath";
 import { holdingAtom, jogAccelRpmPerSecAtom, jogRpmAtom, type JogHold } from "@/stores/jog";
 import { trpc } from "@/trpc";
 import { useConnectMotorMutation } from "./useConnectMotorMutation";
 import { useDisconnectMotorMutation } from "./useDisconnectMotorMutation";
 import { useJogSetVelocityMutation } from "./useJogSetVelocityMutation";
 import { useJogStopMutation } from "./useJogStopMutation";
-import { useMotorStatusConnected, useSensorStatusQuery } from "./useMotorStatusQuery";
+import { useMotorStatusConnected } from "./useMotorStatusQuery";
 
 export type MotorSessionValue = {
   connect: ReturnType<typeof useConnectMotorMutation>;
@@ -41,10 +41,11 @@ export const MotorSessionContext = createContext<MotorSessionValue | null>(null)
 
 export function MotorSessionProvider({ children }: { children: ReactNode }) {
   const { data: connected = false } = useMotorStatusConnected();
-  const holding = useAtomValue(holdingAtom);
   const jogRpm = useAtomValue(jogRpmAtom);
   const jogAccelRpmPerSec = useAtomValue(jogAccelRpmPerSecAtom);
-  const sensor = useSensorStatusQuery();
+  const motionLatch = trpc.motion.latch.get.useQuery(undefined, {
+    refetchInterval: (q) => (q.state.data?.latched ? 400 : 150),
+  });
   const utils = trpc.useUtils();
   const connect = useConnectMotorMutation();
   const disconnect = useDisconnectMotorMutation();
@@ -58,6 +59,8 @@ export function MotorSessionProvider({ children }: { children: ReactNode }) {
   const jogEpochRef = useRef(0);
   const syncJogRef = useRef<() => void | Promise<void>>(() => {});
   const syncJogQueueRef = useRef(Promise.resolve());
+  const prevLatchedRef = useRef(false);
+  const stopThrottleRef = useRef(0);
 
   const invalidateMotorQueries = useCallback(() => {
     void utils.status.get.invalidate();
@@ -76,6 +79,9 @@ export function MotorSessionProvider({ children }: { children: ReactNode }) {
   const applyMotorStopNow = useCallback(async () => {
     motorDirRef.current = null;
     if (!connected) return;
+    const now = Date.now();
+    if (now - stopThrottleRef.current < 150) return;
+    stopThrottleRef.current = now;
     await stop.mutateAsync();
     invalidateMotorQueries();
   }, [connected, stop, invalidateMotorQueries]);
@@ -112,10 +118,23 @@ export function MotorSessionProvider({ children }: { children: ReactNode }) {
     motorDirRef.current = dir;
     if (jogEpochRef.current !== epoch) return;
 
-    await setVelocity.mutateAsync({
+    const result = await setVelocity.mutateAsync({
       rpm: jogRpmForDirection(dir, jogRpm),
       maxAccelerationRpmPerSec: jogAccelRpmPerSec,
     });
+    if ("real" in result) {
+      if (!result.real.ok) {
+        console.warn("[jog] setVelocity (hardware) rejected:", result.real.error);
+        motorDirRef.current = null;
+        setHolding(null);
+        return;
+      }
+    } else if (!result.ok) {
+      console.warn("[jog] setVelocity rejected:", result.error);
+      motorDirRef.current = null;
+      setHolding(null);
+      return;
+    }
     if (jogEpochRef.current !== epoch) {
       motorDirRef.current = null;
       await stop.mutateAsync();
@@ -177,33 +196,18 @@ export function MotorSessionProvider({ children }: { children: ReactNode }) {
     await runSyncJog();
   }, [applyMotorStopNow, chainMotorStopOnQueue, runSyncJog, setHolding]);
 
-  /** Stop an in-progress jog as soon as its direction hits a travel limit (sensor poll ~80 ms). */
+  /** On latch rising edge: clear jog UI only (control-api stops motors via stopAllMotionOnLatch). */
   useEffect(() => {
-    if (!connected || !holding) return;
-    const limits = {
-      connected: sensor.data?.connected ?? false,
-      limitLeftPressed: sensor.data?.limitLeftPressed ?? false,
-      limitRightPressed: sensor.data?.limitRightPressed ?? false,
-    };
-    if (!shouldReleaseJogHoldForTravelLimit(holding, limits)) return;
-    jogEpochRef.current += 1;
-    pointerDirRef.current = null;
-    keyboardDirRef.current = null;
-    setHolding(null);
-    dispatchJogForceStop();
-    void applyMotorStopNow();
-    void chainMotorStopOnQueue();
-    void syncJogRef.current();
-  }, [
-    connected,
-    holding,
-    applyMotorStopNow,
-    chainMotorStopOnQueue,
-    setHolding,
-    sensor.data?.connected,
-    sensor.data?.limitLeftPressed,
-    sensor.data?.limitRightPressed,
-  ]);
+    const latched = motionLatch.data?.latched === true;
+    if (latched && !prevLatchedRef.current) {
+      jogEpochRef.current += 1;
+      pointerDirRef.current = null;
+      keyboardDirRef.current = null;
+      setHolding(null);
+      dispatchJogForceStop();
+    }
+    prevLatchedRef.current = latched;
+  }, [motionLatch.data?.latched, setHolding]);
 
   const connectMotor = useCallback(async () => {
     connect.reset();

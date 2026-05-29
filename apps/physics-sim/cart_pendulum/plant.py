@@ -8,19 +8,30 @@ import math
 
 import mujoco
 
+
 _MODEL_PATH = Path(__file__).resolve().parent.parent / "models" / "cart_pendulum.xml"
 
 _JOINT_CART = "cart_slide"
 _JOINT_PENDULUM = "pendulum_hinge"
-_ACT_CART = "cart_vel"
+_ACT_CART = "cart_pos"
 _GEOM_BOB = "bob"
+
+# Maps legacy cartVelocityTrackingPerSec (≈1–60) to position servo kp.
+_CART_KP_PER_TRACKING_UNIT = 100.0
+_CART_KV_RATIO = 0.1
+_CART_KP_MAX = 5000.0
+
+_V_CMD_ZERO_EPS = 1e-9
 
 
 @dataclass
 class PlantConfig:
     gravity: float = 9.80665
     pendulum_length_m: float = 0.35
+
+    # Scales position actuator kp (×100); higher ≈ stiffer hold / tracking.
     cart_velocity_tracking_per_sec: float = 12.0
+
     angular_damping_per_sec: float = 0.04
     encoder_ticks_per_radian: float = 2400.0 / (2.0 * math.pi)
     max_internal_step_sec: float = 1.0 / 240.0
@@ -30,10 +41,16 @@ class PlantConfig:
 class PlantState:
     x_m: float = 0.0
     v_mps: float = 0.0
+
     """Hinge angle (rad); 0 = bob hangs toward −Z (straight down)."""
     theta_rad: float = 0.0
+
     omega_rps: float = 0.0
     v_cmd_mps: float = 0.0
+
+    """Position setpoint for belt servo (m); integrated from v_cmd while moving."""
+    x_ref_m: float = 0.0
+
     encoder_ticks_float: float = 0.0
 
 
@@ -41,8 +58,10 @@ class PlantState:
 class CartPendulumPlant:
     config: PlantConfig = field(default_factory=PlantConfig)
     state: PlantState = field(default_factory=PlantState)
+
     _model: mujoco.MjModel = field(init=False, repr=False)
     _data: mujoco.MjData = field(init=False, repr=False)
+
     _cart_qpos: int = field(init=False, repr=False)
     _cart_qvel: int = field(init=False, repr=False)
     _pend_qpos: int = field(init=False, repr=False)
@@ -55,49 +74,82 @@ class CartPendulumPlant:
     def _rebuild_model(self) -> None:
         self._model = mujoco.MjModel.from_xml_path(str(_MODEL_PATH))
         self._data = mujoco.MjData(self._model)
+
         self._cart_qpos = self._model.joint(_JOINT_CART).qposadr[0]
         self._cart_qvel = self._model.joint(_JOINT_CART).dofadr[0]
         self._pend_qpos = self._model.joint(_JOINT_PENDULUM).qposadr[0]
         self._pend_qvel = self._model.joint(_JOINT_PENDULUM).dofadr[0]
         self._act_id = self._model.actuator(_ACT_CART).id
+
         self._apply_config_to_model()
         self.sync_state_to_mujoco()
 
     def _apply_config_to_model(self) -> None:
         cfg = self.config
+
         self._model.opt.gravity[:] = (0.0, 0.0, -cfg.gravity)
         self._model.opt.timestep = max(1e-6, cfg.max_internal_step_sec)
-        self._model.actuator_gainprm[self._act_id, 0] = cfg.cart_velocity_tracking_per_sec
+
+        kp = min(
+            cfg.cart_velocity_tracking_per_sec * _CART_KP_PER_TRACKING_UNIT,
+            _CART_KP_MAX,
+        )
+        kv = max(10.0, kp * _CART_KV_RATIO)
+
+        self._model.actuator_gainprm[self._act_id, 0] = kp
+        self._model.actuator_biasprm[self._act_id, 1] = -kp
+        self._model.actuator_biasprm[self._act_id, 2] = -kv
+
         self._model.dof_damping[self._pend_qvel] = cfg.angular_damping_per_sec
+
         length = max(0.08, cfg.pendulum_length_m)
+
         rod_gid = self._model.geom("rod").id
         bob_gid = self._model.geom(_GEOM_BOB).id
-        # Compiled capsule: size[1] = half-length along the rod axis.
+
         self._model.geom_size[rod_gid, 1] = length / 2.0
         self._model.geom_pos[bob_gid, 2] = -length
 
     def sync_encoder_from_theta(self) -> None:
-        """Quadrature encoder readout tracks MuJoCo hinge angle (no separate integration)."""
+        """Quadrature encoder readout tracks MuJoCo hinge angle with no separate integration."""
+
         self.state.encoder_ticks_float = (
             self.state.theta_rad * self.config.encoder_ticks_per_radian
         )
 
     def sync_state_to_mujoco(self) -> None:
         s = self.state
+
         self._data.qpos[self._cart_qpos] = s.x_m
         self._data.qvel[self._cart_qvel] = s.v_mps
         self._data.qpos[self._pend_qpos] = s.theta_rad
         self._data.qvel[self._pend_qvel] = s.omega_rps
-        self._data.ctrl[self._act_id] = s.v_cmd_mps
+
+        s.x_ref_m = s.x_m
+        self._data.ctrl[self._act_id] = s.x_ref_m
+
         mujoco.mj_forward(self._model, self._data)
+
         self.sync_encoder_from_theta()
 
     def sync_state_from_mujoco(self) -> None:
         s = self.state
+
         s.x_m = float(self._data.qpos[self._cart_qpos])
         s.v_mps = float(self._data.qvel[self._cart_qvel])
         s.theta_rad = float(self._data.qpos[self._pend_qpos])
         s.omega_rps = float(self._data.qvel[self._pend_qvel])
+
+    def _advance_cart_setpoint(self, dt_sec: float) -> None:
+        s = self.state
+
+        if abs(s.v_cmd_mps) < _V_CMD_ZERO_EPS:
+            s.x_ref_m = float(self._data.qpos[self._cart_qpos])
+            self._data.ctrl[self._act_id] = s.x_ref_m
+            return
+
+        s.x_ref_m += s.v_cmd_mps * dt_sec
+        self._data.ctrl[self._act_id] = s.x_ref_m
 
     def patch_config(self, patch: dict) -> None:
         mapping = {
@@ -108,23 +160,31 @@ class CartPendulumPlant:
             "encoderTicksPerRadian": "encoder_ticks_per_radian",
             "maxInternalStepSec": "max_internal_step_sec",
         }
+
         for key, attr in mapping.items():
             if key in patch and patch[key] is not None:
                 setattr(self.config, attr, float(patch[key]))
+
         self._apply_config_to_model()
 
     def step(self, dt_sec: float) -> None:
         if not (dt_sec > 0) or not math.isfinite(dt_sec):
             return
+
         cfg = self.config
         h_max = max(1e-6, cfg.max_internal_step_sec)
+
         remaining = dt_sec
-        self._data.ctrl[self._act_id] = self.state.v_cmd_mps
+
         while remaining > 1e-12:
             h = min(h_max, remaining)
+
             self._model.opt.timestep = h
+            self._advance_cart_setpoint(h)
             mujoco.mj_step(self._model, self._data)
+
             remaining -= h
+
         self.sync_state_from_mujoco()
         self.sync_encoder_from_theta()
 
