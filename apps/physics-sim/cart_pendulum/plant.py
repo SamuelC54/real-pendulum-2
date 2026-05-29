@@ -8,7 +8,6 @@ import math
 
 import mujoco
 
-
 _MODEL_PATH = Path(__file__).resolve().parent.parent / "models" / "cart_pendulum.xml"
 
 _JOINT_CART = "cart_slide"
@@ -67,8 +66,10 @@ class CartPendulumPlant:
     _pend_qpos: int = field(init=False, repr=False)
     _pend_qvel: int = field(init=False, repr=False)
     _act_id: int = field(init=False, repr=False)
+    _servo_hold_setpoint: bool = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
+        self._servo_hold_setpoint = False
         self._rebuild_model()
 
     def _rebuild_model(self) -> None:
@@ -144,12 +145,48 @@ class CartPendulumPlant:
         s = self.state
 
         if abs(s.v_cmd_mps) < _V_CMD_ZERO_EPS:
-            s.x_ref_m = float(self._data.qpos[self._cart_qpos])
+            if not self._servo_hold_setpoint:
+                # Compliant hold: track current cart x (pendulum swing does not backdrive).
+                s.x_ref_m = float(self._data.qpos[self._cart_qpos])
             self._data.ctrl[self._act_id] = s.x_ref_m
             return
 
+        self._servo_hold_setpoint = False
         s.x_ref_m += s.v_cmd_mps * dt_sec
         self._data.ctrl[self._act_id] = s.x_ref_m
+
+    def move_to_setpoint(
+        self,
+        target_x_m: float,
+        *,
+        tolerance_m: float = 0.002,
+        max_velocity_mps: float = 0.05,
+        max_time_sec: float = 30.0,
+    ) -> bool:
+        """Drive cart_pos to target via MuJoCo position actuator (no qpos teleport)."""
+        s = self.state
+        s.v_cmd_mps = 0.0
+        s.x_ref_m = float(target_x_m)
+        self._servo_hold_setpoint = True
+
+        h = max(1e-6, self.config.max_internal_step_sec)
+        elapsed = 0.0
+
+        try:
+            while elapsed < max_time_sec:
+                x = float(self._data.qpos[self._cart_qpos])
+                v = float(self._data.qvel[self._cart_qvel])
+                if abs(x - target_x_m) <= tolerance_m and abs(v) <= max_velocity_mps:
+                    return True
+
+                self.step(h)
+                elapsed += h
+        finally:
+            self._servo_hold_setpoint = False
+            s.x_ref_m = float(self._data.qpos[self._cart_qpos])
+            self._data.ctrl[self._act_id] = s.x_ref_m
+
+        return abs(float(self._data.qpos[self._cart_qpos]) - target_x_m) <= tolerance_m
 
     def patch_config(self, patch: dict) -> None:
         mapping = {

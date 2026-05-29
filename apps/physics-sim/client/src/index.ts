@@ -22,6 +22,7 @@ export {
   physicsSimControllersTick,
   physicsSimPatchConfig,
   physicsSimReplay,
+  physicsSimMoveAbsolute,
   physicsSimReset,
   physicsSimStep,
   type PhysicsReplayPoint,

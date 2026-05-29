@@ -41,11 +41,10 @@ def compute_lqr_gain(
     r_scale: float,
     fd_epsilon: float = 1e-6,
 ) -> np.ndarray:
-    """Discrete-time LQR gain K (1 × 4) for ctrl = ctrl0 - K @ dx."""
+    """Discrete-time LQR gain K (1 × 4): ctrl = ctrl0 - K @ dx."""
     nv = model.nv
-    nu = model.nu
     Q = np.diag(list(q_diag))
-    R = float(r_scale) * np.eye(nu)
+    R = float(r_scale) * np.eye(1)
 
     mujoco.mj_resetData(model, data)
     data.qpos[:] = qpos0
@@ -53,7 +52,7 @@ def compute_lqr_gain(
     data.ctrl[:] = ctrl0
 
     A = np.zeros((2 * nv, 2 * nv))
-    B = np.zeros((2 * nv, nu))
+    B = np.zeros((2 * nv, model.nu))
     mujoco.mjd_transitionFD(model, data, fd_epsilon, True, A, B, None, None)
 
     P = scipy.linalg.solve_discrete_are(A, B, Q, R)

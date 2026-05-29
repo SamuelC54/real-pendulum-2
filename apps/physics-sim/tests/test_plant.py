@@ -70,6 +70,32 @@ def test_pendulum_swing_does_not_backdrive_cart():
     assert abs(plant.state.v_mps) < 0.05
 
 
+def test_move_to_setpoint_uses_position_actuator():
+    plant = CartPendulumPlant(
+        config=PlantConfig(
+            pendulum_length_m=0.35,
+            cart_velocity_tracking_per_sec=40.0,
+        )
+    )
+    plant.state.x_m = 0.0
+    plant.state.v_mps = 0.0
+    plant.state.theta_rad = 0.12
+    plant.state.omega_rps = 0.0
+    plant.sync_state_to_mujoco()
+
+    short = plant.move_to_setpoint(
+        0.08,
+        tolerance_m=1e-6,
+        max_time_sec=plant.config.max_internal_step_sec * 0.5,
+    )
+    assert not short
+    assert abs(plant.state.x_m - 0.08) > 0.02
+
+    arrived = plant.move_to_setpoint(0.08, tolerance_m=0.002, max_time_sec=5.0)
+    assert arrived
+    assert abs(plant.state.x_m - 0.08) < 0.003
+
+
 def test_cart_motion_couples_to_pendulum():
     plant = CartPendulumPlant(
         config=PlantConfig(

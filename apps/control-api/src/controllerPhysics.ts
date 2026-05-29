@@ -4,6 +4,7 @@ import {
   type PhysicsSimControllerMeta,
   type PhysicsSimControllerStatus,
 } from "@real-pendulum/physics-sim/client";
+import type { GrpcBackendMode } from "./grpcRequestContext.js";
 import {
   getControllerLoopError,
   isControllerLoopRunning,
@@ -30,8 +31,9 @@ export async function getControllerStatus(): Promise<PhysicsSimControllerStatus>
 export async function startController(
   id: string,
   params: Record<string, number>,
+  backendMode: GrpcBackendMode = "hardware",
 ): Promise<PhysicsSimControllerStatus> {
-  await startControllerRunner(id, params);
+  await startControllerRunner(id, params, backendMode);
   return getControllerStatus();
 }
 

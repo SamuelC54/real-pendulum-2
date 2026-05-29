@@ -123,6 +123,25 @@ class PhysicsSimHandler(BaseHTTPRequestHandler):
             _json_response(self, 200, _state_payload())
             return
 
+        if path == "/move_absolute":
+            target_x_m = body.get("xM")
+            if target_x_m is None:
+                _json_response(self, 400, {"error": "xM required"})
+                return
+            with _live_lock:
+                arrived = _live_plant.move_to_setpoint(
+                    float(target_x_m),
+                    tolerance_m=float(body.get("toleranceM", 0.002)),
+                    max_velocity_mps=float(body.get("maxVelocityMps", 0.05)),
+                    max_time_sec=float(body.get("maxTimeSec", 30.0)),
+                )
+            _json_response(
+                self,
+                200,
+                {**_state_payload(), "arrived": arrived},
+            )
+            return
+
         if path == "/reset":
             initial = body.get("initial") or {}
             with _live_lock:

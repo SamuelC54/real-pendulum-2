@@ -66,6 +66,19 @@ export async function physicsSimStep(options: {
   });
 }
 
+/** Absolute cart move via MuJoCo position actuator (cart_pos), not qpos teleport. */
+export async function physicsSimMoveAbsolute(options: {
+  xM: number;
+  toleranceM?: number;
+  maxVelocityMps?: number;
+  maxTimeSec?: number;
+}): Promise<PhysicsSimStatePayload & { arrived: boolean }> {
+  return physicsFetch<PhysicsSimStatePayload & { arrived: boolean }>("/move_absolute", {
+    method: "POST",
+    body: JSON.stringify(options),
+  });
+}
+
 export async function physicsSimPatchConfig(
   plantPatch: Partial<CartPendulumConfig>,
 ): Promise<PhysicsSimStatePayload> {

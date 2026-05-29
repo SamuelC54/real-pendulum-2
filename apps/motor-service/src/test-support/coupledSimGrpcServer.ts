@@ -12,6 +12,7 @@ import {
   encoderTicksInt,
   physicsSimGetState,
   physicsSimHealthCheck,
+  physicsSimMoveAbsolute,
   physicsSimPatchConfig,
   physicsSimReset,
   physicsSimRlStatus,
@@ -374,10 +375,22 @@ export function startCoupledSimGrpcServer(
         model.lastCommandedRpm = 0;
         const teknic = req.positionCounts ?? 0;
         const display = -teknic;
-        model.plant.state.xM = display * metersPerDisplayCount();
-        model.plant.state.vMps = 0;
+        const xM = display * metersPerDisplayCount();
         lastMs.t = Date.now();
-        await syncPlantToPhysics(model);
+        try {
+          const payload = await physicsSimMoveAbsolute({
+            xM,
+            toleranceM: 0.002,
+            maxTimeSec: 30,
+          });
+          applyPhysicsPayloadToPlant(model.plant, payload);
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          return create(MoveToPositionReplySchema, {
+            ok: false,
+            errorMessage: msg,
+          });
+        }
         return create(MoveToPositionReplySchema, { ok: true, errorMessage: "" });
       },
     });

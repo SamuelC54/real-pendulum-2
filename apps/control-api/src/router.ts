@@ -783,7 +783,9 @@ export const appRouter = t.router({
           params: z.record(z.number()).optional(),
         }),
       )
-      .mutation(async ({ input }) => startController(input.id, input.params ?? {})),
+      .mutation(async ({ input, ctx }) =>
+        startController(input.id, input.params ?? {}, ctx.grpcBackendMode ?? "hardware"),
+      ),
     stop: publicProcedure.mutation(() => stopController()),
   }),
   rl: t.router({

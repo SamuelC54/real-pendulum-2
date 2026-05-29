@@ -1,10 +1,12 @@
 import * as motor from "@real-pendulum/motor-service/sdk";
 import * as sensor from "@real-pendulum/sensor-service/sdk";
+import type { GrpcBackendMode } from "./grpcRequestContext.js";
 import {
   isMotionBlockedByLatch,
   motionLatchErrorMessage,
 } from "./motionLatch.js";
 import { cmToTeknicMeasured, teknicMeasuredToCm } from "./railPositionCm.js";
+import { withHardwareGrpc, withSimGrpc } from "./twinGrpc.js";
 
 /** Limit-switch snapshot from sensor-service (same wire as `sensor.getSensorStatus`). */
 export type TravelLimitSwitchState = {
@@ -96,4 +98,51 @@ export async function moveToPositionCmRespectingTravelLimits(
     if (travelGuard) return { ok: false, error: travelGuard };
   }
   return motor.moveToPosition(cmToTeknicMeasured(positionCm), opts);
+}
+
+export type RailMoveResult = { ok: boolean; error: string };
+
+export type RailMoveForBackendResult =
+  | RailMoveResult
+  | { real: RailMoveResult; sim: RailMoveResult };
+
+/**
+ * Absolute profile move on the active backend(s).
+ * Twin: Teknic (hardware gRPC) and MuJoCo coupled-sim (sim gRPC) in parallel.
+ */
+export async function moveToPositionCmForBackend(
+  mode: GrpcBackendMode,
+  positionCm: number,
+  opts?: {
+    maxVelocityRpm?: number;
+    maxAccelerationRpmPerSec?: number;
+    recovery?: boolean;
+  },
+): Promise<RailMoveForBackendResult> {
+  if (mode === "twin") {
+    const [real, sim] = await Promise.all([
+      withHardwareGrpc(() => moveToPositionCmRespectingTravelLimits(positionCm, opts)),
+      withSimGrpc(() => moveToPositionCmRespectingTravelLimits(positionCm, opts)),
+    ]);
+    return { real, sim };
+  }
+  if (mode === "sim") {
+    return withSimGrpc(() => moveToPositionCmRespectingTravelLimits(positionCm, opts));
+  }
+  return withHardwareGrpc(() => moveToPositionCmRespectingTravelLimits(positionCm, opts));
+}
+
+export function assertRailMoveOk(move: RailMoveForBackendResult, label = "Motor"): void {
+  if ("real" in move) {
+    if (!move.real.ok) {
+      throw new Error(move.real.error || `${label} rejected absolute move.`);
+    }
+    if (!move.sim.ok) {
+      throw new Error(move.sim.error || "Sim rejected absolute move.");
+    }
+    return;
+  }
+  if (!move.ok) {
+    throw new Error(move.error || `${label} rejected absolute move.`);
+  }
 }

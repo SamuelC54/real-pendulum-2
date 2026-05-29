@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { grpcBackendModeAtom } from "@/stores/grpcBackendMode";
 import { trpc } from "@/trpc";
-import { useMotorStatusQuery } from "@/services/useMotorStatusQuery";
+import { useMotorStatusQuery, useTwinLinkageStatus } from "@/services/useMotorStatusQuery";
 
 function ParamField({
   label,
@@ -39,8 +39,11 @@ function ParamField({
 export function ControllersPage() {
   const mode = useAtomValue(grpcBackendModeAtom);
   const motor = useMotorStatusQuery();
+  const twinLinkage = useTwinLinkageStatus();
   const connected = motor.data?.connected ?? false;
   const twinMode = mode === "twin";
+  const twinReady =
+    twinLinkage.motorHardware && twinLinkage.motorSim;
 
   const listQuery = trpc.controllers.list.useQuery(undefined, { retry: 1 });
   const statusQuery = trpc.controllers.status.useQuery(undefined, {
@@ -76,7 +79,10 @@ export function ControllersPage() {
     }));
   };
 
-  const canRun = connected && !twinMode && !active && !busy;
+  const canRun =
+    !active &&
+    !busy &&
+    (twinMode ? twinReady : connected);
 
   return (
     <div className="flex flex-col gap-6">
@@ -85,14 +91,15 @@ export function ControllersPage() {
         <p className="text-muted-foreground mt-1 max-w-2xl text-sm">
           Automated rail routines written in Python (one file per controller under{" "}
           <code className="text-xs">apps/physics-sim/controllers/</code>). The control API
-          polls your controller and issues absolute position moves on the motor.
+          polls your controller and issues absolute position moves on the motor (and on the MuJoCo
+          twin when backend is Twin).
         </p>
       </header>
 
-      {twinMode ? (
+      {twinMode && !twinReady ? (
         <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-900 dark:text-amber-100">
-          Switch backend to <strong>Hardware</strong> or <strong>Sim</strong> in the header — twin
-          mode is not supported for controllers yet.
+          Connect both <strong>hardware</strong> and <strong>sim</strong> motor on the Control tab
+          (twin mode moves Teknic and the MuJoCo cart together).
         </p>
       ) : null}
 
@@ -101,7 +108,7 @@ export function ControllersPage() {
         board connected (pendulum encoder). Stop the controller with the banner Stop when finished.
       </p>
 
-      {!connected ? (
+      {!twinMode && !connected ? (
         <p className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm">
           Connect the motor on the Control tab before starting a controller.
         </p>
