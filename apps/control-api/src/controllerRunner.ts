@@ -6,7 +6,6 @@ import {
   physicsSimControllersStart,
   physicsSimControllersStop,
   physicsSimControllersTick,
-  physicsSimRlStatus,
 } from "@real-pendulum/physics-sim/client";
 import type { GrpcBackendMode } from "./grpcRequestContext.js";
 import { isMotionBlockedByLatch } from "./motionLatch.js";
@@ -15,7 +14,6 @@ import {
   moveToPositionCmForBackend,
 } from "./railLimitGuards.js";
 import { readMotorStatusPayload, readSensorStatusPayload } from "./statusPayload.js";
-import { isHardwareInferenceLoopRunning } from "./rlHardwareInference.js";
 import { withHardwareGrpc, withSimGrpc } from "./twinGrpc.js";
 
 const TICK_MS = 200;
@@ -63,7 +61,6 @@ async function readControllerMotorPositionCm(): Promise<number> {
   if (controllerBackendMode === "sim") {
     return withSimGrpc(read);
   }
-  // Hardware and twin: controller logic tracks the real rail.
   return withHardwareGrpc(read);
 }
 
@@ -144,14 +141,6 @@ export async function startControllerRunner(
 ): Promise<void> {
   if (loopTimer != null) {
     throw new Error("A controller is already running.");
-  }
-
-  const rl = await physicsSimRlStatus();
-  if (rl.training.active || rl.inference.active) {
-    throw new Error("Stop RL training or inference before starting a controller.");
-  }
-  if (isHardwareInferenceLoopRunning()) {
-    throw new Error("Stop hardware RL inference before starting a controller.");
   }
 
   loopError = null;

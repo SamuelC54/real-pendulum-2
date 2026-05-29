@@ -32,27 +32,8 @@ python -m cart_pendulum.server --port 58871
 | POST | `/step` | `{ "dt", "vCmdMps"? }` — advance live plant |
 | POST | `/reset` | `{ "initial"?, "config"? }` — reset live plant |
 | PATCH | `/config` | Patch plant parameters |
+| POST | `/move_absolute` | `{ "xM", "toleranceM"?, "maxTimeSec"? }` — cart_pos setpoint + physics steps |
 | POST | `/replay` | Stateless replay for calibration (`samples`, `params`, `defaults`) |
 | POST | `/calibrate` | SciPy parameter fit (`samples`, `start`, `weights?`, `defaults?`) → `{ fit }` |
 
 The **live** plant is a singleton in the server process. **Replay** builds a fresh plant per request.
-
-## Reinforcement learning (optional)
-
-Uses [Gymnasium](https://gymnasium.farama.org/) + [Stable-Baselines3](https://stable-baselines3.readthedocs.io/) (PPO).
-
-```bash
-cd apps/physics-sim
-pip install -r requirements-rl.txt
-python -m rl.train --total-timesteps 500000 --save-every 10000
-python -m rl.render_ai --gen latest --realtime
-```
-
-- **Observation (4):** cart x, θ, cart vx, ω (MuJoCo qpos/qvel)  
-- **Reward:** swing-up shaping toward θ ≈ π, upright bonus, center-rail bonus, edge penalty  
-- **Reset:** pendulum hanging (θ ≈ 0); goal is swing up and balance at θ ≈ π  
-- **Action (1):** normalized command ∈ [-1, 1] → RPM = action × 1500 → `vCmdMps = -rpm × mpsPerRpm`  
-- **Generations:** `rl/gen/<n>/model.zip` + `meta.json`  
-- **Live AI:** simulator steps MuJoCo; hardware mode (RL page) reads encoder + rail position and jogs Teknic at 30 Hz
-
-Legacy-style render: `python -m rl.render_ai --gen 12170` once that generation exists.

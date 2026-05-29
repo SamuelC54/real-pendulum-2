@@ -10,14 +10,13 @@ import { SensorLedCard } from "@/components/SensorLedCard";
 import { BackendAutoConnect } from "@/components/BackendAutoConnect";
 import { KeyboardJogListener } from "@/components/KeyboardJogListener";
 import { DigitalTwinPage } from "@/components/DigitalTwinPage";
-import { RlPage } from "@/components/RlPage";
 import { ControllersPage } from "@/components/ControllersPage";
 import { TuningPage } from "@/components/TuningPage";
 import { grpcBackendModeAtom } from "@/stores/grpcBackendMode";
 import { trpc } from "@/trpc";
 import { cn } from "@/lib/utils";
 
-export type AppPage = "control" | "controllers" | "tuning" | "digital-twin" | "rl";
+export type AppPage = "control" | "controllers" | "tuning" | "digital-twin";
 
 function ControlPage() {
   return (
@@ -113,9 +112,6 @@ export function AppShell() {
             <NavTab active={page === "digital-twin"} onClick={() => setPage("digital-twin")}>
               Digital twin
             </NavTab>
-            <NavTab active={page === "rl"} onClick={() => setPage("rl")}>
-              RL
-            </NavTab>
           </nav>
         }
       />
@@ -141,9 +137,6 @@ export function AppShell() {
           aria-hidden={page !== "digital-twin"}
         >
           <DigitalTwinPage />
-        </div>
-        <div className={page === "rl" ? undefined : "hidden"} aria-hidden={page !== "rl"}>
-          <RlPage />
         </div>
       </main>
     </div>

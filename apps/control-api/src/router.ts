@@ -60,13 +60,6 @@ import {
   putCoupledSimConfigFile,
 } from "./coupledSimConfigFile.js";
 import {
-  getRlStatus,
-  startRlInference,
-  startRlTraining,
-  stopRlInference,
-  stopRlTraining,
-} from "./rlPhysics.js";
-import {
   getControllerStatus,
   listControllers,
   startController,
@@ -772,7 +765,6 @@ export const appRouter = t.router({
         }),
     }),
   }),
-  /** MuJoCo PPO training / live-plant inference (physics-sim). */
   controllers: t.router({
     list: baseProcedure.query(() => listControllers()),
     status: baseProcedure.query(() => getControllerStatus()),
@@ -787,34 +779,6 @@ export const appRouter = t.router({
         startController(input.id, input.params ?? {}, ctx.grpcBackendMode ?? "hardware"),
       ),
     stop: publicProcedure.mutation(() => stopController()),
-  }),
-  rl: t.router({
-    status: baseProcedure.query(() => getRlStatus()),
-    training: t.router({
-      start: baseProcedure
-        .input(
-          z
-            .object({
-              totalTimesteps: z.number().int().positive().optional(),
-              saveEvery: z.number().int().positive().optional(),
-              nEnvs: z.number().int().min(1).max(16).optional(),
-            })
-            .optional(),
-        )
-        .mutation(async ({ input }) => startRlTraining(input ?? {})),
-      stop: baseProcedure.mutation(() => stopRlTraining()),
-    }),
-    inference: t.router({
-      start: baseProcedure
-        .input(
-          z.object({
-            generation: z.number().int().nonnegative(),
-            target: z.enum(["sim", "hardware"]).default("sim"),
-          }),
-        )
-        .mutation(async ({ input }) => startRlInference(input.generation, input.target)),
-      stop: baseProcedure.mutation(() => stopRlInference()),
-    }),
   }),
 });
 

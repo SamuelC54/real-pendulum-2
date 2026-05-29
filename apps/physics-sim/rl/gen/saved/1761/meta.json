@@ -1,7 +1,0 @@
-{
-  "timesteps": 13680000,
-  "generation": 1761,
-  "algorithm": "PPO",
-  "normalized": true,
-  "action_space": "normalized"
-}

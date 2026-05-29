@@ -15,11 +15,6 @@ from .calibrate import fit_twin_calibration_params
 from .replay import replay_twin_trace
 
 try:
-    from rl.service import rl_service
-except ImportError:
-    rl_service = None  # type: ignore[misc, assignment]
-
-try:
     from controllers import service as controller_service
 except ImportError:
     controller_service = None  # type: ignore[misc, assignment]
@@ -85,12 +80,6 @@ class PhysicsSimHandler(BaseHTTPRequestHandler):
             with _live_lock:
                 payload = _state_payload()
             _json_response(self, 200, payload)
-            return
-        if path == "/rl/status":
-            if rl_service is None:
-                _json_response(self, 503, {"error": "rl extras not installed (pip install -r requirements-rl.txt)"})
-                return
-            _json_response(self, 200, rl_service.status())
             return
         if path == "/controllers/list":
             if controller_service is None:
@@ -245,47 +234,6 @@ class PhysicsSimHandler(BaseHTTPRequestHandler):
             _json_response(self, 200, out)
             return
 
-        if path.startswith("/rl/"):
-            if rl_service is None:
-                _json_response(self, 503, {"error": "rl extras not installed (pip install -r requirements-rl.txt)"})
-                return
-            try:
-                if path == "/rl/train/start":
-                    out = rl_service.start_training(
-                        total_timesteps=int(body.get("totalTimesteps", 200_000)),
-                        save_every=int(body.get("saveEvery", 10_000)),
-                        n_envs=int(body.get("nEnvs", 4)),
-                    )
-                elif path == "/rl/train/stop":
-                    out = rl_service.stop_training()
-                elif path == "/rl/inference/start":
-                    gen = body.get("generation")
-                    if gen is None:
-                        _json_response(self, 400, {"error": "generation required"})
-                        return
-                    target = body.get("target", "sim")
-                    if target == "hardware":
-                        out = rl_service.load_policy(int(gen), target="hardware")
-                    else:
-                        out = rl_service.start_inference(int(gen))
-                elif path == "/rl/inference/predict":
-                    obs = body.get("observation")
-                    if not isinstance(obs, list) or len(obs) != 4:
-                        _json_response(self, 400, {"error": "observation must be [x_m, theta, vx, omega]"})
-                        return
-                    out = rl_service.predict(obs)
-                elif path == "/rl/inference/stop":
-                    out = rl_service.stop_inference()
-                else:
-                    _json_response(self, 404, {"error": "not found"})
-                    return
-            except Exception as e:
-                traceback.print_exc()
-                _json_response(self, 500, {"error": str(e)})
-                return
-            _json_response(self, 200, out)
-            return
-
         _json_response(self, 404, {"error": "not found"})
 
     def do_PATCH(self) -> None:
@@ -310,8 +258,6 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=58871)
     args = parser.parse_args()
 
-    if rl_service is not None:
-        rl_service.bind_plant(_live_plant, _live_lock)
     server = ThreadingHTTPServer((args.host, args.port), PhysicsSimHandler)
     print(f"[physics-sim] MuJoCo plant at http://{args.host}:{args.port}", flush=True)
     try:

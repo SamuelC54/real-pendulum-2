@@ -52,7 +52,7 @@ export function isMotionLatched(): boolean {
   return latched;
 }
 
-/** True when all automated motion must stop (e.g. RL inference). Manual jog toward center stays allowed. */
+/** True when all automated motion must stop (e.g. controller runner). Manual jog toward center stays allowed. */
 export function isMotionBlockedByLatch(): boolean {
   return latched && homingDepth === 0 && recoveryMoveDepth === 0;
 }
