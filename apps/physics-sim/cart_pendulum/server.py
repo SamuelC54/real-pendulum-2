@@ -19,6 +19,11 @@ try:
 except ImportError:
     rl_service = None  # type: ignore[misc, assignment]
 
+try:
+    from controllers import service as controller_service
+except ImportError:
+    controller_service = None  # type: ignore[misc, assignment]
+
 _live_plant = CartPendulumPlant()
 _live_lock = threading.Lock()
 _replay_defaults: dict[str, float] = {
@@ -86,6 +91,18 @@ class PhysicsSimHandler(BaseHTTPRequestHandler):
                 _json_response(self, 503, {"error": "rl extras not installed (pip install -r requirements-rl.txt)"})
                 return
             _json_response(self, 200, rl_service.status())
+            return
+        if path == "/controllers/list":
+            if controller_service is None:
+                _json_response(self, 503, {"error": "controllers package unavailable"})
+                return
+            _json_response(self, 200, {"controllers": controller_service.list_controllers()})
+            return
+        if path == "/controllers/status":
+            if controller_service is None:
+                _json_response(self, 503, {"error": "controllers package unavailable"})
+                return
+            _json_response(self, 200, controller_service.status())
             return
         _json_response(self, 404, {"error": "not found"})
 
@@ -171,6 +188,40 @@ class PhysicsSimHandler(BaseHTTPRequestHandler):
                 _json_response(self, 500, {"error": str(e)})
                 return
             _json_response(self, 200, {"fit": fit})
+            return
+
+        if path.startswith("/controllers/"):
+            if controller_service is None:
+                _json_response(self, 503, {"error": "controllers package unavailable"})
+                return
+            try:
+                if path == "/controllers/start":
+                    controller_id = body.get("id")
+                    if not controller_id:
+                        _json_response(self, 400, {"error": "id required"})
+                        return
+                    params = body.get("params") or {}
+                    out = controller_service.start(str(controller_id), params)
+                elif path == "/controllers/stop":
+                    out = controller_service.stop()
+                elif path == "/controllers/tick":
+                    position_cm = body.get("positionCm")
+                    if position_cm is None:
+                        _json_response(self, 400, {"error": "positionCm required"})
+                        return
+                    tick_state = {
+                        "positionCm": float(position_cm),
+                        "timeSec": float(body.get("timeSec", 0)),
+                    }
+                    out = controller_service.tick(tick_state)
+                else:
+                    _json_response(self, 404, {"error": "not found"})
+                    return
+            except Exception as e:
+                traceback.print_exc()
+                _json_response(self, 500, {"error": str(e)})
+                return
+            _json_response(self, 200, out)
             return
 
         if path.startswith("/rl/"):

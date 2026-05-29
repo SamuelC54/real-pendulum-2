@@ -66,6 +66,12 @@ import {
   stopRlInference,
   stopRlTraining,
 } from "./rlPhysics.js";
+import {
+  getControllerStatus,
+  listControllers,
+  startController,
+  stopController,
+} from "./controllerPhysics.js";
 
 function friendlyMotorError(err: unknown): string {
   return friendlyMotorGrpcError(motor.motorConnectBaseUrl(), err);
@@ -767,6 +773,19 @@ export const appRouter = t.router({
     }),
   }),
   /** MuJoCo PPO training / live-plant inference (physics-sim). */
+  controllers: t.router({
+    list: baseProcedure.query(() => listControllers()),
+    status: baseProcedure.query(() => getControllerStatus()),
+    start: publicProcedure
+      .input(
+        z.object({
+          id: z.string().min(1),
+          params: z.record(z.number()).optional(),
+        }),
+      )
+      .mutation(async ({ input }) => startController(input.id, input.params ?? {})),
+    stop: publicProcedure.mutation(() => stopController()),
+  }),
   rl: t.router({
     status: baseProcedure.query(() => getRlStatus()),
     training: t.router({

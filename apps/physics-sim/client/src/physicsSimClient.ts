@@ -162,6 +162,66 @@ export async function physicsSimRlInferenceStop(): Promise<PhysicsSimRlStatus> {
   return physicsFetch<PhysicsSimRlStatus>("/rl/inference/stop", { method: "POST", body: "{}" });
 }
 
+export type PhysicsSimControllerMeta = {
+  id: string;
+  name: string;
+  description: string;
+  defaultParams: Record<string, number>;
+};
+
+export type PhysicsSimControllerStatus = {
+  active: boolean;
+  id: string | null;
+  name: string | null;
+  startedAt: number | null;
+  stepCount: number;
+  error: string | null;
+};
+
+export type PhysicsSimControllerTickResult = {
+  idle?: boolean;
+  positionCm?: number;
+  maxVelocityRpm?: number;
+  maxAccelerationRpmPerSec?: number;
+  done?: boolean;
+};
+
+export async function physicsSimControllersList(): Promise<PhysicsSimControllerMeta[]> {
+  const body = await physicsFetch<{ controllers: PhysicsSimControllerMeta[] }>("/controllers/list");
+  return body.controllers;
+}
+
+export async function physicsSimControllersStatus(): Promise<PhysicsSimControllerStatus> {
+  return physicsFetch<PhysicsSimControllerStatus>("/controllers/status");
+}
+
+export async function physicsSimControllersStart(
+  id: string,
+  params: Record<string, number>,
+): Promise<PhysicsSimControllerStatus> {
+  return physicsFetch<PhysicsSimControllerStatus>("/controllers/start", {
+    method: "POST",
+    body: JSON.stringify({ id, params }),
+  });
+}
+
+export async function physicsSimControllersStop(): Promise<PhysicsSimControllerStatus> {
+  return physicsFetch<PhysicsSimControllerStatus>("/controllers/stop", {
+    method: "POST",
+    body: "{}",
+  });
+}
+
+export async function physicsSimControllersTick(state: {
+  positionCm: number;
+  timeSec: number;
+}): Promise<PhysicsSimControllerTickResult> {
+  return physicsFetch<PhysicsSimControllerTickResult>("/controllers/tick", {
+    method: "POST",
+    body: JSON.stringify(state),
+  });
+}
+
 export async function physicsSimGetState(): Promise<PhysicsSimStatePayload> {
   return physicsFetch<PhysicsSimStatePayload>("/state");
 }

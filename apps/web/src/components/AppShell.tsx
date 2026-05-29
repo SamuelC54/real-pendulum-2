@@ -11,12 +11,13 @@ import { BackendAutoConnect } from "@/components/BackendAutoConnect";
 import { KeyboardJogListener } from "@/components/KeyboardJogListener";
 import { DigitalTwinPage } from "@/components/DigitalTwinPage";
 import { RlPage } from "@/components/RlPage";
+import { ControllersPage } from "@/components/ControllersPage";
 import { TuningPage } from "@/components/TuningPage";
 import { grpcBackendModeAtom } from "@/stores/grpcBackendMode";
 import { trpc } from "@/trpc";
 import { cn } from "@/lib/utils";
 
-export type AppPage = "control" | "tuning" | "digital-twin" | "rl";
+export type AppPage = "control" | "controllers" | "tuning" | "digital-twin" | "rl";
 
 function ControlPage() {
   return (
@@ -100,6 +101,9 @@ export function AppShell() {
             <NavTab active={page === "control"} onClick={() => setPage("control")}>
               Control
             </NavTab>
+            <NavTab active={page === "controllers"} onClick={() => setPage("controllers")}>
+              Controllers
+            </NavTab>
             <NavTab active={page === "tuning"} onClick={() => setPage("tuning")}>
               Tuning
               {recording ? (
@@ -125,6 +129,9 @@ export function AppShell() {
         <MotionLatchBanner />
         <div className={page === "control" ? undefined : "hidden"} aria-hidden={page !== "control"}>
           <ControlPage />
+        </div>
+        <div className={page === "controllers" ? undefined : "hidden"} aria-hidden={page !== "controllers"}>
+          <ControllersPage />
         </div>
         <div className={page === "tuning" ? undefined : "hidden"} aria-hidden={page !== "tuning"}>
           <TuningPage />
