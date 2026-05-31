@@ -101,7 +101,7 @@ From the **repository root** (requires [Docker](https://docs.docker.com/get-dock
 npm run dev
 ```
 
-This runs **`docker compose up --build`** — simulation, controller-service, control-api, web, and **Portainer CE** (`portainer/portainer-ce:lts`).
+This runs **`docker compose up --build`** — simulation, controller-service, control-api, web, **Portainer CE**, and **Jaeger** (`jaegertracing/jaeger:2.17.0`).
 
 | Service | Role | URL / port |
 |---------|------|------------|
@@ -109,14 +109,31 @@ This runs **`docker compose up --build`** — simulation, controller-service, co
 | **api** | tRPC HTTP API | `http://localhost:4000` (`/trpc/`) |
 | **simulation** | MuJoCo plant (internal) | — |
 | **controller-service** | Rail controllers (internal) | — |
-| **portainer** | Container UI (always) | `https://localhost:9443` · HTTP `http://localhost:9000` |
+| **portainer** | Container UI (always) | `https://localhost:9443` · login **`admin`** / **`pass`** (reset below) |
+| **jaeger** | Distributed traces (OpenTelemetry) | `http://localhost:16686` |
 
-Open **`http://localhost:5173`**. Use **Simulator** backend mode in the UI (no Teknic DLL required). The **Containers** tab embeds Portainer.
+Open **`http://localhost:5173`**. Use **Simulator** backend mode in the UI (no Teknic DLL required). The **Containers** tab embeds Portainer. Each API response includes an **`x-trace-id`** header — the UI shows it in the bottom-right corner with a link to **Jaeger**, where one trace spans control-api, simulation, and controller-service spans.
 
 If you previously installed Portainer manually (`docker run … portainer`), stop that container first — this stack runs its own Portainer on **9443** / **9000**:
 
 ```bash
 docker stop portainer && docker rm portainer
+```
+
+Portainer CE username is always **`admin`**. To set or reset the password:
+
+```bash
+npm run dev:portainer-reset-password
+```
+
+This **stops Portainer**, waits for the BoltDB lock to clear, runs `portainer/helper-reset-password`, then starts Portainer again. Default password: **`pass`**.
+
+If Portainer logs **`Unable to open the database, err: timeout`**, another container still has `portainer_data` open — stop everything using that volume, wait a few seconds, then retry:
+
+```bash
+docker compose stop portainer
+docker ps -a --filter volume=real-pendulum_portainer_data
+npm run dev:portainer-reset-password
 ```
 
 **Hardware** (Teknic motor + Arduino sensor in Docker):
@@ -141,7 +158,12 @@ Other useful ports:
 | `MOTOR_GRPC_PORT` | Motor Connect listen port (default `50051`; `dev:hardware` / `dev:local`). |
 | `SENSOR_GRPC_PORT` | Sensor Connect listen port (default `50052`). |
 | `CONTROL_API_PORT` | tRPC server (default `4000`). |
-| `PORTAINER_URL` | Portainer URL for web iframe (default `https://127.0.0.1:9443`). |
+| `PORTAINER_IFRAME_URL` | Portainer iframe path (default `/portainer/` via web proxy). |
+| `PORTAINER_HTTPS_URL` | Portainer HTTPS URL for new tab (default `https://127.0.0.1:9443`). |
+| `JAEGER_DEPENDENCIES_URL` | Jaeger dependency map iframe (default `/jaeger/dependencies`). |
+| `PORTAINER_ADMIN_PASSWORD` | Password for **`portainer-reset-password`** helper (default `pass`). |
+| `JAEGER_UI_URL` | Jaeger UI for trace links (default `http://127.0.0.1:16686`). |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP HTTP collector (default `http://jaeger:4318` in Docker). |
 
 ---
 
@@ -166,3 +188,4 @@ Run compiled services individually if needed (motor: `npm run start -w @real-pen
 - **`teknic_init failed (-2)`**: **`FindComHubPorts`** only detects the **SC4‑HUB** USB adapter, not **USB plugged into the motor’s diagnostic port** — both show up as COM ports, but only the hub is auto‑listed. Note the COM number in Device Manager, set **`TeknicCfg::kManualComWhenDiscoveryEmpty`** to that index, rebuild **`teknic_motor.dll`**. Confirm with **`SCNetworkReport.exe`** plus that COM index (same manual path as Teknic). **Exit ClearView** if it holds the port.
 - **Motor service exits immediately**: Run **`npm run build:native -w @real-pendulum/physical-motor-service`** so **`teknic_motor.dll`** exists; optional **`TEKNIC_DLL`** if the DLL is not under **`native/build/Release`**. Hub power, ClearView closed, COM not in use.
 - **Port already in use**: Run **`npm run dev:down`**, or stop containers in Portainer. If **`Bind for 0.0.0.0:9443` or `:9000` failed**, another Portainer instance is still running — **`docker stop portainer && docker rm portainer`**, then **`npm run dev`** again.
+- **Portainer `Unable to open the database, err: timeout`**: Portainer and the password-reset helper cannot share `portainer_data` at the same time. Run **`docker compose stop portainer`**, wait a few seconds, then **`npm run dev:portainer-reset-password`** or **`docker compose start portainer`**.

@@ -12,6 +12,7 @@
     "test": "python -m pytest tests -q"
   },
   "dependencies": {
-    "@real-pendulum/app-config": "*"
+    "@real-pendulum/app-config": "*",
+    "@real-pendulum/tracing": "*"
   }
 }

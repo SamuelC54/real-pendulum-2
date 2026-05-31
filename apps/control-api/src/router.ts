@@ -1,4 +1,5 @@
-import { config, portainerWebUrl } from "@real-pendulum/app-config";
+import { config, portainerIframeUrl, portainerHttpsUrl, jaegerWebUrl, jaegerDependenciesUrl } from "@real-pendulum/app-config";
+import { withSpan } from "@real-pendulum/tracing";
 import { initTRPC } from "@trpc/server";
 import superjson from "superjson";
 import { z } from "zod";
@@ -87,19 +88,32 @@ const grpcWireMiddleware = t.middleware(async ({ ctx, next }) => {
   return run();
 });
 
+const traceMiddleware = t.middleware(({ path, type, next }) =>
+  withSpan(`trpc ${type} ${path}`, async () => next(), {
+    "rpc.system": "trpc",
+    "rpc.method": path,
+    "rpc.service": type,
+  }),
+);
+
 const baseProcedure = t.procedure;
-const publicProcedure = t.procedure.use(grpcWireMiddleware);
+const publicProcedure = t.procedure.use(traceMiddleware).use(grpcWireMiddleware);
 
 export const appRouter = t.router({
   meta: t.router({
     backends: baseProcedure.query(() => ({
       physicsSimUrl: process.env.PHYSICS_SIM_URL ?? "http://127.0.0.1:58871",
       controllerServiceUrl: process.env.CONTROLLER_SERVICE_URL ?? "http://127.0.0.1:58872",
-      portainerUrl: portainerWebUrl(),
+      portainerUrl: portainerIframeUrl(),
+      portainerOpenUrl: portainerHttpsUrl(),
+      jaegerDependenciesUrl: jaegerDependenciesUrl(),
     })),
     rail: baseProcedure.query(() => ({
       /** Display motor counts per cm (`config.rail.displayCountsPerCm`, default 232.8). */
       displayCountsPerCm: displayCountsPerCm(),
+    })),
+    tracing: baseProcedure.query(() => ({
+      jaegerUiUrl: jaegerWebUrl(),
     })),
   }),
   connection: t.router({

@@ -65,6 +65,16 @@ export default defineConfig(({ mode }) => {
             });
           },
         },
+        "/portainer": {
+          target: "http://127.0.0.1:9000",
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/portainer/, "") || "/",
+        },
+        "/jaeger": {
+          target: "http://127.0.0.1:16686",
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/jaeger/, "") || "/",
+        },
       },
     },
   };

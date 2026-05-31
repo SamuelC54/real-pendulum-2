@@ -27,8 +27,18 @@ export type AppConfig = {
     httpPort: number;
     /** Edge agent tunnel (Portainer Edge). */
     edgeTunnelPort: number;
-    /** Full browser URL override. */
+    /** Full browser HTTPS URL override. */
     url?: string;
+    /** Same-origin iframe path (web nginx/vite proxy). */
+    iframeUrl?: string;
+  };
+
+  /** Jaeger UI for distributed traces (OpenTelemetry OTLP). */
+  jaeger: {
+    uiPort: number;
+    url?: string;
+    /** Jaeger system-map iframe path (web nginx/vite proxy). */
+    dependenciesUrl?: string;
   };
 
   motor: {
@@ -142,6 +152,11 @@ export const config: AppConfig = {
     url: undefined,
   },
 
+  jaeger: {
+    uiPort: 16686,
+    url: undefined,
+  },
+
   motor: {
     grpcPort: 50051,
     grpcUrl: undefined,
@@ -251,9 +266,18 @@ export function webControlApiBaseUrl(): string {
   return `http://127.0.0.1:${config.controlApi.port}`;
 }
 
-/** Portainer URL for browser iframe (Containers tab). Override with PORTAINER_URL. */
-export function portainerWebUrl(): string {
-  const fromEnv = process.env.PORTAINER_URL?.trim();
+/** Portainer iframe URL (same-origin via web proxy). Override with PORTAINER_IFRAME_URL. */
+export function portainerIframeUrl(): string {
+  const fromEnv = process.env.PORTAINER_IFRAME_URL?.trim();
+  if (fromEnv) return fromEnv;
+  const raw = config.portainer.iframeUrl?.trim();
+  if (raw) return raw;
+  return "/portainer/";
+}
+
+/** Portainer HTTPS URL for opening in a new tab. Override with PORTAINER_HTTPS_URL. */
+export function portainerHttpsUrl(): string {
+  const fromEnv = process.env.PORTAINER_HTTPS_URL?.trim();
   if (fromEnv) {
     return fromEnv.startsWith("http") ? fromEnv : `https://${fromEnv}`;
   }
@@ -262,6 +286,34 @@ export function portainerWebUrl(): string {
     return raw.startsWith("http") ? raw : `https://${raw}`;
   }
   return `https://127.0.0.1:${config.portainer.httpsPort}`;
+}
+
+/** @deprecated Use portainerIframeUrl / portainerHttpsUrl. */
+export function portainerWebUrl(): string {
+  return portainerIframeUrl();
+}
+
+/** Jaeger UI base URL for trace lookup. Override with JAEGER_UI_URL. */
+export function jaegerWebUrl(): string {
+  const fromEnv = process.env.JAEGER_UI_URL?.trim();
+  if (fromEnv) return fromEnv.startsWith("http") ? fromEnv : `http://${fromEnv}`;
+  const raw = config.jaeger.url?.trim();
+  if (raw) return raw.startsWith("http") ? raw : `http://${raw}`;
+  return `http://127.0.0.1:${config.jaeger.uiPort}`;
+}
+
+/** Jaeger trace detail URL for a 32-char hex trace id. */
+export function jaegerTraceUrl(traceId: string): string {
+  return `${jaegerWebUrl().replace(/\/$/, "")}/trace/${traceId}`;
+}
+
+/** Jaeger service dependency map (System architecture tab). Override with JAEGER_DEPENDENCIES_URL. */
+export function jaegerDependenciesUrl(): string {
+  const fromEnv = process.env.JAEGER_DEPENDENCIES_URL?.trim();
+  if (fromEnv) return fromEnv;
+  const raw = config.jaeger.dependenciesUrl?.trim();
+  if (raw) return raw;
+  return "/jaeger/dependencies";
 }
 
 /** Playwright E2E sim stack — simulation HTTP base URL. */

@@ -1,3 +1,8 @@
+import { initNodeTracing } from "@real-pendulum/tracing";
+import { wrapHttpHandler } from "@real-pendulum/tracing/http";
+
+initNodeTracing("control-api");
+
 import { config } from "@real-pendulum/app-config";
 import { cliPort, cliString } from "@real-pendulum/app-config/cli";
 import http from "node:http";
@@ -38,15 +43,18 @@ const handler = createHTTPHandler({
   basePath: "/trpc/",
 });
 
-const server = http.createServer((req, res) => {
-  const origin = req.headers.origin;
-  cors({
-    origin: origin ?? true,
-    credentials: true,
-  })(req, res, () => {
-    void handler(req, res);
-  });
-});
+const server = http.createServer(
+  wrapHttpHandler((req, res) => {
+    const origin = req.headers.origin;
+    cors({
+      origin: origin ?? true,
+      credentials: true,
+      exposedHeaders: ["x-trace-id"],
+    })(req, res, () => {
+      void handler(req, res);
+    });
+  }, "control-api"),
+);
 
 server.on("error", (err: NodeJS.ErrnoException) => {
   if (err.code === "EADDRINUSE") {

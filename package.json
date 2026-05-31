@@ -20,6 +20,7 @@
     "dev:detach": "node scripts/check-docker.mjs && node scripts/pull-portainer.mjs && docker compose up -d --build",
     "dev:down": "docker compose down",
     "dev:logs": "docker compose logs -f",
+    "dev:portainer-reset-password": "node scripts/portainer-reset-password.mjs",
     "dev:hardware": "node scripts/check-docker.mjs && node scripts/pull-portainer.mjs && docker compose --profile hardware up --build",
     "dev:local": "npm run dev:local:stack",
     "dev:local:stack": "npm run setup:simulation && npm run build:native -w @real-pendulum/physical-motor-service && concurrently -n motor,sensor,physics,controllers,api,web -c blue,green,white,magenta,yellow,red \"npm run dev -w @real-pendulum/physical-motor-service\" \"npm run dev -w @real-pendulum/physical-sensor-service\" \"npm run dev -w @real-pendulum/simulation\" \"npm run dev -w @real-pendulum/controller-service\" \"wait-on -t 120000 tcp:127.0.0.1:58871 tcp:127.0.0.1:58872 && npm run dev -w @real-pendulum/control-api\" \"wait-on -t 120000 tcp:127.0.0.1:4000 && npm run dev -w web\""

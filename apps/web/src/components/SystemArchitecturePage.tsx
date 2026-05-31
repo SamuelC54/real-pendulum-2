@@ -2,52 +2,51 @@ import { ExternalLink } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { trpc } from "@/trpc";
 
-export function ContainersPage() {
+export function SystemArchitecturePage() {
   const { data: backends, isLoading, error } = trpc.meta.backends.useQuery();
-  const portainerEmbedUrl = backends?.portainerUrl ?? "/portainer/";
-  const portainerOpenUrl = backends?.portainerOpenUrl ?? "https://127.0.0.1:9443";
+  const mapUrl = backends?.jaegerDependenciesUrl ?? "/jaeger/dependencies";
+  const jaegerOpenUrl = mapUrl.startsWith("/")
+    ? `${typeof window !== "undefined" ? window.location.origin : "http://127.0.0.1:5173"}${mapUrl}`
+    : mapUrl;
 
   return (
     <div className="flex min-h-[calc(100dvh-7rem)] flex-col gap-4">
       <Card className="flex flex-col gap-3 p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-sm font-medium">Docker containers</h2>
+            <h2 className="text-sm font-medium">System architecture</h2>
             <p className="text-muted-foreground mt-1 text-xs leading-relaxed">
-              Portainer CE runs with <code className="text-foreground">npm run dev</code>. Dev
-              login: <code className="text-foreground">admin</code> /{" "}
-              <code className="text-foreground">pass</code> (
-              <code className="text-foreground">npm run dev:portainer-reset-password</code> to
-              reset). Embedded via same-origin proxy — use Open Portainer for HTTPS.
+              Jaeger service dependency graph from OpenTelemetry traces. Generate traffic in the
+              Control tab, then refresh this view.
             </p>
           </div>
           <a
-            href={portainerOpenUrl}
+            href={jaegerOpenUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="text-primary inline-flex items-center gap-1 text-xs font-medium hover:underline"
           >
-            Open Portainer
+            Open in Jaeger
             <ExternalLink aria-hidden className="h-3.5 w-3.5" />
           </a>
         </div>
         {isLoading ? (
-          <p className="text-muted-foreground text-xs">Loading Portainer URL…</p>
+          <p className="text-muted-foreground text-xs">Loading map URL…</p>
         ) : null}
         {error ? (
           <p className="text-destructive text-xs">{error.message}</p>
         ) : null}
         <p className="text-muted-foreground text-[10px]">
-          Embed: <span className="font-mono text-foreground">{portainerEmbedUrl}</span>
+          Embed: <span className="font-mono text-foreground">{mapUrl}</span>
           {" · "}
-          HTTPS: <span className="font-mono text-foreground">{portainerOpenUrl}</span>
+          Direct:{" "}
+          <span className="font-mono text-foreground">http://127.0.0.1:16686/dependencies</span>
         </p>
       </Card>
       <iframe
-        title="Portainer"
-        src={portainerEmbedUrl}
+        title="Jaeger service dependencies"
+        src={mapUrl}
         className="min-h-[32rem] flex-1 rounded-lg border border-border bg-background shadow-sm"
-        allow="clipboard-read; clipboard-write"
       />
     </div>
   );

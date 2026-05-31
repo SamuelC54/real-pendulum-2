@@ -9,6 +9,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 from urllib.parse import urlparse
 
+from service_tracing import TracingMixin, init_tracing
+
 from .plant import CartPendulumPlant, PlantState
 
 _live_plant = CartPendulumPlant()
@@ -57,7 +59,8 @@ def _state_payload() -> dict[str, Any]:
     }
 
 
-class PhysicsSimHandler(BaseHTTPRequestHandler):
+class PhysicsSimHandler(TracingMixin, BaseHTTPRequestHandler):
+    tracing_service_name = "simulation"
     def log_message(self, fmt: str, *args: Any) -> None:
         return
 
@@ -159,6 +162,7 @@ class PhysicsSimHandler(BaseHTTPRequestHandler):
 
 
 def main() -> None:
+    init_tracing("simulation")
     parser = argparse.ArgumentParser(description="MuJoCo cart–pendulum physics HTTP service")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=58871)

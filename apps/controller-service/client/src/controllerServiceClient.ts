@@ -1,4 +1,5 @@
 import { controllerServiceHttpBaseUrl } from "@real-pendulum/app-config";
+import { tracedFetch } from "@real-pendulum/tracing/fetch";
 
 export type ControllerMeta = {
   id: string;
@@ -47,7 +48,7 @@ function baseUrl(): string {
 }
 
 async function controllerFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${baseUrl()}${path}`, {
+  const res = await tracedFetch(`${baseUrl()}${path}`, {
     ...init,
     headers: { "content-type": "application/json", ...init?.headers },
   });

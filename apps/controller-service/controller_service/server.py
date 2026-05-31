@@ -9,6 +9,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 from urllib.parse import urlparse
 
+from service_tracing import TracingMixin, init_tracing
+
 from rail_controllers import service as controller_service
 
 
@@ -27,7 +29,8 @@ def _read_json(handler: BaseHTTPRequestHandler) -> dict[str, Any]:
     return json.loads(raw.decode("utf-8") or "{}")
 
 
-class ControllerServiceHandler(BaseHTTPRequestHandler):
+class ControllerServiceHandler(TracingMixin, BaseHTTPRequestHandler):
+    tracing_service_name = "controller-service"
     def log_message(self, fmt: str, *args: Any) -> None:
         return
 
@@ -103,6 +106,7 @@ class ControllerServiceHandler(BaseHTTPRequestHandler):
 
 
 def main() -> None:
+    init_tracing("controller-service")
     parser = argparse.ArgumentParser(description="Rail controller HTTP service")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=58872)

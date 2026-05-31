@@ -11,9 +11,16 @@ import { KeyboardJogListener } from "@/components/KeyboardJogListener";
 import { DigitalTwinPage } from "@/components/DigitalTwinPage";
 import { ControllersPage } from "@/components/ControllersPage";
 import { ContainersPage } from "@/components/ContainersPage";
+import { SystemArchitecturePage } from "@/components/SystemArchitecturePage";
+import { TraceIdBar } from "@/components/TraceIdBar";
 import { cn } from "@/lib/utils";
 
-export type AppPage = "control" | "controllers" | "digital-twin" | "containers";
+export type AppPage =
+  | "control"
+  | "controllers"
+  | "digital-twin"
+  | "containers"
+  | "architecture";
 
 function ControlPage() {
   return (
@@ -81,13 +88,18 @@ export function AppShell() {
             <NavTab active={page === "containers"} onClick={() => setPage("containers")}>
               Containers
             </NavTab>
+            <NavTab active={page === "architecture"} onClick={() => setPage("architecture")}>
+              System architecture
+            </NavTab>
           </nav>
         }
       />
       <main
         className={cn(
           "mx-auto px-6 py-4",
-          page === "digital-twin" || page === "containers" ? "max-w-[96rem]" : "max-w-7xl",
+          page === "digital-twin" || page === "containers" || page === "architecture"
+            ? "max-w-[96rem]"
+            : "max-w-7xl",
         )}
       >
         <MotionLatchBanner />
@@ -109,7 +121,14 @@ export function AppShell() {
         >
           <ContainersPage />
         </div>
+        <div
+          className={page === "architecture" ? undefined : "hidden"}
+          aria-hidden={page !== "architecture"}
+        >
+          <SystemArchitecturePage />
+        </div>
       </main>
+      <TraceIdBar />
     </div>
   );
 }

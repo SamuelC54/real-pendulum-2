@@ -21,6 +21,7 @@
     "@connectrpc/connect": "^2.1.0",
     "@connectrpc/connect-node": "^2.1.0",
     "@real-pendulum/app-config": "*",
+    "@real-pendulum/tracing": "*",
     "@real-pendulum/controller-service": "*",
     "@real-pendulum/simulation": "*",
     "@real-pendulum/motor-proto": "*",

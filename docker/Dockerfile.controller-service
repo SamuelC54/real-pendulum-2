@@ -3,7 +3,9 @@ FROM python:3.12-slim-bookworm
 WORKDIR /app
 
 COPY packages/rail-controllers ./packages/rail-controllers
-RUN pip install --no-cache-dir -e ./packages/rail-controllers
+COPY packages/service-tracing ./packages/service-tracing
+RUN pip install --no-cache-dir -e ./packages/rail-controllers \
+  && pip install --no-cache-dir -e ./packages/service-tracing
 
 COPY apps/controller-service/controller_service ./controller_service
 

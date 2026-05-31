@@ -7,7 +7,9 @@ RUN apt-get update \
 WORKDIR /app
 
 COPY apps/simulation/requirements.txt ./requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+COPY packages/service-tracing ./packages/service-tracing
+RUN pip install --no-cache-dir -r requirements.txt \
+  && pip install --no-cache-dir -e ./packages/service-tracing
 
 COPY apps/simulation/cart_pendulum ./cart_pendulum
 COPY apps/simulation/models ./models

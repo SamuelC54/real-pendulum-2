@@ -1,4 +1,5 @@
 import { physicsSimHttpBaseUrl } from "@real-pendulum/app-config";
+import { tracedFetch } from "@real-pendulum/tracing/fetch";
 import type { CartPendulumConfig, CartPendulumPlant, CartPendulumState } from "./cartPendulumTypes.js";
 
 export type PhysicsSimStatePayload = {
@@ -13,7 +14,7 @@ function physicsSimBaseUrl(): string {
 }
 
 async function physicsFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${physicsSimBaseUrl()}${path}`, {
+  const res = await tracedFetch(`${physicsSimBaseUrl()}${path}`, {
     ...init,
     headers: { "content-type": "application/json", ...init?.headers },
   });

@@ -10,6 +10,7 @@ import superjson from "superjson";
 import type { AppRouter } from "@real-pendulum/control-api/router";
 import { grpcBackendModeAtom } from "./stores/grpcBackendMode";
 import { jotaiStore } from "./stores/jotaiStore";
+import { lastTraceIdAtom } from "./stores/lastTraceId";
 
 export const trpc = createTRPCReact<AppRouter>();
 
@@ -32,6 +33,15 @@ export function createTrpcClient() {
         headers() {
           const mode = jotaiStore.get(grpcBackendModeAtom);
           return { "x-pendulum-backend": mode };
+        },
+        fetch(url, options) {
+          return fetch(url, options).then((res) => {
+            const traceId = res.headers.get("x-trace-id");
+            if (traceId) {
+              jotaiStore.set(lastTraceIdAtom, traceId);
+            }
+            return res;
+          });
         },
       }),
     ],
