@@ -47,7 +47,7 @@ export class TwinControlBackend implements ControlBackend {
   }
 
   async connectTwin(): Promise<TwinWireResult<ConnectResult>> {
-    return twinRun(this.physical, this.simulation, (b) => b.connect());
+    return twinRun(this.physical, this.simulation, (b) => b.connectMotor());
   }
 
   async connectMotorTwin(): Promise<TwinWireResult<ConnectResult>> {
@@ -67,7 +67,7 @@ export class TwinControlBackend implements ControlBackend {
   }
 
   async disconnectTwin(): Promise<TwinWireResult<void>> {
-    return twinRun(this.physical, this.simulation, (b) => b.disconnect());
+    return twinRun(this.physical, this.simulation, (b) => b.disconnectMotor());
   }
 
   async setJogCmPerSecTwin(
@@ -124,14 +124,6 @@ export class TwinControlBackend implements ControlBackend {
     if (!real.ok) return real;
     if (!sim.ok) return sim;
     return { ok: true, error: "" };
-  }
-
-  async connect(): Promise<ConnectResult> {
-    return this.connectMotor();
-  }
-
-  async disconnect(): Promise<void> {
-    await this.disconnectMotor();
   }
 
   async setJogCmPerSec(cmPerSec: number, opts?: JogOptions): Promise<CommandResult> {

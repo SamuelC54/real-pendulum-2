@@ -70,8 +70,6 @@ export interface ControlBackend {
   disconnectMotor(): Promise<void>;
   connectSensor(serialPort?: string): Promise<ConnectResult>;
   disconnectSensor(): Promise<ConnectResult>;
-  connect(): Promise<ConnectResult>;
-  disconnect(): Promise<void>;
   setJogCmPerSec(cmPerSec: number, opts?: JogOptions): Promise<CommandResult>;
   stop(): Promise<CommandResult>;
   moveToPositionCm(cm: number, opts?: MoveOptions): Promise<CommandResult>;

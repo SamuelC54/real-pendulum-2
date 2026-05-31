@@ -136,14 +136,6 @@ export class PhysicalControlBackend implements ControlBackend {
     }
   }
 
-  async connect(): Promise<ConnectResult> {
-    return this.connectMotor();
-  }
-
-  async disconnect(): Promise<void> {
-    await this.disconnectMotor();
-  }
-
   async setJogCmPerSec(cmPerSec: number, opts?: JogOptions): Promise<CommandResult> {
     if (isMotionBlocked()) {
       return { ok: false, error: limitSwitchModeErrorMessage() };

@@ -32,14 +32,6 @@ export class ControlClient {
     return this.options.backend.disconnectSensor();
   }
 
-  connect() {
-    return this.options.backend.connect();
-  }
-
-  disconnect() {
-    return this.options.backend.disconnect();
-  }
-
   setJogCmPerSec(cmPerSec: number, opts?: JogOptions) {
     return this.options.backend.setJogCmPerSec(cmPerSec, opts);
   }

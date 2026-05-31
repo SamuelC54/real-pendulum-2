@@ -125,14 +125,6 @@ export class SimulationControlBackend implements ControlBackend {
     return { ok: true, error: "" };
   }
 
-  async connect(): Promise<ConnectResult> {
-    return this.connectMotor();
-  }
-
-  async disconnect(): Promise<void> {
-    await this.disconnectMotor();
-  }
-
   async setJogCmPerSec(cmPerSec: number, _opts?: JogOptions): Promise<CommandResult> {
     if (isMotionBlocked()) {
       return { ok: false, error: "Motion latch is engaged." };

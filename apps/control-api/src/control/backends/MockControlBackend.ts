@@ -1,7 +1,16 @@
-import type { RailMachineState, MachineStateSources, TravelLimitsCm } from "../types.js";
+import type {
+  CommandResult,
+  ConnectResult,
+  ControlBackend,
+  JogOptions,
+  MachineStateSources,
+  MoveOptions,
+  RailMachineState,
+  TravelLimitsCm,
+} from "../types.js";
 
 /** In-memory backend for unit tests. */
-export class MockControlBackend {
+export class MockControlBackend implements ControlBackend {
   state: RailMachineState = {
     status: "idle",
     connection: { cart: true, sensor: true },
@@ -19,7 +28,7 @@ export class MockControlBackend {
     return { physical: structuredClone(this.state) };
   }
 
-  async connectMotor() {
+  async connectMotor(): Promise<ConnectResult> {
     this.state.connection.cart = true;
     return { ok: true, error: "" };
   }
@@ -31,12 +40,12 @@ export class MockControlBackend {
     }
   }
 
-  async connectSensor() {
+  async connectSensor(_serialPort?: string): Promise<ConnectResult> {
     this.state.connection.sensor = true;
     return { ok: true, error: "" };
   }
 
-  async disconnectSensor() {
+  async disconnectSensor(): Promise<CommandResult> {
     this.state.connection.sensor = false;
     if (!this.state.connection.cart) {
       this.state.status = "disconnected";
@@ -44,41 +53,32 @@ export class MockControlBackend {
     return { ok: true, error: "" };
   }
 
-  async connect() {
-    return this.connectMotor();
-  }
-
-  async disconnect(): Promise<void> {
-    await this.disconnectMotor();
-    await this.disconnectSensor();
-  }
-
-  async setJogCmPerSec(cmPerSec: number) {
+  async setJogCmPerSec(cmPerSec: number, _opts?: JogOptions): Promise<CommandResult> {
     this.state.cart.commandedCmPerSec = cmPerSec;
     return { ok: true, error: "" };
   }
 
-  async stop() {
+  async stop(): Promise<CommandResult> {
     this.state.cart.commandedCmPerSec = 0;
     return { ok: true, error: "" };
   }
 
-  async moveToPositionCm(cm: number) {
+  async moveToPositionCm(cm: number, _opts?: MoveOptions): Promise<CommandResult> {
     this.state.cart.positionCm = cm;
     return { ok: true, error: "" };
   }
 
-  async setTravelLimits(limits: TravelLimitsCm) {
+  async setTravelLimits(limits: TravelLimitsCm): Promise<CommandResult> {
     this.state.cart.travelLimitsCm = { ...limits };
     return { ok: true, error: "" };
   }
 
-  async setLed(on: boolean) {
+  async setLed(on: boolean): Promise<CommandResult> {
     this.state.led.on = on;
     return { ok: true, error: "" };
   }
 
-  async zeroCartAtCurrent() {
+  async zeroCartAtCurrent(): Promise<CommandResult> {
     if (!this.state.connection.cart) {
       return { ok: false, error: "Motor is not connected." };
     }
