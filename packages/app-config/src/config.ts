@@ -73,10 +73,17 @@ export type AppConfig = {
     controllerServiceHttpUrl?: string;
     motorSimGrpcUrl?: string;
     sensorSimGrpcUrl?: string;
-    /** Plant parameters in `config/simulation.parameters.json` (see `@real-pendulum/app-config/simulation-parameters`). */
     /** World x (m) of left/right MuJoCo limit-switch plates (`config.sim` → simulation). */
     limitLeftXM: number;
     limitRightXM: number;
+    /** MuJoCo plant tuning + simulation jog scaling (`mpsPerRpm`). */
+    plant: {
+      /** Simulation jog: vCmdMps = -rpm * mpsPerRpm (matches Teknic/display sign). */
+      mpsPerRpm: number;
+      pendulumLengthM: number;
+      cartVelocityTrackingPerSec: number;
+      angularDampingPerSec: number;
+    };
   };
 
   flash: {
@@ -163,6 +170,12 @@ export const config: AppConfig = {
     sensorSimGrpcUrl: undefined,
     limitLeftXM: -0.8,
     limitRightXM: 0.8,
+    plant: {
+      mpsPerRpm: 0.0007,
+      pendulumLengthM: 0.3,
+      cartVelocityTrackingPerSec: 10,
+      angularDampingPerSec: 0.00003,
+    },
   },
 
   flash: {

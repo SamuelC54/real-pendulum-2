@@ -154,7 +154,7 @@ This repeats **§2.2** for readers who jump straight here: if motor and separate
 - **From control-api (re-exports same server):** `npm run serve:simulation -w @real-pendulum/control-api`
 - Hardware URLs: **`motorGrpcBaseUrl()`** / **`sensorGrpcBaseUrl()`** (defaults **50051** / **50052**).
 - **Web “Simulator”** mode uses **`resolveSimMotorGrpcUrl()`** / **`resolveSimSensorGrpcUrl()`** (default simulation **58870** on **`config.sim.simulationGrpcPort`**). The browser sends **`x-pendulum-backend: sim`**; **Hardware** uses config hardware URLs.
-- Tunables: **`config/simulation.parameters.json`** (`mpsPerRpm`, plant). Sim limit positions: **`config.sim.limitLeftXM`** / **`limitRightXM`** in `packages/app-config/src/config.ts`. Rail cm scale comes from **`config.rail.displayCountsPerCm`** (shared with hardware).
+- Tunables: **`config.sim.plant`** in `packages/app-config/src/config.ts` (`mpsPerRpm`, pendulum length, cart tracking, damping). Sim limit positions: **`config.sim.limitLeftXM`** / **`limitRightXM`**. Rail cm scale comes from **`config.rail.displayCountsPerCm`** (shared with hardware).
 
 ---
 

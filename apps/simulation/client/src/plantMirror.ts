@@ -8,9 +8,9 @@ export type { CartPendulumConfig, CartPendulumPlant, CartPendulumState } from ".
 
 const DEFAULT_CONFIG: CartPendulumConfig = {
   gravity: 9.80665,
-  pendulumLengthM: 0.35,
-  cartVelocityTrackingPerSec: 12,
-  angularDampingPerSec: 0.04,
+  pendulumLengthM: 0.3,
+  cartVelocityTrackingPerSec: 10,
+  angularDampingPerSec: 0.00003,
   encoderTicksPerRadian: 2400 / (2 * Math.PI),
   maxInternalStepSec: 1 / 240,
 };

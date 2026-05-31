@@ -1,13 +1,13 @@
-import { readSimulationParametersFile } from "@real-pendulum/app-config/simulation-parameters";
+import { simMpsPerRpm } from "@real-pendulum/app-config/sim-plant";
 
 /** Teknic/simulation jog: +RPM moves rail in +cm/s direction. */
 export function rpmToCmPerSec(rpm: number): number {
-  const { mpsPerRpm } = readSimulationParametersFile();
+  const mpsPerRpm = simMpsPerRpm();
   return -rpm * mpsPerRpm * 100;
 }
 
 export function cmPerSecToRpm(cmPerSec: number): number {
-  const { mpsPerRpm } = readSimulationParametersFile();
+  const mpsPerRpm = simMpsPerRpm();
   if (mpsPerRpm === 0) return 0;
   return -(cmPerSec / 100) / mpsPerRpm;
 }

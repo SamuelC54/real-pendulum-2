@@ -7,10 +7,9 @@
  * Point **both** URLs at the printed address, e.g.:
  *   `MOTOR_GRPC_URL=http://127.0.0.1:58870` and `SENSOR_GRPC_URL=http://127.0.0.1:58870`
  *
- * Sim parameters: edit **`config/simulation.parameters.json`** (loaded at startup).
+ * Sim parameters: edit **`packages/app-config/src/config.ts`** (`config.sim.plant`).
  */
 import { config } from "@real-pendulum/app-config";
-import { resolveSimulationParametersPath } from "@real-pendulum/app-config/simulation-parameters";
 import { cliPort } from "@real-pendulum/app-config/cli";
 import {
   createSimulationGrpcModel,
@@ -24,7 +23,7 @@ const model = await createSimulationGrpcModel();
 const { url, close } = await startSimulationGrpcServer(model, { port });
 console.log(`[serveSimulation] MotorService + SensorService (shared plant) at ${url}`);
 console.log(`[serveSimulation] Set MOTOR_GRPC_URL and SENSOR_GRPC_URL to this URL (same host for both).`);
-console.log(`[serveSimulation] Parameters file: ${resolveSimulationParametersPath()}`);
+console.log(`[serveSimulation] Plant parameters: packages/app-config/src/config.ts (config.sim.plant)`);
 
 function shutdown(): void {
   void close().finally(() => process.exit(0));

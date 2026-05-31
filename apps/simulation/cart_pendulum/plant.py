@@ -30,13 +30,15 @@ _SENSOR_LIMIT_RIGHT = "limit_right_touch"
 
 @dataclass
 class PlantConfig:
+    """Defaults mirror `config.sim.plant` in packages/app-config/src/config.ts."""
+
     gravity: float = 9.80665
-    pendulum_length_m: float = 0.35
+    pendulum_length_m: float = 0.3
 
     # Scales position actuator kp (×100); higher ≈ stiffer hold / tracking.
-    cart_velocity_tracking_per_sec: float = 12.0
+    cart_velocity_tracking_per_sec: float = 10.0
 
-    angular_damping_per_sec: float = 0.04
+    angular_damping_per_sec: float = 0.00003
     encoder_ticks_per_radian: float = 2400.0 / (2.0 * math.pi)
     max_internal_step_sec: float = 1.0 / 240.0
 

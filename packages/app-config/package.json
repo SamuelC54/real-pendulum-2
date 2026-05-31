@@ -8,6 +8,7 @@
     "./cli": "./src/cli.ts",
     "./node": "./src/node.ts",
     "./simulation-parameters": "./src/simulationParameters.ts",
+    "./sim-plant": "./src/simPlant.ts",
     "./rail": "./src/rail.ts",
     "./pendulum": "./src/pendulum.ts",
     "./sim-limits": "./src/simLimits.ts"

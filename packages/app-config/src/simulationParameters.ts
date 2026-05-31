@@ -1,7 +1,5 @@
-import fs from "node:fs";
-import path from "node:path";
 import { z } from "zod";
-import { resolveRepoRoot } from "./node.js";
+import { getSimPlantParameters, type SimPlantParameters } from "./simPlant.js";
 
 export const simulationParametersSchema = z.object({
   mpsPerRpm: z.number().finite(),
@@ -12,12 +10,8 @@ export const simulationParametersSchema = z.object({
 
 export const simulationParametersPatchSchema = simulationParametersSchema.partial();
 
-export type SimulationParameters = z.infer<typeof simulationParametersSchema>;
+export type SimulationParameters = SimPlantParameters;
 export type SimulationParametersPatch = z.infer<typeof simulationParametersPatchSchema>;
-
-const RELATIVE_PATH = path.join("config", "simulation.parameters.json");
-
-const REPO_ROOT = resolveRepoRoot(import.meta.url);
 
 function formatZodError(error: z.ZodError): string {
   return error.issues
@@ -28,7 +22,7 @@ function formatZodError(error: z.ZodError): string {
     .join("; ");
 }
 
-/** Validate a simulation parameters document exactly as stored in JSON (no defaults). */
+/** Validate simulation plant parameters (e.g. admin PATCH payloads). */
 export function assertSimulationParameters(raw: unknown): SimulationParameters {
   const result = simulationParametersSchema.safeParse(raw);
   if (!result.success) {
@@ -37,38 +31,16 @@ export function assertSimulationParameters(raw: unknown): SimulationParameters {
   return result.data;
 }
 
-/** Absolute path to `config/simulation.parameters.json` under the repo root. */
-export function resolveSimulationParametersPath(repoRoot: string = REPO_ROOT): string {
-  return path.join(repoRoot, RELATIVE_PATH);
+/** Live plant parameters from `packages/app-config/src/config.ts` (`config.sim.plant`). */
+export function getSimulationParameters(): SimulationParameters {
+  return getSimPlantParameters();
 }
 
-export function readSimulationParametersFile(repoRoot?: string): SimulationParameters {
-  const filePath = resolveSimulationParametersPath(repoRoot ?? REPO_ROOT);
-  if (!fs.existsSync(filePath)) {
-    throw new Error(`Simulation parameters file not found: ${filePath}`);
-  }
-  const text = fs.readFileSync(filePath, "utf8");
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(text) as unknown;
-  } catch (e) {
-    throw new Error(
-      `Invalid JSON in ${filePath}: ${e instanceof Error ? e.message : String(e)}`,
-    );
-  }
-  return assertSimulationParameters(parsed);
-}
+/** @deprecated Use `getSimulationParameters`. */
+export const readSimulationParametersFile = getSimulationParameters;
 
-export function writeSimulationParametersFile(
-  config: SimulationParameters,
-  repoRoot?: string,
-): string {
-  const filePath = resolveSimulationParametersPath(repoRoot ?? REPO_ROOT);
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  const normalized = assertSimulationParameters(config);
-  fs.writeFileSync(filePath, `${JSON.stringify(normalized, null, 2)}\n`, "utf8");
-  return filePath;
-}
+/** @deprecated Use `getSimulationParameters`. */
+export const loadSimulationParametersForStartup = getSimulationParameters;
 
 export function mergeSimulationParametersPatch(
   current: SimulationParameters,
@@ -76,9 +48,4 @@ export function mergeSimulationParametersPatch(
 ): SimulationParameters {
   const validatedPatch = simulationParametersPatchSchema.parse(patch);
   return assertSimulationParameters({ ...current, ...validatedPatch });
-}
-
-/** Used when starting `serve:simulation` — loads `config/simulation.parameters.json` only. */
-export function loadSimulationParametersForStartup(repoRoot?: string): SimulationParameters {
-  return readSimulationParametersFile(repoRoot);
 }
