@@ -70,7 +70,7 @@ Layout:
 | **`src/teknic/`** | **koffi** bindings (**`dll.ts`**) for **`teknic_motor.dll`**. |
 | **`scripts/`** | **`build-native.mjs`** configures and builds **`teknic_motor.dll`**. |
 
-**`npm run dev`** runs the motor **Connect** server (**`tsx`**); **`predev`** only builds **`teknic_motor.dll`** (**`npm run build:native`**).
+**`npm run dev`** starts the stack in Docker. For native hot-reload: **`npm run dev:local`** (builds **`teknic_motor.dll`** via **`npm run build:native`** first).
 
 **Control API** talks to the motor over Connect (default **`motorGrpcBaseUrl()`** from config).
 
@@ -95,37 +95,53 @@ Output: **`native/build/Release/teknic_motor.dll`**.
 
 ## Start the stack (development)
 
-From the **repository root**:
+From the **repository root** (requires [Docker](https://docs.docker.com/get-docker/)):
 
 ```bash
 npm run dev
 ```
 
-This runs four processes:
+This runs **`docker compose up --build`** — simulation, controller-service, control-api, web, and **Portainer CE** (`portainer/portainer-ce:lts`).
 
-| Service | Role | Default URL / port |
-|---------|------|---------------------|
-| **motor** | `@real-pendulum/physical-motor-service` — Node Connect + **`teknic_motor.dll`** (koffi) | `0.0.0.0:50051` |
-| **sensor** | `@real-pendulum/physical-sensor-service` — Arduino USB serial + Connect | `0.0.0.0:50052` |
-| **api** | tRPC HTTP API | `http://localhost:4000` (tRPC base path `/trpc/`) |
-| **web** | Vite + React UI | `http://localhost:5173` |
+| Service | Role | URL / port |
+|---------|------|------------|
+| **web** | React UI (nginx) | `http://localhost:5173` |
+| **api** | tRPC HTTP API | `http://localhost:4000` (`/trpc/`) |
+| **simulation** | MuJoCo plant (internal) | — |
+| **controller-service** | Rail controllers (internal) | — |
+| **portainer** | Container UI (always) | `https://localhost:9443` · HTTP `http://localhost:9000` |
 
-Open **`http://localhost:5173`** in the browser. The dev server proxies **`/trpc`** to the control API. Click **Connect Motor Board** in the UI (or call the **`Connect`** gRPC) to run **`teknic_init`** — The motor service **starts without opening the hub** so the API and web can come up even when hardware is offline. After connect, the UI shows a **Motor Board (network report)** panel with node index, type code/label, user ID, firmware string, serial number, and model — the same Teknic **`IInfo`** fields **`SCNetworkReport.exe`** uses for a scan (this path requires an active SDK session after **`Connect`**).
+Open **`http://localhost:5173`**. Use **Simulator** backend mode in the UI (no Teknic DLL required). The **Containers** tab embeds Portainer.
 
-The **api** and **web** processes wait until **TCP port 50051** accepts connections (motor service is listening) before starting, so you avoid transient **ECONNREFUSED** errors during startup. If you change **`MOTOR_GRPC_PORT`** on the motor service, update the **`wait-on tcp:127.0.0.1:50051`** lines in the root **`package.json`** scripts to use the same port.
+If you previously installed Portainer manually (`docker run … portainer`), stop that container first — this stack runs its own Portainer on **9443** / **9000**:
 
-Before the concurrent processes start, **`predev`** builds **`teknic_motor.dll`** (**`npm run build:native -w @real-pendulum/physical-motor-service`**) then frees ports **4000**, **50051**, **50052**, **5173**, and **5174**. If killing those ports is undesirable, use **`npm run dev:no-kill`** (same **`build:native`**, no **`kill-port`**).
+```bash
+docker stop portainer && docker rm portainer
+```
+
+**Hardware** (Teknic motor + Arduino sensor in Docker):
+
+```bash
+npm run build:native -w @real-pendulum/physical-motor-service   # Windows — teknic_motor.dll
+npm run dev:hardware
+```
+
+**Native processes** (no Docker — hot reload, local Python/Node):
+
+```bash
+npm run dev:local
+```
+
+Other scripts: **`npm run dev:detach`** (background), **`npm run dev:down`**, **`npm run dev:logs`**.
 
 Other useful ports:
 
 | Variable | Service |
 |----------|---------|
-| `MOTOR_GRPC_PORT` | Motor Connect listen port (default `50051`). |
+| `MOTOR_GRPC_PORT` | Motor Connect listen port (default `50051`; `dev:hardware` / `dev:local`). |
 | `SENSOR_GRPC_PORT` | Sensor Connect listen port (default `50052`). |
-| `SENSOR_SERIAL_PORT` | Arduino COM/device path (required to connect serial, e.g. `COM3`). |
 | `CONTROL_API_PORT` | tRPC server (default `4000`). |
-| `VITE_DEV_PORT` | Vite dev port (default `5173`; Vite uses `strictPort`). |
-| `VITE_CONTROL_API_URL` | Full tRPC URL for production builds (optional; dev uses the proxy). |
+| `PORTAINER_URL` | Portainer URL for web iframe (default `https://127.0.0.1:9443`). |
 
 ---
 
@@ -149,4 +165,4 @@ Run compiled services individually if needed (motor: `npm run start -w @real-pen
 - **`teknic_init failed (-7)`**: **`Setup.AccessLevelIsFull()`** is false. Teknic’s API only **reads** this flag — there is **no** supported call to “take” full access (see **`pubSysCls.h`** / **`LoadingConfigFile.cpp`**). Close **ClearView** or use **Monitor Mode** when ClearView uses the motor diagnostic USB alongside the hub. If **ClearView is closed** and you connect **only** via diagnostic COM but still hit **-7**, power‑cycle the motor or set **`TeknicCfg::kRequireAccessLevelFull=0`** in **`teknic_cfg.h`** (skip the guard; rebuild **`teknic_motor.dll`** — you may still get parameter errors if access really is monitor‑only).
 - **`teknic_init failed (-2)`**: **`FindComHubPorts`** only detects the **SC4‑HUB** USB adapter, not **USB plugged into the motor’s diagnostic port** — both show up as COM ports, but only the hub is auto‑listed. Note the COM number in Device Manager, set **`TeknicCfg::kManualComWhenDiscoveryEmpty`** to that index, rebuild **`teknic_motor.dll`**. Confirm with **`SCNetworkReport.exe`** plus that COM index (same manual path as Teknic). **Exit ClearView** if it holds the port.
 - **Motor service exits immediately**: Run **`npm run build:native -w @real-pendulum/physical-motor-service`** so **`teknic_motor.dll`** exists; optional **`TEKNIC_DLL`** if the DLL is not under **`native/build/Release`**. Hub power, ClearView closed, COM not in use.
-- **Port already in use**: Stop other dev servers or use `dev:no-kill` and free ports manually.
+- **Port already in use**: Run **`npm run dev:down`**, or stop containers in Portainer. If **`Bind for 0.0.0.0:9443` or `:9000` failed**, another Portainer instance is still running — **`docker stop portainer && docker rm portainer`**, then **`npm run dev`** again.

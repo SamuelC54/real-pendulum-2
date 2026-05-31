@@ -1,0 +1,16 @@
+node_modules
+**/node_modules
+**/dist
+.git
+.gitignore
+**/__pycache__
+**/.pytest_cache
+**/*.egg-info
+**/native/build
+apps/physical-motor-service/native/build
+test-results
+playwright-report
+playwright/.cache
+notebooks
+*.md
+!apps/simulation/README.md

@@ -7,10 +7,13 @@ import {
 } from "./motionLatch.js";
 import type { GrpcBackendMode } from "./grpcRequestContext.js";
 
-export type LatchMoveHomeResult =
+export type LatchMoveHomeLeafResult =
   | { ok: true }
-  | { ok: false; error: string }
-  | { real: LatchMoveHomeResult; sim: LatchMoveHomeResult };
+  | { ok: false; error: string };
+
+export type LatchMoveHomeResult =
+  | LatchMoveHomeLeafResult
+  | { real: LatchMoveHomeLeafResult; sim: LatchMoveHomeLeafResult };
 
 const DEFAULT_VEL_RPM = Math.min(120, Math.max(5, config.homing.jogRpm));
 const DEFAULT_ACC_RPM_PER_SEC = 1000;

@@ -3,7 +3,7 @@ import {
   isMotionBlockedByLatch,
   motionLatchErrorMessage,
 } from "./motionLatch.js";
-import { createControlClient } from "./control/createControlClient.js";
+import { createControlClient, createTwinControlBackend } from "./control/createControlClient.js";
 import { cmPerSecToRpm, rpmToCmPerSec } from "./control/motionUnits.js";
 
 export type TravelLimitSwitchState = {
@@ -124,8 +124,7 @@ export async function moveToPositionCmForBackend(
   },
 ): Promise<RailMoveForBackendResult> {
   if (mode === "twin") {
-    const twin = createControlClient("twin") as import("./control/backends/TwinControlBackend.js").TwinControlBackend;
-    const { real, sim } = await twin.moveToPositionCmTwin(positionCm, opts);
+    const { real, sim } = await createTwinControlBackend().moveToPositionCmTwin(positionCm, opts);
     return { real, sim };
   }
   return moveToPositionCmRespectingTravelLimits(positionCm, mode, opts);

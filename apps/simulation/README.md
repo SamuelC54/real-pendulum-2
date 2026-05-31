@@ -4,9 +4,11 @@ Python **MuJoCo** cart–pendulum engine used by the simulation gRPC stack.
 
 ## Setup
 
-From the repo root, `npm run dev` runs `pip install -r apps/simulation/requirements.txt` automatically (`predev`).
+From the repo root, `npm run dev` starts the full stack in Docker (simulation, controller-service, control-api, web, Portainer).
 
-Optional virtualenv:
+For native processes without Docker: `npm run dev:local`.
+
+Optional virtualenv (local Python dev):
 
 ```bash
 cd apps/simulation
@@ -21,7 +23,7 @@ pip install -r requirements.txt
 python -m cart_pendulum.server --port 58871
 ```
 
-`npm run dev` also starts this service before the simulation.
+`npm run dev` (Docker) or `npm run dev:local` starts this service as part of the stack.
 
 ## HTTP API
 

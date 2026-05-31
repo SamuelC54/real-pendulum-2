@@ -88,7 +88,7 @@ export function MotorStatusBlocks() {
                 {simAuto.pending
                   ? "Connecting to simulationulator…"
                   : (simAuto.lastError ??
-                    "Simulator auto-connect — ensure simulation is running (npm run dev).")}
+                    "Simulator auto-connect — run npm run dev (Docker stack).")}
               </p>
             ) : null}
             {!connected && mode !== "sim" ? (

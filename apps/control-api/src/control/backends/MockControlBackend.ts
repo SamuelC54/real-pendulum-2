@@ -1,4 +1,4 @@
-import type { RailMachineState, TravelLimitsCm } from "./types.js";
+import type { RailMachineState, TravelLimitsCm } from "../types.js";
 
 /** In-memory backend for unit tests. */
 export class MockControlBackend {

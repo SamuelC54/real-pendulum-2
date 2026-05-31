@@ -1,4 +1,4 @@
-import { config } from "@real-pendulum/app-config";
+import { config, portainerWebUrl } from "@real-pendulum/app-config";
 import { initTRPC } from "@trpc/server";
 import superjson from "superjson";
 import { z } from "zod";
@@ -95,6 +95,7 @@ export const appRouter = t.router({
     backends: baseProcedure.query(() => ({
       physicsSimUrl: process.env.PHYSICS_SIM_URL ?? "http://127.0.0.1:58871",
       controllerServiceUrl: process.env.CONTROLLER_SERVICE_URL ?? "http://127.0.0.1:58872",
+      portainerUrl: portainerWebUrl(),
     })),
     rail: baseProcedure.query(() => ({
       /** Display motor counts per cm (`config.rail.displayCountsPerCm`, default 232.8). */

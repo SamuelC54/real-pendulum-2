@@ -50,7 +50,7 @@ export function BackendModeControl() {
       {mode === "twin" ? (
         <span
           className="max-w-[11rem] rounded bg-sky-500/20 px-1.5 py-0.5 text-[10px] font-semibold leading-tight text-sky-900 dark:text-sky-200"
-          title="Requires simulation (npm run dev). Hardware still connects if the plant is down."
+          title="Requires simulation (npm run dev — Docker stack). Hardware still connects if the plant is down."
         >
           TWIN
         </span>

@@ -16,11 +16,13 @@
     "flash:sensor-firmware": "tsx ./scripts/flash-sensor-firmware.ts",
     "proto:generate": "buf generate",
     "setup:simulation": "python -m pip install -r apps/simulation/requirements.txt && python -m pip install -e packages/rail-controllers",
-    "predev": "npm run setup:simulation && npm run build:native -w @real-pendulum/physical-motor-service && npx --yes kill-port 4000 50051 50052 58871 58872 5173 5174",
-    "dev": "npm run dev:stack",
-    "dev:stack": "concurrently -n motor,sensor,physics,controllers,api,web -c blue,green,white,magenta,yellow,red \"npm run dev -w @real-pendulum/physical-motor-service\" \"npm run dev -w @real-pendulum/physical-sensor-service\" \"npm run dev -w @real-pendulum/simulation\" \"npm run dev -w @real-pendulum/controller-service\" \"wait-on -t 120000 tcp:127.0.0.1:58871 tcp:127.0.0.1:58872 && npm run dev -w @real-pendulum/control-api\" \"wait-on -t 120000 tcp:127.0.0.1:4000 && npm run dev -w web\"",
-    "dev:no-kill": "npm run dev:no-kill:stack",
-    "dev:no-kill:stack": "npm run setup:simulation && npm run build:native -w @real-pendulum/physical-motor-service && concurrently -n motor,sensor,physics,controllers,api,web -c blue,green,white,magenta,yellow,red \"npm run dev -w @real-pendulum/physical-motor-service\" \"npm run dev -w @real-pendulum/physical-sensor-service\" \"npm run dev -w @real-pendulum/simulation\" \"npm run dev -w @real-pendulum/controller-service\" \"wait-on -t 120000 tcp:127.0.0.1:58871 tcp:127.0.0.1:58872 && npm run dev -w @real-pendulum/control-api\" \"wait-on -t 120000 tcp:127.0.0.1:4000 && npm run dev -w web\""
+    "dev": "node scripts/check-docker.mjs && node scripts/pull-portainer.mjs && docker compose up --build",
+    "dev:detach": "node scripts/check-docker.mjs && node scripts/pull-portainer.mjs && docker compose up -d --build",
+    "dev:down": "docker compose down",
+    "dev:logs": "docker compose logs -f",
+    "dev:hardware": "node scripts/check-docker.mjs && node scripts/pull-portainer.mjs && docker compose --profile hardware up --build",
+    "dev:local": "npm run dev:local:stack",
+    "dev:local:stack": "npm run setup:simulation && npm run build:native -w @real-pendulum/physical-motor-service && concurrently -n motor,sensor,physics,controllers,api,web -c blue,green,white,magenta,yellow,red \"npm run dev -w @real-pendulum/physical-motor-service\" \"npm run dev -w @real-pendulum/physical-sensor-service\" \"npm run dev -w @real-pendulum/simulation\" \"npm run dev -w @real-pendulum/controller-service\" \"wait-on -t 120000 tcp:127.0.0.1:58871 tcp:127.0.0.1:58872 && npm run dev -w @real-pendulum/control-api\" \"wait-on -t 120000 tcp:127.0.0.1:4000 && npm run dev -w web\""
   },
   "devDependencies": {
     "@bufbuild/buf": "^1.69.0",

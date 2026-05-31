@@ -1,0 +1,119 @@
+# Real Pendulum stack — simulation + API + web + Portainer CE (always).
+# Optional profile: hardware (physical motor + sensor).
+#
+#   npm run dev           → full stack including Portainer
+#   npm run dev:hardware  → + physical motor/sensor containers
+#   npm run dev:local     → native processes (no Docker)
+#
+# Web UI:     http://127.0.0.1:5173
+# Portainer:  https://127.0.0.1:9443  (HTTP legacy: http://127.0.0.1:9000)
+
+name: real-pendulum
+
+services:
+  simulation:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.simulation
+    container_name: rp-simulation
+    restart: unless-stopped
+    networks:
+      - pendulum
+
+  controller-service:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.controller-service
+    container_name: rp-controller-service
+    restart: unless-stopped
+    networks:
+      - pendulum
+
+  control-api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.node
+    container_name: rp-control-api
+    restart: unless-stopped
+    command: ["npx", "tsx", "apps/control-api/src/index.ts", "--port", "4000"]
+    environment:
+      PHYSICS_SIM_URL: http://simulation:58871
+      CONTROLLER_SERVICE_URL: http://controller-service:58872
+      MOTOR_GRPC_URL: http://physical-motor-service:50051
+      SENSOR_GRPC_URL: http://physical-sensor-service:50052
+      PORTAINER_URL: https://127.0.0.1:9443
+    ports:
+      - "4000:4000"
+    depends_on:
+      simulation:
+        condition: service_healthy
+      controller-service:
+        condition: service_healthy
+    networks:
+      - pendulum
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.web
+    container_name: rp-web
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      - control-api
+    networks:
+      - pendulum
+
+  physical-motor-service:
+    profiles: ["hardware"]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.node
+    container_name: rp-physical-motor-service
+    restart: unless-stopped
+    command: ["npx", "tsx", "apps/physical-motor-service/src/server.ts"]
+    ports:
+      - "50051:50051"
+    # Mount pre-built teknic_motor.dll from host (Windows build: npm run build:native -w @real-pendulum/physical-motor-service)
+    volumes:
+      - ./apps/physical-motor-service/native/build:/app/apps/physical-motor-service/native/build:ro
+    networks:
+      - pendulum
+
+  physical-sensor-service:
+    profiles: ["hardware"]
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.node
+    container_name: rp-physical-sensor-service
+    restart: unless-stopped
+    command: ["npx", "tsx", "apps/physical-sensor-service/src/server.ts"]
+    ports:
+      - "50052:50052"
+    devices:
+      - /dev/ttyUSB0:/dev/ttyUSB0
+    group_add:
+      - dialout
+    networks:
+      - pendulum
+
+  portainer:
+    image: portainer/portainer-ce:lts
+    container_name: portainer
+    restart: always
+    ports:
+      - "9000:9000"
+      - "9443:9443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+    networks:
+      - pendulum
+
+networks:
+  pendulum:
+    name: rp-pendulum
+
+volumes:
+  portainer_data:

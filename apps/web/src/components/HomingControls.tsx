@@ -215,7 +215,7 @@ export const HomingControls = memo(function HomingControls() {
           {mode === "sim"
             ? simAuto.pending
               ? "Connecting to simulator (motor)…"
-              : simAuto.lastError ?? "Waiting for simulation — run npm run dev (simulation + controller-service)."
+              : simAuto.lastError ?? "Waiting for simulation — run npm run dev (Docker stack)."
             : "Connect the Motor Board first."}
         </p>
       ) : null}

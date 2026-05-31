@@ -10,9 +10,10 @@ import { BackendAutoConnect } from "@/components/BackendAutoConnect";
 import { KeyboardJogListener } from "@/components/KeyboardJogListener";
 import { DigitalTwinPage } from "@/components/DigitalTwinPage";
 import { ControllersPage } from "@/components/ControllersPage";
+import { ContainersPage } from "@/components/ContainersPage";
 import { cn } from "@/lib/utils";
 
-export type AppPage = "control" | "controllers" | "digital-twin";
+export type AppPage = "control" | "controllers" | "digital-twin" | "containers";
 
 function ControlPage() {
   return (
@@ -77,13 +78,16 @@ export function AppShell() {
             <NavTab active={page === "digital-twin"} onClick={() => setPage("digital-twin")}>
               Digital twin
             </NavTab>
+            <NavTab active={page === "containers"} onClick={() => setPage("containers")}>
+              Containers
+            </NavTab>
           </nav>
         }
       />
       <main
         className={cn(
           "mx-auto px-6 py-4",
-          page === "digital-twin" ? "max-w-[96rem]" : "max-w-7xl",
+          page === "digital-twin" || page === "containers" ? "max-w-[96rem]" : "max-w-7xl",
         )}
       >
         <MotionLatchBanner />
@@ -98,6 +102,12 @@ export function AppShell() {
           aria-hidden={page !== "digital-twin"}
         >
           <DigitalTwinPage />
+        </div>
+        <div
+          className={page === "containers" ? undefined : "hidden"}
+          aria-hidden={page !== "containers"}
+        >
+          <ContainersPage />
         </div>
       </main>
     </div>

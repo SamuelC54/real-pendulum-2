@@ -51,8 +51,8 @@ export default defineConfig(({ mode }) => {
           configure(proxy) {
             proxy.on("error", (err, _req, res) => {
               console.error(
-                `[vite] /trpc proxy → ${controlApiTarget} failed (${err.message}). ` +
-                  `Start control-api (npm run dev from repo root).`,
+                  `[vite] /trpc proxy → ${controlApiTarget} failed (${err.message}). ` +
+                  `Start the stack: npm run dev (Docker) or npm run dev:local.`,
               );
               if (res && !res.headersSent && "writeHead" in res) {
                 res.writeHead(502, { "Content-Type": "application/json" });

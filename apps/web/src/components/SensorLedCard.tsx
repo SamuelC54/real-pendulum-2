@@ -336,7 +336,7 @@ export function SensorLedCard() {
             {simAuto.pending
               ? "Connecting to simulationulator…"
               : (simAuto.lastError ??
-                "Auto-connect pending — start simulation (included in npm run dev).")}
+                "Auto-connect pending — start the stack with npm run dev (Docker).")}
           </p>
         ) : null}
         {!connected && mode !== "sim" ? (

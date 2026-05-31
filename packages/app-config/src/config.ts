@@ -19,6 +19,18 @@ export type AppConfig = {
     controlApiUrl?: string;
   };
 
+  /** Portainer CE — embedded in web UI Containers tab (https://127.0.0.1:9443). */
+  portainer: {
+    /** HTTPS UI — official Docker Desktop / WSL default. */
+    httpsPort: number;
+    /** Legacy HTTP UI (optional; easier for iframe embed). */
+    httpPort: number;
+    /** Edge agent tunnel (Portainer Edge). */
+    edgeTunnelPort: number;
+    /** Full browser URL override. */
+    url?: string;
+  };
+
   motor: {
     grpcPort: number;
     /** Full gRPC base URL; default `http://127.0.0.1:${grpcPort}` */
@@ -121,6 +133,13 @@ export const config: AppConfig = {
   web: {
     devPort: 5173,
     controlApiUrl: undefined,
+  },
+
+  portainer: {
+    httpsPort: 9443,
+    httpPort: 9000,
+    edgeTunnelPort: 8000,
+    url: undefined,
   },
 
   motor: {
@@ -230,6 +249,19 @@ export function webControlApiBaseUrl(): string {
   const raw = config.web.controlApiUrl?.trim();
   if (raw) return raw;
   return `http://127.0.0.1:${config.controlApi.port}`;
+}
+
+/** Portainer URL for browser iframe (Containers tab). Override with PORTAINER_URL. */
+export function portainerWebUrl(): string {
+  const fromEnv = process.env.PORTAINER_URL?.trim();
+  if (fromEnv) {
+    return fromEnv.startsWith("http") ? fromEnv : `https://${fromEnv}`;
+  }
+  const raw = config.portainer.url?.trim();
+  if (raw) {
+    return raw.startsWith("http") ? raw : `https://${raw}`;
+  }
+  return `https://127.0.0.1:${config.portainer.httpsPort}`;
 }
 
 /** Playwright E2E sim stack — simulation HTTP base URL. */
