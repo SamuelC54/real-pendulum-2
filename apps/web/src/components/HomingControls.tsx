@@ -129,21 +129,29 @@ export const HomingControls = memo(function HomingControls() {
     void utils.twin.status.get.invalidate();
   };
 
-  const homeSingle = trpc.rail.home.useMutation({
+  const homeSingle = trpc.controllers.start.useMutation({
     onSuccess: () => {
       invalidateMotor();
       void utils.sensor.status.get.invalidate();
-      void utils.twin.sensor.status.get.invalidate();
+      void utils.controllers.status.invalidate();
     },
   });
-  const homeTwin = trpc.twin.rail.home.useMutation({
+  const homeTwin = trpc.controllers.start.useMutation({
     onSuccess: () => {
       invalidateMotor();
       void utils.sensor.status.get.invalidate();
-      void utils.twin.sensor.status.get.invalidate();
+      void utils.controllers.status.invalidate();
     },
   });
   const home = mode === "twin" ? homeTwin : homeSingle;
+  const controllerStatus = trpc.controllers.status.useQuery(undefined, {
+    refetchInterval: (q) =>
+      q.state.data?.active || home.isPending ? 500 : false,
+  });
+
+  const startHoming = useCallback(() => {
+    void home.mutateAsync({ id: "rail_homing", params: {} });
+  }, [home]);
 
   const zeroSingle = trpc.rail.zeroAtCurrent.useMutation({ onSuccess: invalidateMotor });
   const zeroTwin = trpc.twin.rail.zeroAtCurrent.useMutation({ onSuccess: invalidateMotor });
@@ -171,7 +179,7 @@ export const HomingControls = memo(function HomingControls() {
     void setSymmetricSpan.mutateAsync({ halfSpanCm: halfSpan });
   }, [setSymmetricSpan, switchDistanceCm]);
 
-  const railHomeResult = home.data;
+  const railHomeResult = controllerStatus.data?.homingResult ?? undefined;
   const positionCm = motorStatus.data?.positionCm;
   const travelLimits = motorStatus.data?.travelLimits;
   const leftStopCm = travelLimits?.leftCm;
@@ -194,7 +202,7 @@ export const HomingControls = memo(function HomingControls() {
         size="lg"
         className="w-full touch-manipulation sm:w-auto"
         disabled={autoHomeDisabled}
-        onClick={() => void home.mutateAsync()}
+        onClick={startHoming}
       >
         <Home
           aria-hidden
@@ -207,7 +215,7 @@ export const HomingControls = memo(function HomingControls() {
           {mode === "sim"
             ? simAuto.pending
               ? "Connecting to simulator (motor)…"
-              : simAuto.lastError ?? "Waiting for simulation — run npm run dev or serve:simulation."
+              : simAuto.lastError ?? "Waiting for simulation — run npm run dev (physics-sim + controller-service)."
             : "Connect the Motor Board first."}
         </p>
       ) : null}

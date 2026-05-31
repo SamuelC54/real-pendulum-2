@@ -1,13 +1,10 @@
 import { config } from "@real-pendulum/app-config";
-import * as motor from "@real-pendulum/motor-service/sdk";
-import * as sensor from "@real-pendulum/sensor-service/sdk";
+import { createControlClient } from "./control/createControlClient.js";
 import { moveToPositionCmRespectingTravelLimits } from "./railLimitGuards.js";
 import {
   runWithRecoveryMoveBypass,
   tryClearMotionLatchIfSafe,
 } from "./motionLatch.js";
-import { teknicMeasuredToCm } from "./railPositionCm.js";
-import { withHardwareGrpc, withSimGrpc } from "./twinGrpc.js";
 import type { GrpcBackendMode } from "./grpcRequestContext.js";
 
 export type LatchMoveHomeResult =
@@ -27,7 +24,8 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function waitForMotorPositionCm(
+async function waitForHomePosition(
+  mode: GrpcBackendMode,
   targetCm: number,
   opts: { toleranceCm: number; timeoutMs: number; pollMs: number },
 ): Promise<{ ok: boolean; error: string }> {
@@ -35,14 +33,11 @@ async function waitForMotorPositionCm(
   let reachedAt: number | undefined;
 
   while (Date.now() < deadline) {
-    const st = await motor.getMotorStatus();
-    if (!st.connected) {
+    const state = await createControlClient(mode).getState();
+    if (!state.connection.cart) {
       return { ok: false, error: "Motor disconnected during move to home." };
     }
-    const cm =
-      st.measuredPosition !== undefined && Number.isFinite(st.measuredPosition)
-        ? teknicMeasuredToCm(st.measuredPosition)
-        : undefined;
+    const cm = state.cart.positionCm ?? undefined;
     if (cm !== undefined && Math.abs(cm - targetCm) <= opts.toleranceCm) {
       if (reachedAt === undefined) {
         reachedAt = Date.now();
@@ -58,15 +53,18 @@ async function waitForMotorPositionCm(
   return { ok: false, error: "Timed out waiting for motor to reach home (0 cm)." };
 }
 
-async function moveToHomeCmWithRecovery(opts: {
-  maxVelocityRpm: number;
-  maxAccelerationRpmPerSec: number;
-  recovery: true;
-}): Promise<{ ok: boolean; error: string }> {
-  const start = await moveToPositionCmRespectingTravelLimits(HOME_POSITION_CM, opts);
+async function moveToHomeCmWithRecovery(
+  mode: GrpcBackendMode,
+  opts: {
+    maxVelocityRpm: number;
+    maxAccelerationRpmPerSec: number;
+    recovery: true;
+  },
+): Promise<{ ok: boolean; error: string }> {
+  const start = await moveToPositionCmRespectingTravelLimits(HOME_POSITION_CM, mode, opts);
   if (!start.ok) return start;
 
-  const waited = await waitForMotorPositionCm(HOME_POSITION_CM, {
+  const waited = await waitForHomePosition(mode, HOME_POSITION_CM, {
     toleranceCm: HOME_TOLERANCE_CM,
     timeoutMs: HOME_MOVE_TIMEOUT_MS,
     pollMs: HOME_POLL_MS,
@@ -74,15 +72,14 @@ async function moveToHomeCmWithRecovery(opts: {
   if (!waited.ok) return waited;
 
   try {
-    const limits = await sensor.getSensorStatus();
-    const st = await motor.getMotorStatus();
-    const cm =
-      st.measuredPosition !== undefined && Number.isFinite(st.measuredPosition)
-        ? teknicMeasuredToCm(st.measuredPosition)
-        : undefined;
-    tryClearMotionLatchIfSafe(cm, limits);
+    const state = await createControlClient(mode).getState();
+    tryClearMotionLatchIfSafe(state.cart.positionCm ?? undefined, {
+      connected: state.connection.sensor,
+      limitLeftPressed: state.limitSwitch.leftPressed,
+      limitRightPressed: state.limitSwitch.rightPressed,
+    });
   } catch {
-    /* sensor/motor offline — latch stays until operator releases */
+    /* offline — latch stays */
   }
 
   return { ok: true, error: "" };
@@ -105,16 +102,11 @@ export async function moveHomeWhileLatched(
   return runWithRecoveryMoveBypass(async () => {
     if (mode === "twin") {
       const [real, sim] = await Promise.all([
-        withHardwareGrpc(() => moveToHomeCmWithRecovery(moveOpts)),
-        withSimGrpc(() => moveToHomeCmWithRecovery(moveOpts)),
+        moveToHomeCmWithRecovery("hardware", moveOpts),
+        moveToHomeCmWithRecovery("sim", moveOpts),
       ]);
       return { real, sim };
     }
-
-    const run = () => moveToHomeCmWithRecovery(moveOpts);
-    if (mode === "sim") {
-      return withSimGrpc(run);
-    }
-    return withHardwareGrpc(run);
+    return moveToHomeCmWithRecovery(mode, moveOpts);
   });
 }

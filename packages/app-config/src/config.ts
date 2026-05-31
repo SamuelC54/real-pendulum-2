@@ -68,6 +68,9 @@ export type AppConfig = {
     /** MuJoCo physics HTTP service (`apps/physics-sim`). */
     physicsSimHttpPort: number;
     physicsSimHttpUrl?: string;
+    /** Rail controller HTTP service (`apps/controller-service`). */
+    controllerServiceHttpPort: number;
+    controllerServiceHttpUrl?: string;
     motorSimGrpcUrl?: string;
     sensorSimGrpcUrl?: string;
     /** Plant parameters in `config/simulation.parameters.json` (see `@real-pendulum/app-config/simulation-parameters`). */
@@ -89,6 +92,7 @@ export type AppConfig = {
     connectTimeoutMs: number;
     /** Playwright sim stack: isolated ports (no Teknic DLL). */
     physicsSimHttpPort: number;
+    controllerServiceHttpPort: number;
     simulationGrpcPort: number;
     controlApiPort: number;
     simWebPort: number;
@@ -153,6 +157,8 @@ export const config: AppConfig = {
     simulationGrpcPort: 58870,
     physicsSimHttpPort: 58871,
     physicsSimHttpUrl: undefined,
+    controllerServiceHttpPort: 58872,
+    controllerServiceHttpUrl: undefined,
     motorSimGrpcUrl: undefined,
     sensorSimGrpcUrl: undefined,
     limitLeftXM: -0.8,
@@ -170,6 +176,7 @@ export const config: AppConfig = {
     useRealMotor: false,
     connectTimeoutMs: 120_000,
     physicsSimHttpPort: 50571,
+    controllerServiceHttpPort: 50572,
     simulationGrpcPort: 50552,
     controlApiPort: 14001,
     simWebPort: 4174,
@@ -200,6 +207,12 @@ export function physicsSimHttpBaseUrl(): string {
   return `http://127.0.0.1:${config.sim.physicsSimHttpPort}`;
 }
 
+export function controllerServiceHttpBaseUrl(): string {
+  const raw = config.sim.controllerServiceHttpUrl?.trim();
+  if (raw) return raw.startsWith("http") ? raw : `http://${raw}`;
+  return `http://127.0.0.1:${config.sim.controllerServiceHttpPort}`;
+}
+
 export function webControlApiBaseUrl(): string {
   const raw = config.web.controlApiUrl?.trim();
   if (raw) return raw;
@@ -209,6 +222,11 @@ export function webControlApiBaseUrl(): string {
 /** Playwright E2E sim stack — physics-sim HTTP base URL. */
 export function e2ePhysicsSimHttpUrl(): string {
   return `http://127.0.0.1:${config.e2e.physicsSimHttpPort}`;
+}
+
+/** Playwright E2E sim stack — controller-service HTTP base URL. */
+export function e2eControllerServiceHttpUrl(): string {
+  return `http://127.0.0.1:${config.e2e.controllerServiceHttpPort}`;
 }
 
 /** Playwright E2E sim stack — simulation motor + sensor gRPC base URL. */

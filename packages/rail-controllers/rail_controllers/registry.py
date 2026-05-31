@@ -12,7 +12,7 @@ class RailController(Protocol):
 
 
 def _iter_controller_modules():
-    import controllers as package
+    import rail_controllers as package
 
     for info in pkgutil.iter_modules(package.__path__, package.__name__ + "."):
         short = info.name.rsplit(".", 1)[-1]

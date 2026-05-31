@@ -10,7 +10,7 @@ const RETRY_MS = 2500;
 
 /**
  * In **sim** backend mode, connect motor + sensor gRPC to the simulation plant without USB boards.
- * Retries until both report connected (e.g. while `serve:simulation` is still starting).
+ * Retries until both report connected (e.g. while physics-sim is still starting).
  */
 export function useSimBackendAutoConnect(): {
   active: boolean;

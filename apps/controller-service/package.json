@@ -1,0 +1,17 @@
+{
+  "name": "@real-pendulum/controller-service",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./client": "./client/src/index.ts"
+  },
+  "scripts": {
+    "dev": "python -m controller_service.server --port 58872",
+    "start": "python -m controller_service.server --port 58872",
+    "test": "python -m pytest ../../packages/rail-controllers/tests -q"
+  },
+  "dependencies": {
+    "@real-pendulum/app-config": "*"
+  }
+}

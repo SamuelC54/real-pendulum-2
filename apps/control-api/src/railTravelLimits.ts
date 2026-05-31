@@ -86,6 +86,16 @@ export function setTravelLimitsSymmetricAboutCm(
   return { centerCm, halfSpanCm, leftCm, rightCm };
 }
 
+/** Set software travel limits directly in cm (ControlClient API). */
+export function setTravelLimitsFromCm(limits: {
+  left: number | null;
+  right: number | null;
+}): void {
+  const a = activeLimits();
+  a.left = limits.left != null ? cmToDisplayCounts(limits.left) : null;
+  a.right = limits.right != null ? cmToDisplayCounts(limits.right) : null;
+}
+
 /** Snapshot current motor measured position into the given side (from limit switch hit). */
 export function recordTravelLimitFromTeknicMeasured(teknicMeasured: number, side: "left" | "right"): void {
   if (!Number.isFinite(teknicMeasured)) return;

@@ -1,6 +1,5 @@
-import * as motor from "@real-pendulum/motor-service/sdk";
 import { registerMotionLatchHandler } from "./motionLatch.js";
-import { withHardwareGrpc, withSimGrpc } from "./twinGrpc.js";
+import { createTwinControlBackend } from "./control/createControlClient.js";
 
 async function stopMotorSafe(run: () => Promise<{ ok: boolean; error: string }>): Promise<void> {
   try {
@@ -10,11 +9,11 @@ async function stopMotorSafe(run: () => Promise<{ ok: boolean; error: string }>)
   }
 }
 
-/** Stop hardware + sim motors when a limit latches. */
 export async function stopAllMotionOnLatch(): Promise<void> {
+  const twin = createTwinControlBackend();
   await Promise.allSettled([
-    withHardwareGrpc(() => stopMotorSafe(() => motor.stopMotor())),
-    withSimGrpc(() => stopMotorSafe(() => motor.stopMotor())),
+    stopMotorSafe(() => twin.physical.stop()),
+    stopMotorSafe(() => twin.simulation.stop()),
   ]);
 }
 

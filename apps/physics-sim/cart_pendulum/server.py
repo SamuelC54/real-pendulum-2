@@ -5,17 +5,11 @@ from __future__ import annotations
 import argparse
 import json
 import threading
-import traceback
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 from urllib.parse import urlparse
 
-from .plant import CartPendulumPlant, PlantConfig, PlantState
-
-try:
-    from controllers import service as controller_service
-except ImportError:
-    controller_service = None  # type: ignore[misc, assignment]
+from .plant import CartPendulumPlant, PlantState
 
 _live_plant = CartPendulumPlant()
 _live_lock = threading.Lock()
@@ -67,6 +61,12 @@ class PhysicsSimHandler(BaseHTTPRequestHandler):
     def log_message(self, fmt: str, *args: Any) -> None:
         return
 
+    def handle(self) -> None:
+        try:
+            super().handle()
+        except ConnectionResetError:
+            pass
+
     def do_GET(self) -> None:
         path = urlparse(self.path).path
         if path == "/health":
@@ -76,18 +76,6 @@ class PhysicsSimHandler(BaseHTTPRequestHandler):
             with _live_lock:
                 payload = _state_payload()
             _json_response(self, 200, payload)
-            return
-        if path == "/controllers/list":
-            if controller_service is None:
-                _json_response(self, 503, {"error": "controllers package unavailable"})
-                return
-            _json_response(self, 200, {"controllers": controller_service.list_controllers()})
-            return
-        if path == "/controllers/status":
-            if controller_service is None:
-                _json_response(self, 503, {"error": "controllers package unavailable"})
-                return
-            _json_response(self, 200, controller_service.status())
             return
         _json_response(self, 404, {"error": "not found"})
 
@@ -150,42 +138,6 @@ class PhysicsSimHandler(BaseHTTPRequestHandler):
                 _live_plant.sync_state_to_mujoco()
                 _live_plant.sync_encoder_from_theta()
             _json_response(self, 200, _state_payload())
-            return
-
-        if path.startswith("/controllers/"):
-            if controller_service is None:
-                _json_response(self, 503, {"error": "controllers package unavailable"})
-                return
-            try:
-                if path == "/controllers/start":
-                    controller_id = body.get("id")
-                    if not controller_id:
-                        _json_response(self, 400, {"error": "id required"})
-                        return
-                    params = body.get("params") or {}
-                    out = controller_service.start(str(controller_id), params)
-                elif path == "/controllers/stop":
-                    out = controller_service.stop()
-                elif path == "/controllers/tick":
-                    position_cm = body.get("positionCm")
-                    if position_cm is None:
-                        _json_response(self, 400, {"error": "positionCm required"})
-                        return
-                    tick_state: dict[str, Any] = {
-                        "positionCm": float(position_cm),
-                        "timeSec": float(body.get("timeSec", 0)),
-                    }
-                    if "encoderTicks" in body:
-                        tick_state["encoderTicks"] = float(body["encoderTicks"])
-                    out = controller_service.tick(tick_state)
-                else:
-                    _json_response(self, 404, {"error": "not found"})
-                    return
-            except Exception as e:
-                traceback.print_exc()
-                _json_response(self, 500, {"error": str(e)})
-                return
-            _json_response(self, 200, out)
             return
 
         _json_response(self, 404, {"error": "not found"})

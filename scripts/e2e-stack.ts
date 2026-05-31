@@ -1,6 +1,5 @@
 /**
- * Simulation (physics-sim + MuJoCo) → control-api → Vite for Playwright E2E (no Teknic DLL).
- * Ports: `config.e2e` in packages/app-config/src/config.ts
+ * Simulation (physics-sim + controller-service) → control-api → Vite for Playwright E2E.
  */
 import { spawn, type ChildProcess } from "node:child_process";
 import path from "node:path";
@@ -9,18 +8,19 @@ import waitOn from "wait-on";
 import treeKill from "tree-kill";
 import {
   config,
-  e2eSimulationGrpcUrl,
   e2ePhysicsSimHttpUrl,
+  e2eControllerServiceHttpUrl,
 } from "@real-pendulum/app-config";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const physicsSimDir = path.join(root, "apps/physics-sim");
+const controllerServiceDir = path.join(root, "apps/controller-service");
 const physicsPort = config.e2e.physicsSimHttpPort;
-const simulationPort = config.e2e.simulationGrpcPort;
+const controllerPort = config.e2e.controllerServiceHttpPort;
 const controlPort = config.e2e.controlApiPort;
 const webPort = config.e2e.simWebPort;
-const simulationUrl = e2eSimulationGrpcUrl();
 const physicsUrl = e2ePhysicsSimHttpUrl();
+const controllerUrl = e2eControllerServiceHttpUrl();
 
 const children: ChildProcess[] = [];
 
@@ -48,14 +48,12 @@ await waitOn({
   timeout: 60_000,
 });
 
-launch(
-  "npm",
-  ["run", "serve:simulation", "-w", "@real-pendulum/motor-service", "--", "--port", String(simulationPort)],
-  { env: { PHYSICS_SIM_URL: physicsUrl } },
-);
+launch("python", ["-m", "controller_service.server", "--port", String(controllerPort)], {
+  cwd: controllerServiceDir,
+});
 
 await waitOn({
-  resources: [`tcp:127.0.0.1:${simulationPort}`],
+  resources: [`tcp:127.0.0.1:${controllerPort}`],
   timeout: 60_000,
 });
 
@@ -67,11 +65,14 @@ launch("npm", [
   "--",
   "--port",
   String(controlPort),
-  "--motor-grpc-url",
-  simulationUrl,
-  "--sensor-grpc-url",
-  simulationUrl,
-]);
+],
+  {
+    env: {
+      PHYSICS_SIM_URL: physicsUrl,
+      CONTROLLER_SERVICE_URL: controllerUrl,
+    },
+  },
+);
 
 await waitOn({
   resources: [`tcp:127.0.0.1:${controlPort}`],
@@ -99,7 +100,7 @@ await waitOn({
 });
 
 console.log(
-  `[e2e-stack] Ready — http://127.0.0.1:${webPort} (physics ${physicsPort}, simulation ${simulationPort}, control-api ${controlPort})`,
+  `[e2e-stack] Ready — http://127.0.0.1:${webPort} (physics ${physicsPort}, controllers ${controllerPort}, control-api ${controlPort})`,
 );
 
 function shutdown() {

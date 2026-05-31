@@ -1,17 +1,16 @@
 import { config } from "@real-pendulum/app-config";
-import * as motor from "@real-pendulum/motor-service/sdk";
+import { createControlClient, createTwinControlBackend } from "./control/createControlClient.js";
+import { rpmToCmPerSec } from "./control/motionUnits.js";
 import {
   getMotionLatchStatus,
   isMotionLatched,
   runWithRecoveryMoveBypass,
 } from "./motionLatch.js";
-import { withHardwareGrpc, withSimGrpc } from "./twinGrpc.js";
 import type { GrpcBackendMode } from "./grpcRequestContext.js";
 
 const DEFAULT_JOG_RPM = Math.min(120, Math.max(5, config.homing.jogRpm));
 const DEFAULT_ACC_RPM_PER_SEC = 1000;
 
-/** Signed RPM toward rail center (0 cm) from current latch side. */
 export function recoveryJogRpmTowardCenter(magnitudeRpm = DEFAULT_JOG_RPM): number | null {
   const { latched, towardCenterJog } = getMotionLatchStatus();
   if (!latched || !towardCenterJog) return null;
@@ -20,6 +19,7 @@ export function recoveryJogRpmTowardCenter(magnitudeRpm = DEFAULT_JOG_RPM): numb
 }
 
 async function setRecoveryJogOnBackend(
+  mode: GrpcBackendMode,
   rpm: number,
   maxAccelerationRpmPerSec?: number,
 ): Promise<{ ok: boolean; error: string }> {
@@ -31,16 +31,17 @@ async function setRecoveryJogOnBackend(
     return { ok: false, error: "Latch side unknown — release stop and retry." };
   }
   const signed = rpm === 0 ? 0 : Math.sign(toward) * Math.abs(rpm);
-  return runWithRecoveryMoveBypass(async () => {
-    if (maxAccelerationRpmPerSec !== undefined) {
-      return motor.setJogVelocityRpm(signed, { maxAccelerationRpmPerSec });
-    }
-    return motor.setJogVelocityRpm(signed);
-  });
+  return runWithRecoveryMoveBypass(() =>
+    createControlClient(mode).setJogCmPerSec(rpmToCmPerSec(signed), {
+      maxAccelerationRpmPerSec,
+    }),
+  );
 }
 
-async function stopRecoveryJogOnBackend(): Promise<{ ok: boolean; error: string }> {
-  return runWithRecoveryMoveBypass(() => motor.stopMotor());
+async function stopRecoveryJogOnBackend(
+  mode: GrpcBackendMode,
+): Promise<{ ok: boolean; error: string }> {
+  return runWithRecoveryMoveBypass(() => createControlClient(mode).stop());
 }
 
 export async function startRecoveryJog(
@@ -51,18 +52,17 @@ export async function startRecoveryJog(
   const acc = options?.maxAccelerationRpmPerSec ?? DEFAULT_ACC_RPM_PER_SEC;
 
   if (mode === "twin") {
+    const twin = createTwinControlBackend();
     const [real, sim] = await Promise.all([
-      withHardwareGrpc(() => setRecoveryJogOnBackend(rpm, acc)),
-      withSimGrpc(() => setRecoveryJogOnBackend(rpm, acc)),
+      setRecoveryJogOnBackend("hardware", rpm, acc),
+      setRecoveryJogOnBackend("sim", rpm, acc),
     ]);
     if (!real.ok) return real;
     if (!sim.ok) return { ok: false, error: `Sim: ${sim.error}` };
     return { ok: true };
   }
 
-  const run = () => setRecoveryJogOnBackend(rpm, acc);
-  if (mode === "sim") return withSimGrpc(run);
-  return withHardwareGrpc(run);
+  return setRecoveryJogOnBackend(mode, rpm, acc);
 }
 
 export async function stopRecoveryJog(
@@ -70,12 +70,12 @@ export async function stopRecoveryJog(
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   if (mode === "twin") {
     await Promise.all([
-      withHardwareGrpc(() => stopRecoveryJogOnBackend()),
-      withSimGrpc(() => stopRecoveryJogOnBackend()),
+      stopRecoveryJogOnBackend("hardware"),
+      stopRecoveryJogOnBackend("sim"),
     ]);
     return { ok: true };
   }
-  const run = () => stopRecoveryJogOnBackend();
-  if (mode === "sim") return withSimGrpc(run);
-  return withHardwareGrpc(run);
+  const r = await stopRecoveryJogOnBackend(mode);
+  if (!r.ok) return r;
+  return { ok: true };
 }

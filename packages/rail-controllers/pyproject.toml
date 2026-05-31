@@ -1,0 +1,21 @@
+[project]
+name = "rail-controllers"
+version = "0.0.1"
+description = "Rail closed-loop controllers (LQR, go-to-center, …)"
+requires-python = ">=3.11"
+dependencies = [
+  "mujoco>=3.2.0",
+  "numpy>=1.26.0",
+  "scipy>=1.11.0",
+]
+
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["rail_controllers*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

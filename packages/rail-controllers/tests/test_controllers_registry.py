@@ -1,5 +1,5 @@
-from controllers.registry import create_controller, list_metadata
-from controllers.service import start, status, stop, tick
+from rail_controllers.registry import create_controller, list_metadata
+from rail_controllers.service import start, status, stop, tick
 
 
 def test_list_includes_oscillate_position():

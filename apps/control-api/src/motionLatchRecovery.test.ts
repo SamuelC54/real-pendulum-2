@@ -44,6 +44,9 @@ describe("motionLatchRecovery", () => {
   it("startRecoveryJog calls motor with toward-center rpm inside bypass", async () => {
     updateLimitSwitchState({ ...limits, limitLeftPressed: true });
     await withGrpcBackendMode("hardware", () => startRecoveryJog("hardware", { rpm: 40 }));
-    expect(motor.setJogVelocityRpm).toHaveBeenCalledWith(-40, expect.any(Object));
+    expect(motor.setJogVelocityRpm).toHaveBeenCalledWith(
+      expect.closeTo(-40),
+      expect.objectContaining({ maxAccelerationRpmPerSec: 1000 }),
+    );
   });
 });

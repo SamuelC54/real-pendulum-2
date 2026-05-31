@@ -1,12 +1,12 @@
 import numpy as np
 
-from controllers.lqr_common import (
+from rail_controllers.lqr_common import (
     build_state_error,
     compute_lqr_gain,
     load_lqr_position_model,
     upright_setpoint,
 )
-from controllers.lqr_position import METADATA, create
+from rail_controllers.lqr_position import METADATA, create
 
 
 def test_lqr_gain_shape():
@@ -45,7 +45,7 @@ def test_lqr_position_tick_commands_setpoint():
 
 
 def test_list_includes_lqr_position():
-    from controllers.registry import list_metadata
+    from rail_controllers.registry import list_metadata
 
     ids = {m["id"] for m in list_metadata()}
     assert "lqr_position" in ids

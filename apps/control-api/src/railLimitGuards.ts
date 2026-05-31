@@ -1,24 +1,17 @@
-import * as motor from "@real-pendulum/motor-service/sdk";
-import * as sensor from "@real-pendulum/sensor-service/sdk";
 import type { GrpcBackendMode } from "./grpcRequestContext.js";
 import {
   isMotionBlockedByLatch,
   motionLatchErrorMessage,
 } from "./motionLatch.js";
-import { cmToTeknicMeasured, teknicMeasuredToCm } from "./railPositionCm.js";
-import { withHardwareGrpc, withSimGrpc } from "./twinGrpc.js";
+import { createControlClient } from "./control/createControlClient.js";
+import { cmPerSecToRpm, rpmToCmPerSec } from "./control/motionUnits.js";
 
-/** Limit-switch snapshot from sensor-service (same wire as `sensor.getSensorStatus`). */
 export type TravelLimitSwitchState = {
   connected: boolean;
   limitLeftPressed: boolean;
   limitRightPressed: boolean;
 };
 
-/**
- * Jog convention (web + homing): left along rail = positive RPM, right = negative.
- * When a limit is active, block further travel in that direction (RPM clamped to 0).
- */
 export function clampJogRpmForTravelLimits(
   rpm: number,
   limits: TravelLimitSwitchState,
@@ -29,7 +22,6 @@ export function clampJogRpmForTravelLimits(
   return rpm;
 }
 
-/** Returns an error message when `positionCm` would move further into an active limit. */
 export function guardMoveAbsolutePositionCm(
   targetCm: number,
   limits: TravelLimitSwitchState,
@@ -57,30 +49,41 @@ function travelLimitJogErrorMessage(limits: TravelLimitSwitchState): string {
   return "Travel limit active — jog blocked in that direction.";
 }
 
-export async function setJogVelocityRpmRespectingTravelLimits(
-  rpm: number,
+export async function setJogCmPerSecRespectingTravelLimits(
+  cmPerSec: number,
+  mode: GrpcBackendMode,
   options?: { maxAccelerationRpmPerSec?: number },
 ): Promise<{ ok: boolean; error: string }> {
   if (isMotionBlockedByLatch()) {
     return { ok: false, error: motionLatchErrorMessage() };
   }
-  const limits = await sensor.getSensorStatus();
-  const effective = clampJogRpmForTravelLimits(rpm, limits);
+  const client = createControlClient(mode);
+  const state = await client.getState();
+  const rpm = cmPerSecToRpm(cmPerSec);
+  const effective = clampJogRpmForTravelLimits(rpm, {
+    connected: state.connection.sensor,
+    limitLeftPressed: state.limitSwitch.leftPressed,
+    limitRightPressed: state.limitSwitch.rightPressed,
+  });
   if (rpm !== 0 && effective === 0) {
-    return { ok: false, error: travelLimitJogErrorMessage(limits) };
+    return {
+      ok: false,
+      error: travelLimitJogErrorMessage({
+        connected: state.connection.sensor,
+        limitLeftPressed: state.limitSwitch.leftPressed,
+        limitRightPressed: state.limitSwitch.rightPressed,
+      }),
+    };
   }
-  if (options?.maxAccelerationRpmPerSec !== undefined) {
-    return motor.setJogVelocityRpm(effective, options);
-  }
-  return motor.setJogVelocityRpm(effective);
+  return client.setJogCmPerSec(rpmToCmPerSec(effective), options);
 }
 
 export async function moveToPositionCmRespectingTravelLimits(
   positionCm: number,
+  mode: GrpcBackendMode,
   opts?: {
     maxVelocityRpm?: number;
     maxAccelerationRpmPerSec?: number;
-    /** Latch-recovery move to center — bypasses latch and limit-switch move guard. */
     recovery?: boolean;
   },
 ): Promise<{ ok: boolean; error: string }> {
@@ -88,16 +91,21 @@ export async function moveToPositionCmRespectingTravelLimits(
     if (isMotionBlockedByLatch()) {
       return { ok: false, error: motionLatchErrorMessage() };
     }
-    const limits = await sensor.getSensorStatus();
-    const st = await motor.getMotorStatus();
-    const currentCm =
-      st.measuredPosition !== undefined && Number.isFinite(st.measuredPosition)
-        ? teknicMeasuredToCm(st.measuredPosition)
-        : undefined;
-    const travelGuard = guardMoveAbsolutePositionCm(positionCm, limits, currentCm);
+    const client = createControlClient(mode);
+    const state = await client.getState();
+    const currentCm = state.cart.positionCm ?? undefined;
+    const travelGuard = guardMoveAbsolutePositionCm(
+      positionCm,
+      {
+        connected: state.connection.sensor,
+        limitLeftPressed: state.limitSwitch.leftPressed,
+        limitRightPressed: state.limitSwitch.rightPressed,
+      },
+      currentCm,
+    );
     if (travelGuard) return { ok: false, error: travelGuard };
   }
-  return motor.moveToPosition(cmToTeknicMeasured(positionCm), opts);
+  return createControlClient(mode).moveToPositionCm(positionCm, opts);
 }
 
 export type RailMoveResult = { ok: boolean; error: string };
@@ -106,10 +114,6 @@ export type RailMoveForBackendResult =
   | RailMoveResult
   | { real: RailMoveResult; sim: RailMoveResult };
 
-/**
- * Absolute profile move on the active backend(s).
- * Twin: Teknic (hardware gRPC) and MuJoCo simulation (sim gRPC) in parallel.
- */
 export async function moveToPositionCmForBackend(
   mode: GrpcBackendMode,
   positionCm: number,
@@ -120,16 +124,11 @@ export async function moveToPositionCmForBackend(
   },
 ): Promise<RailMoveForBackendResult> {
   if (mode === "twin") {
-    const [real, sim] = await Promise.all([
-      withHardwareGrpc(() => moveToPositionCmRespectingTravelLimits(positionCm, opts)),
-      withSimGrpc(() => moveToPositionCmRespectingTravelLimits(positionCm, opts)),
-    ]);
+    const twin = createControlClient("twin") as import("./control/backends/TwinControlBackend.js").TwinControlBackend;
+    const { real, sim } = await twin.moveToPositionCmTwin(positionCm, opts);
     return { real, sim };
   }
-  if (mode === "sim") {
-    return withSimGrpc(() => moveToPositionCmRespectingTravelLimits(positionCm, opts));
-  }
-  return withHardwareGrpc(() => moveToPositionCmRespectingTravelLimits(positionCm, opts));
+  return moveToPositionCmRespectingTravelLimits(positionCm, mode, opts);
 }
 
 export function assertRailMoveOk(move: RailMoveForBackendResult, label = "Motor"): void {
