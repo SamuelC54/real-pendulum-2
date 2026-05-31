@@ -10,16 +10,14 @@ import {
 import { isJogBlockedByTravelLimit } from "@/lib/jogMath";
 import { useMotorSession } from "@/services/motorSession";
 import { useSensorStatusQuery } from "@/services/useMotorStatusQuery";
+import { useLimitSwitchModeSubscription } from "@/hooks/useLimitSwitchModeSubscription";
 import { keyboardJogEnabledAtom } from "@/stores/jog";
-import { trpc } from "@/trpc";
 
 export function useKeyboardJog() {
   const enabled = useAtomValue(keyboardJogEnabledAtom);
   const { connected, connectionBusy, applyKeyboardJog } = useMotorSession();
   const sensor = useSensorStatusQuery();
-  const motionLatch = trpc.motion.latch.get.useQuery(undefined, {
-    refetchInterval: (q) => (q.state.data?.latched ? 400 : 150),
-  });
+  const limitSwitchMode = useLimitSwitchModeSubscription();
   const keysRef = useRef<ArrowKeyState>({ left: false, right: false });
   const applyKeyboardJogRef = useRef(applyKeyboardJog);
   const limitsRef = useRef({
@@ -30,12 +28,12 @@ export function useKeyboardJog() {
 
   applyKeyboardJogRef.current = applyKeyboardJog;
   limitsRef.current = {
-    connected: sensor.data?.connected ?? false,
-    limitLeftPressed: sensor.data?.limitLeftPressed ?? false,
-    limitRightPressed: sensor.data?.limitRightPressed ?? false,
+    connected: sensor.data?.connection.sensor ?? false,
+    limitLeftPressed: sensor.data?.limitSwitch.leftPressed ?? false,
+    limitRightPressed: sensor.data?.limitSwitch.rightPressed ?? false,
   };
   const latchedRef = useRef(false);
-  latchedRef.current = motionLatch.data?.latched === true;
+  latchedRef.current = limitSwitchMode.data?.latched === true;
 
   useEffect(() => {
     if (!enabled) {

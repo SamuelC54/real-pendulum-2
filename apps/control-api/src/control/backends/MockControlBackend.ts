@@ -1,4 +1,4 @@
-import type { RailMachineState, TravelLimitsCm } from "../types.js";
+import type { RailMachineState, MachineStateSources, TravelLimitsCm } from "../types.js";
 
 /** In-memory backend for unit tests. */
 export class MockControlBackend {
@@ -15,19 +15,42 @@ export class MockControlBackend {
     limitSwitch: { leftPressed: false, rightPressed: false },
   };
 
-  async getState(): Promise<RailMachineState> {
-    return structuredClone(this.state);
+  async getState(): Promise<MachineStateSources> {
+    return { physical: structuredClone(this.state) };
   }
 
-  async connect() {
+  async connectMotor() {
     this.state.connection.cart = true;
     return { ok: true, error: "" };
   }
 
-  async disconnect(): Promise<void> {
+  async disconnectMotor(): Promise<void> {
     this.state.connection.cart = false;
+    if (!this.state.connection.sensor) {
+      this.state.status = "disconnected";
+    }
+  }
+
+  async connectSensor() {
+    this.state.connection.sensor = true;
+    return { ok: true, error: "" };
+  }
+
+  async disconnectSensor() {
     this.state.connection.sensor = false;
-    this.state.status = "disconnected";
+    if (!this.state.connection.cart) {
+      this.state.status = "disconnected";
+    }
+    return { ok: true, error: "" };
+  }
+
+  async connect() {
+    return this.connectMotor();
+  }
+
+  async disconnect(): Promise<void> {
+    await this.disconnectMotor();
+    await this.disconnectSensor();
   }
 
   async setJogCmPerSec(cmPerSec: number) {
@@ -52,6 +75,14 @@ export class MockControlBackend {
 
   async setLed(on: boolean) {
     this.state.led.on = on;
+    return { ok: true, error: "" };
+  }
+
+  async zeroCartAtCurrent() {
+    if (!this.state.connection.cart) {
+      return { ok: false, error: "Motor is not connected." };
+    }
+    this.state.cart.positionCm = 0;
     return { ok: true, error: "" };
   }
 }

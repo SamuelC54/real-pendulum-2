@@ -7,6 +7,7 @@ import "./index.css";
 import { MotorSessionProvider } from "./services/motorSession";
 import { jotaiStore } from "./stores/jotaiStore";
 import { createTrpcClient, trpc } from "./trpc";
+import { AppDevtools } from "./devtools/AppDevtools";
 
 const queryClient = new QueryClient();
 const trpcClient = createTrpcClient();
@@ -18,6 +19,7 @@ createRoot(document.getElementById("root")!).render(
         <QueryClientProvider client={queryClient}>
           <MotorSessionProvider>
             <App />
+            <AppDevtools />
           </MotorSessionProvider>
         </QueryClientProvider>
       </trpc.Provider>

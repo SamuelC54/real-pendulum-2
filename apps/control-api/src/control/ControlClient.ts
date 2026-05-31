@@ -1,14 +1,35 @@
-import type { ControlBackend, JogOptions, MoveOptions, TravelLimitsCm } from "./types.js";
+import type { ControlBackend, ControlMode, JogOptions, MoveOptions, MachineStateSources, TravelLimitsCm } from "./types.js";
 
 export type ControlClientOptions = {
   backend: ControlBackend;
+  mode: ControlMode;
 };
 
 export class ControlClient {
-  constructor(private readonly options: ControlClientOptions) {}
+  readonly mode: ControlMode;
 
-  getState() {
+  constructor(private readonly options: ControlClientOptions) {
+    this.mode = options.mode;
+  }
+
+  getState(): Promise<MachineStateSources> {
     return this.options.backend.getState();
+  }
+
+  connectMotor() {
+    return this.options.backend.connectMotor();
+  }
+
+  disconnectMotor() {
+    return this.options.backend.disconnectMotor();
+  }
+
+  connectSensor(serialPort?: string) {
+    return this.options.backend.connectSensor(serialPort);
+  }
+
+  disconnectSensor() {
+    return this.options.backend.disconnectSensor();
   }
 
   connect() {
@@ -37,5 +58,9 @@ export class ControlClient {
 
   setLed(on: boolean) {
     return this.options.backend.setLed(on);
+  }
+
+  zeroCartAtCurrent() {
+    return this.options.backend.zeroCartAtCurrent();
   }
 }

@@ -1,15 +1,15 @@
 import * as motor from "@real-pendulum/physical-motor-service/sdk";
 import * as sensor from "@real-pendulum/physical-sensor-service/sdk";
 import {
-  getMotionLatchStatus,
-  isMotionBlockedByLatch,
-  motionLatchErrorMessage,
+  getLimitSwitchModeStatus,
+  isMotionBlocked,
+  limitSwitchModeErrorMessage,
   updateLimitSwitchState,
-  updateMotorPositionForLatch,
-} from "../../motionLatch.js";
-import { friendlyMotorGrpcError } from "../../motorErrors.js";
-import { friendlySensorGrpcError } from "../../sensorErrors.js";
-import { encoderTicksPerRadian } from "../../pendulumEncoder.js";
+  updateMotorPosition,
+} from "../../limitSwitchMode/index.js";
+import { friendlyMotorGrpcError } from "../../helpers/physical/motorErrors.js";
+import { friendlySensorGrpcError } from "../../helpers/physical/sensorErrors.js";
+import { encoderTicksPerRadian } from "../../helpers/physical/pendulumEncoder.js";
 import { cmToTeknicMeasured, teknicMeasuredToCm, travelLimitsToCm } from "../../railPositionCm.js";
 import {
   getTravelLimitDisplays,
@@ -29,6 +29,7 @@ import type {
   JogOptions,
   MoveOptions,
   RailMachineState,
+  MachineStateSources,
   TravelLimitsCm,
 } from "../types.js";
 
@@ -37,14 +38,12 @@ function deriveMachineStatus(
   sensorConnected: boolean,
 ): RailMachineState["status"] {
   if (!cartConnected && !sensorConnected) return "disconnected";
-  if (isMotionBlockedByLatch()) return "latched";
-  const latch = getMotionLatchStatus();
-  if (latch.latched) return "latched";
+  if (getLimitSwitchModeStatus().latched) return "latched";
   return "idle";
 }
 
 export class PhysicalControlBackend implements ControlBackend {
-  async getState(): Promise<RailMachineState> {
+  private async readRailState(): Promise<RailMachineState> {
     let cartConnected = false;
     let sensorConnected = false;
     let positionCm: number | null = null;
@@ -58,15 +57,15 @@ export class PhysicalControlBackend implements ControlBackend {
 
     try {
       const st = await motor.getMotorStatus();
-      syncTravelLimitsFromMotorConnection(st.connected);
+      syncTravelLimitsFromMotorConnection(st.connected, "physical");
       cartConnected = st.connected;
       commandedCmPerSec = railStateCommandedCmPerSecFromMotor(st);
       if (st.measuredPosition !== undefined && Number.isFinite(st.measuredPosition)) {
         positionCm = teknicMeasuredToCm(st.measuredPosition);
-        updateMotorPositionForLatch(positionCm);
+        updateMotorPosition(positionCm, "physical");
       }
     } catch (e) {
-      syncTravelLimitsFromMotorConnection(false);
+      syncTravelLimitsFromMotorConnection(false, "physical");
       detail = friendlyMotorGrpcError(motor.motorConnectBaseUrl(), e);
     }
 
@@ -89,7 +88,7 @@ export class PhysicalControlBackend implements ControlBackend {
       angleDeg = (encoderTicks / ticksPerRad) * (180 / Math.PI);
     }
 
-    const travelLimits = travelLimitsToCm(getTravelLimitDisplays());
+    const travelLimits = travelLimitsToCm(getTravelLimitDisplays("physical"));
 
     return {
       status: deriveMachineStatus(cartConnected, sensorConnected),
@@ -109,19 +108,47 @@ export class PhysicalControlBackend implements ControlBackend {
     };
   }
 
-  async connect(): Promise<ConnectResult> {
+  async getState(): Promise<MachineStateSources> {
+    return { physical: await this.readRailState() };
+  }
+
+  async connectMotor(): Promise<ConnectResult> {
     return motor.connectMotor();
   }
 
-  async disconnect(): Promise<void> {
+  async disconnectMotor(): Promise<void> {
     await motor.disconnectMotor();
   }
 
-  async setJogCmPerSec(cmPerSec: number, opts?: JogOptions): Promise<CommandResult> {
-    if (isMotionBlockedByLatch()) {
-      return { ok: false, error: motionLatchErrorMessage() };
+  async connectSensor(serialPort?: string): Promise<ConnectResult> {
+    try {
+      return await sensor.connectSensor(serialPort);
+    } catch (e) {
+      return { ok: false, error: friendlySensorGrpcError(sensor.sensorConnectBaseUrl(), e) };
     }
-    const state = await this.getState();
+  }
+
+  async disconnectSensor(): Promise<ConnectResult> {
+    try {
+      return await sensor.disconnectSensor();
+    } catch (e) {
+      return { ok: false, error: friendlySensorGrpcError(sensor.sensorConnectBaseUrl(), e) };
+    }
+  }
+
+  async connect(): Promise<ConnectResult> {
+    return this.connectMotor();
+  }
+
+  async disconnect(): Promise<void> {
+    await this.disconnectMotor();
+  }
+
+  async setJogCmPerSec(cmPerSec: number, opts?: JogOptions): Promise<CommandResult> {
+    if (isMotionBlocked()) {
+      return { ok: false, error: limitSwitchModeErrorMessage() };
+    }
+    const state = await this.readRailState();
     const rpm = cmPerSecToRpm(cmPerSec);
     const effective = clampJogRpmForTravelLimits(rpm, {
       connected: state.connection.sensor,
@@ -147,11 +174,11 @@ export class PhysicalControlBackend implements ControlBackend {
   }
 
   async moveToPositionCm(cm: number, opts?: MoveOptions): Promise<CommandResult> {
-    if (!opts?.recovery && isMotionBlockedByLatch()) {
-      return { ok: false, error: motionLatchErrorMessage() };
+    if (!opts?.recovery && isMotionBlocked()) {
+      return { ok: false, error: limitSwitchModeErrorMessage() };
     }
     if (!opts?.recovery) {
-      const state = await this.getState();
+      const state = await this.readRailState();
       const travelGuard = guardMoveAbsolutePositionCm(
         cm,
         {
@@ -170,7 +197,7 @@ export class PhysicalControlBackend implements ControlBackend {
   }
 
   async setTravelLimits(limits: TravelLimitsCm): Promise<CommandResult> {
-    setTravelLimitsFromCm(limits);
+    setTravelLimitsFromCm(limits, "physical");
     return { ok: true, error: "" };
   }
 
@@ -188,24 +215,12 @@ export class PhysicalControlBackend implements ControlBackend {
       return { ok: false, error: e instanceof Error ? e.message : String(e) };
     }
   }
-}
 
-export function recordTravelLimitSideFromMotor(side: "left" | "right"): Promise<CommandResult> {
-  return (async () => {
+  async zeroCartAtCurrent(): Promise<CommandResult> {
     const st = await motor.getMotorStatus();
     if (!st.connected) {
       return { ok: false, error: "Motor is not connected." };
     }
-    const p = st.measuredPosition;
-    if (p === undefined || !Number.isFinite(p)) {
-      return {
-        ok: false,
-        error:
-          "Motor measured position unavailable — rebuild motor DLL / physical-motor-service for PosnMeasured.",
-      };
-    }
-    const { recordTravelLimitFromTeknicMeasured } = await import("../../railTravelLimits.js");
-    recordTravelLimitFromTeknicMeasured(p, side);
-    return { ok: true, error: "" };
-  })();
+    return motor.zeroMeasuredPosition();
+  }
 }

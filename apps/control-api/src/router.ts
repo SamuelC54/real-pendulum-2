@@ -1,91 +1,56 @@
 import { config, portainerIframeUrl, portainerHttpsUrl, jaegerWebUrl, jaegerDependenciesUrl } from "@real-pendulum/app-config";
 import { withSpan } from "@real-pendulum/tracing";
-import { initTRPC } from "@trpc/server";
+import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import { z } from "zod";
-import { friendlyMotorGrpcError } from "./motorErrors.js";
-import { friendlySensorGrpcError } from "./sensorErrors.js";
-import { withGrpcBackendMode, type GrpcBackendMode } from "./grpcRequestContext.js";
-import {
-  recordTravelLimitFromTeknicMeasured,
-  setTravelLimitsFromCm,
-  setTravelLimitsSymmetricAboutCm,
-} from "./railTravelLimits.js";
-import { runLedToggleFlash } from "./runFlashScript.js";
-import * as motor from "@real-pendulum/physical-motor-service/sdk";
+import { friendlySensorGrpcError } from "./helpers/physical/sensorErrors.js";
+import { getClient, withControlBackend } from "./helpers/backendContext.js";
+import { runLedToggleFlash } from "./helpers/physical/runFlashScript.js";
+import { createControlClient } from "./control/createControlClient.js";
+import type { ControlMode } from "./control/types.js";
+import { railStateForMode } from "./control/types.js";
 import * as sensor from "@real-pendulum/physical-sensor-service/sdk";
 import {
-  clearMotionLatch,
-  combineLimitSwitchStates,
-  getMotionLatchStatus,
-  updateLimitSwitchState,
-} from "./motionLatch.js";
-import { moveHomeWhileLatched } from "./motionLatchMoveHome.js";
-import { startRecoveryJog, stopRecoveryJog } from "./motionLatchRecovery.js";
-import type { MotorStatusForClient } from "./motorStatusApi.js";
-import { displayCountsPerCm, teknicMeasuredToCm } from "./railPositionCm.js";
-import { moveToPositionCmRespectingTravelLimits } from "./railLimitGuards.js";
-import { withHardwareGrpc } from "./twinGrpc.js";
+  clearLimitSwitchMode,
+  getLimitSwitchModeStatus,
+  moveHomeWhileLatched,
+  startRecoveryJog,
+  stopRecoveryJog,
+} from "./limitSwitchMode/index.js";
+import { displayCountsPerCm } from "./railPositionCm.js";
 import {
   getControllerStatus,
   listControllers,
   startController,
   stopController,
 } from "./controllerPhysics.js";
-import { createControlClient, createTwinControlBackend } from "./control/createControlClient.js";
-import { rpmToCmPerSec } from "./control/motionUnits.js";
 import {
-  motorStatusFromRailState,
-  sensorStatusFromRailState,
-} from "./control/mappers/statusMappers.js";
-import { twinMotorStatus, twinSensorStatus } from "./twinControlClient.js";
-import type { SensorStatusPayload } from "./statusPayload.js";
-
-function friendlyMotorError(err: unknown): string {
-  return friendlyMotorGrpcError(motor.motorConnectBaseUrl(), err);
-}
+  symmetricTravelLimitsFromPosition,
+  travelLimitsAfterRecordSide,
+} from "./helpers/travelLimitConvenience.js";
+import { pollWhileSubscribed, sleep } from "./helpers/pollSubscription.js";
 
 function friendlySensorError(err: unknown): string {
   return friendlySensorGrpcError(sensor.sensorConnectBaseUrl(), err);
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function symmetricTravelLimitsFromState(halfSpanCm: number, positionCm: number) {
-  const limits = setTravelLimitsSymmetricAboutCm(positionCm, halfSpanCm);
-  return { ok: true as const, ...limits };
-}
-
-type MotorWireResult = { ok: boolean; error: string };
-
-type RouterContext = { grpcBackendMode?: GrpcBackendMode };
-
-function controlModeFromCtx(ctx: RouterContext): GrpcBackendMode {
-  return ctx.grpcBackendMode ?? "hardware";
-}
+type RouterContext = { controlBackend?: ControlMode };
 
 const t = initTRPC.context<RouterContext>().create({
   transformer: superjson,
 });
 
-const grpcWireMiddleware = t.middleware(async ({ ctx, next }) => {
-  const mode: GrpcBackendMode = ctx.grpcBackendMode ?? "hardware";
-
-  if (mode === "sim") {
-    return withGrpcBackendMode("sim", () =>
-      next({ ctx: { ...ctx, grpcBackendMode: mode } }),
-    );
+const controlBackendMiddleware = t.middleware(async ({ ctx, next }) => {
+  const mode = ctx.controlBackend;
+  if (!mode) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Missing control backend mode (x-control-backend header or connectionParams)",
+    });
   }
-
-  const run = () =>
-    withHardwareGrpc(() => next({ ctx: { ...ctx, grpcBackendMode: mode } }));
-
-  if (mode === "twin") {
-    return withGrpcBackendMode("twin", run);
-  }
-  return run();
+  return withControlBackend(mode, () =>
+    next({ ctx: { ...ctx, controlBackend: mode } }),
+  );
 });
 
 const traceMiddleware = t.middleware(({ path, type, next }) =>
@@ -97,7 +62,7 @@ const traceMiddleware = t.middleware(({ path, type, next }) =>
 );
 
 const baseProcedure = t.procedure;
-const publicProcedure = t.procedure.use(traceMiddleware).use(grpcWireMiddleware);
+const publicProcedure = t.procedure.use(traceMiddleware).use(controlBackendMiddleware);
 
 export const appRouter = t.router({
   meta: t.router({
@@ -109,146 +74,127 @@ export const appRouter = t.router({
       jaegerDependenciesUrl: jaegerDependenciesUrl(),
     })),
     rail: baseProcedure.query(() => ({
-      /** Display motor counts per cm (`config.rail.displayCountsPerCm`, default 232.8). */
       displayCountsPerCm: displayCountsPerCm(),
     })),
     tracing: baseProcedure.query(() => ({
       jaegerUiUrl: jaegerWebUrl(),
     })),
   }),
-  connection: t.router({
-    connect: publicProcedure.mutation(async ({ ctx }) => {
-      try {
-        const r = await createControlClient(controlModeFromCtx(ctx)).connect();
-        if (!r.ok) throw new Error(r.error || "Connect failed.");
-        return r;
-      } catch (e) {
-        throw new Error(`motor: ${friendlyMotorError(e)}`);
-      }
-    }),
-    disconnect: publicProcedure.mutation(async ({ ctx }) => {
-      try {
-        await createControlClient(controlModeFromCtx(ctx)).disconnect();
-        return { ok: true as const, error: "" };
-      } catch (e) {
-        throw new Error(`motor: ${friendlyMotorError(e)}`);
-      }
-    }),
-  }),
-  jog: t.router({
-    setVelocity: publicProcedure
-      .input(
-        z.object({
-          rpm: z.number().finite(),
-          maxAccelerationRpmPerSec: z.number().finite().positive().optional(),
-        }),
-      )
-      .mutation(async ({ ctx, input }) => {
-        try {
-          return await createControlClient(controlModeFromCtx(ctx)).setJogCmPerSec(
-            rpmToCmPerSec(input.rpm),
-            { maxAccelerationRpmPerSec: input.maxAccelerationRpmPerSec },
-          );
-        } catch (e) {
-          throw new Error(`motor: ${friendlyMotorError(e)}`);
-        }
+
+  /** Thin tRPC skin over {@link ControlClient} — one procedure per client method where possible. */
+  machine: t.router({
+    state: t.router({
+      get: publicProcedure.query(async () => getClient().getState()),
+      subscribe: publicProcedure.subscription(async function* ({ signal }) {
+        yield* pollWhileSubscribed(() => getClient().getState(), signal, () => 150);
       }),
-    stop: publicProcedure.mutation(async ({ ctx }) => {
-      try {
-        return await createControlClient(controlModeFromCtx(ctx)).stop();
-      } catch (e) {
-        throw new Error(`motor: ${friendlyMotorError(e)}`);
-      }
     }),
-  }),
-  rail: t.router({
-    limits: t.router({
-      record: publicProcedure
-        .input(z.object({ side: z.enum(["left", "right"]) }))
-        .mutation(async ({ ctx, input }) => {
-          const state = await createControlClient(controlModeFromCtx(ctx)).getState();
-          if (!state.connection.cart) {
-            throw new Error("Motor is not connected.");
-          }
-          const mode = controlModeFromCtx(ctx);
-          if (mode === "sim") {
-            if (state.cart.positionCm == null) {
-              throw new Error("Cart position unavailable.");
-            }
-            setTravelLimitsFromCm({
-              left: input.side === "left" ? state.cart.positionCm : state.cart.travelLimitsCm.left,
-              right: input.side === "right" ? state.cart.positionCm : state.cart.travelLimitsCm.right,
-            });
-            return { ok: true as const };
-          }
-          const st = await motor.getMotorStatus();
-          const p = st.measuredPosition;
-          if (p === undefined || !Number.isFinite(p)) {
-            throw new Error(
-              "Motor measured position unavailable — rebuild motor DLL / physical-motor-service for PosnMeasured.",
-            );
-          }
-          recordTravelLimitFromTeknicMeasured(p, input.side);
-          return { ok: true as const };
+
+    connect: publicProcedure.mutation(async () => {
+      const r = await getClient().connectMotor();
+      if (!r.ok) throw new Error(r.error || "Connect failed.");
+      return r;
+    }),
+
+    disconnect: publicProcedure.mutation(async () => {
+      await getClient().disconnectMotor();
+      return { ok: true as const, error: "" };
+    }),
+
+    jog: t.router({
+      set: publicProcedure
+        .input(
+          z.object({
+            cmPerSec: z.number().finite(),
+            maxAccelerationRpmPerSec: z.number().finite().positive().optional(),
+          }),
+        )
+        .mutation(async ({ input }) =>
+          getClient().setJogCmPerSec(input.cmPerSec, {
+            maxAccelerationRpmPerSec: input.maxAccelerationRpmPerSec,
+          }),
+        ),
+      stop: publicProcedure.mutation(async () => getClient().stop()),
+    }),
+
+    move: t.router({
+      toPosition: publicProcedure
+        .input(
+          z.object({
+            positionCm: z.number().finite(),
+            maxVelocityRpm: z.number().finite().positive().optional(),
+            maxAccelerationRpmPerSec: z.number().finite().positive().optional(),
+            recovery: z.boolean().optional(),
+          }),
+        )
+        .mutation(async ({ input }) => {
+          const { positionCm, recovery, ...opts } = input;
+          const r = await getClient().moveToPositionCm(positionCm, { ...opts, recovery });
+          if (!r.ok) throw new Error(r.error);
+          return r;
         }),
+    }),
+
+    travelLimits: t.router({
+      set: publicProcedure
+        .input(
+          z.object({
+            left: z.number().nullable(),
+            right: z.number().nullable(),
+          }),
+        )
+        .mutation(async ({ input }) => getClient().setTravelLimits(input)),
+
+      recordSide: publicProcedure
+        .input(z.object({ side: z.enum(["left", "right"]) }))
+        .mutation(async ({ input }) => {
+          const c = getClient();
+          const limits = travelLimitsAfterRecordSide(
+            railStateForMode(await c.getState(), c.mode),
+            input.side,
+          );
+          return c.setTravelLimits(limits);
+        }),
+
       setSymmetricSpan: publicProcedure
         .input(z.object({ halfSpanCm: z.number().finite().positive() }))
-        .mutation(async ({ ctx, input }) => {
-          const state = await createControlClient(controlModeFromCtx(ctx)).getState();
+        .mutation(async ({ input }) => {
+          const c = getClient();
+          const state = railStateForMode(await c.getState(), c.mode);
           if (state.cart.positionCm == null) {
             throw new Error("Motor position unavailable.");
           }
-          return symmetricTravelLimitsFromState(input.halfSpanCm, state.cart.positionCm);
+          const span = symmetricTravelLimitsFromPosition(
+            state.cart.positionCm,
+            input.halfSpanCm,
+          );
+          const r = await c.setTravelLimits({ left: span.leftCm, right: span.rightCm });
+          if (!r.ok) throw new Error(r.error);
+          return { ok: true as const, ...span };
         }),
     }),
-    zeroAtCurrent: publicProcedure.mutation(async ({ ctx }) => {
-      const mode = controlModeFromCtx(ctx);
-      if (mode === "sim") {
-        return { ok: true as const };
-      }
-      const st = await motor.getMotorStatus();
-      if (!st.connected) {
-        throw new Error("Motor is not connected.");
-      }
-      const r = await motor.zeroMeasuredPosition();
-      if (!r.ok) {
-        throw new Error(r.error || "Motor zero failed.");
-      }
+
+    led: t.router({
+      set: publicProcedure
+        .input(z.object({ on: z.boolean() }))
+        .mutation(async ({ input }) => {
+          const c = getClient();
+          const r = await c.setLed(input.on);
+          if (!r.ok) throw new Error(r.error);
+          const next = railStateForMode(await c.getState(), c.mode);
+          return { ok: true as const, ledOn: next.led.on };
+        }),
+    }),
+
+    /** Redefine cart position so the current location reads as 0 cm. */
+    zeroAtCurrent: publicProcedure.mutation(async () => {
+      const r = await getClient().zeroCartAtCurrent();
+      if (!r.ok) throw new Error(r.error || "Zero at current failed.");
       return { ok: true as const };
     }),
-    moveAbsolute: publicProcedure
-      .input(
-        z.object({
-          positionCm: z.number().finite(),
-          maxVelocityRpm: z.number().finite().positive().optional(),
-          maxAccelerationRpmPerSec: z.number().finite().positive().optional(),
-        }),
-      )
-      .mutation(async ({ ctx, input }) => {
-        try {
-          const r = await moveToPositionCmRespectingTravelLimits(
-            input.positionCm,
-            controlModeFromCtx(ctx),
-            {
-              maxVelocityRpm: input.maxVelocityRpm,
-              maxAccelerationRpmPerSec: input.maxAccelerationRpmPerSec,
-            },
-          );
-          if (!r.ok) {
-            throw new Error(r.error);
-          }
-          return r;
-        } catch (e) {
-          throw new Error(`motor: ${friendlyMotorError(e)}`);
-        }
-      }),
   }),
-  status: t.router({
-    get: publicProcedure.query(async ({ ctx }): Promise<MotorStatusForClient> => {
-      const state = await createControlClient(controlModeFromCtx(ctx)).getState();
-      return motorStatusFromRailState(state);
-    }),
-  }),
+
+  /** Sensor board admin — outside ControlClient (USB, firmware, encoder reset). */
   sensor: t.router({
     serial: t.router({
       list: publicProcedure.query(async () => {
@@ -262,44 +208,15 @@ export const appRouter = t.router({
     connection: t.router({
       connect: publicProcedure
         .input(z.object({ serialPort: z.string().optional() }))
-        .mutation(async ({ ctx, input }) => {
-          try {
-            const mode = controlModeFromCtx(ctx);
-            if (mode === "sim") {
-              const r = await createControlClient("sim").connect();
-              if (!r.ok) throw new Error(r.error);
-              return { ok: true as const, error: "" };
-            }
-            return await sensor.connectSensor(input.serialPort);
-          } catch (e) {
-            throw new Error(`sensor: ${friendlySensorError(e)}`);
-          }
+        .mutation(async ({ input }) => {
+          const r = await getClient().connectSensor(input.serialPort);
+          if (!r.ok) throw new Error(`sensor: ${r.error}`);
+          return r;
         }),
-      disconnect: publicProcedure.mutation(async ({ ctx }) => {
-        try {
-          const mode = controlModeFromCtx(ctx);
-          if (mode === "sim") {
-            await createControlClient("sim").disconnect();
-            return { ok: true as const, error: "" };
-          }
-          return await sensor.disconnectSensor();
-        } catch (e) {
-          throw new Error(`sensor: ${friendlySensorError(e)}`);
-        }
-      }),
-    }),
-    led: t.router({
-      toggle: publicProcedure.mutation(async ({ ctx }) => {
-        try {
-          const client = createControlClient(controlModeFromCtx(ctx));
-          const state = await client.getState();
-          const r = await client.setLed(!state.led.on);
-          if (!r.ok) throw new Error(r.error);
-          const next = await client.getState();
-          return { ok: true as const, ledOn: next.led.on };
-        } catch (e) {
-          throw new Error(`sensor: ${friendlySensorError(e)}`);
-        }
+      disconnect: publicProcedure.mutation(async () => {
+        const r = await getClient().disconnectSensor();
+        if (!r.ok) throw new Error(`sensor: ${r.error}`);
+        return r;
       }),
     }),
     encoder: t.router({
@@ -316,9 +233,11 @@ export const appRouter = t.router({
         .input(z.object({ serialPort: z.string().min(1) }))
         .mutation(async ({ input }) => {
           try {
-            await sensor.disconnectSensor().catch(() => {
+            try {
+              await createControlClient("physical").disconnectSensor();
+            } catch {
               /* ignore if sensor service is down or already disconnected */
-            });
+            }
             const pauseMs = config.controlApi.flashAfterDisconnectMs;
             if (Number.isFinite(pauseMs) && pauseMs > 0) {
               await sleep(pauseMs);
@@ -331,227 +250,63 @@ export const appRouter = t.router({
           }
         }),
     }),
-    status: t.router({
-      get: publicProcedure.query(async ({ ctx }): Promise<SensorStatusPayload> => {
-        const state = await createControlClient(controlModeFromCtx(ctx)).getState();
-        return sensorStatusFromRailState(state);
-      }),
-    }),
   }),
-  /** Digital twin: hardware + simulation via ControlClient (no simulation gRPC). */
-  twin: t.router({
-    status: t.router({
-      get: baseProcedure.query(() => twinMotorStatus()),
+
+  limitSwitchMode: t.router({
+    get: baseProcedure.query(() => getLimitSwitchModeStatus()),
+    subscribe: baseProcedure.subscription(async function* ({ signal }) {
+      yield* pollWhileSubscribed(
+        () => getLimitSwitchModeStatus(),
+        signal,
+        () => 150,
+      );
     }),
-    connection: t.router({
-      connect: baseProcedure.mutation(async () => {
-        const twin = createTwinControlBackend();
-        return twin.connectTwin();
-      }),
-      disconnect: baseProcedure.mutation(async () => {
-        const twin = createTwinControlBackend();
-        await twin.disconnectTwin();
-        return { real: { ok: true as const, error: "" }, sim: { ok: true as const, error: "" } };
-      }),
+    release: baseProcedure.mutation(() => {
+      clearLimitSwitchMode();
+      return getLimitSwitchModeStatus();
     }),
-    jog: t.router({
-      setVelocity: baseProcedure
-        .input(
-          z.object({
-            rpm: z.number().finite(),
+    jogStart: publicProcedure
+      .input(
+        z
+          .object({
+            rpm: z.number().finite().positive().optional(),
             maxAccelerationRpmPerSec: z.number().finite().positive().optional(),
-          }),
-        )
-        .mutation(async ({ input }) => {
-          const twin = createTwinControlBackend();
-          return twin.setJogCmPerSecTwin(rpmToCmPerSec(input.rpm), {
-            maxAccelerationRpmPerSec: input.maxAccelerationRpmPerSec,
-          });
-        }),
-      stop: baseProcedure.mutation(async () => createTwinControlBackend().stopTwin()),
-    }),
-    rail: t.router({
-      limits: t.router({
-        record: baseProcedure
-          .input(z.object({ side: z.enum(["left", "right"]) }))
-          .mutation(async ({ input }) => {
-            const twin = createTwinControlBackend();
-            const [realState, simState] = await Promise.all([
-              twin.getPhysicalState(),
-              twin.getSimulationState(),
-            ]);
-            if (!realState.connection.cart) {
-              throw new Error("Motor is not connected.");
-            }
-            const rp = await motor.getMotorStatus();
-            if (rp.measuredPosition !== undefined && Number.isFinite(rp.measuredPosition)) {
-              recordTravelLimitFromTeknicMeasured(rp.measuredPosition, input.side);
-            }
-            if (simState.cart.positionCm != null) {
-              setTravelLimitsFromCm({
-                left:
-                  input.side === "left"
-                    ? simState.cart.positionCm
-                    : simState.cart.travelLimitsCm.left,
-                right:
-                  input.side === "right"
-                    ? simState.cart.positionCm
-                    : simState.cart.travelLimitsCm.right,
-              });
-            }
-            return { real: { ok: true as const }, sim: { ok: true as const } };
-          }),
-        setSymmetricSpan: baseProcedure
-          .input(z.object({ halfSpanCm: z.number().finite().positive() }))
-          .mutation(async ({ input }) => {
-            const twin = createTwinControlBackend();
-            const [realState, simState] = await Promise.all([
-              twin.getPhysicalState(),
-              twin.getSimulationState(),
-            ]);
-            const real =
-              realState.cart.positionCm != null
-                ? symmetricTravelLimitsFromState(input.halfSpanCm, realState.cart.positionCm)
-                : { ok: false as const, error: "Motor position unavailable." };
-            const sim =
-              simState.cart.positionCm != null
-                ? symmetricTravelLimitsFromState(input.halfSpanCm, simState.cart.positionCm)
-                : { ok: false as const, error: "Sim position unavailable." };
-            return { real, sim };
-          }),
-      }),
-      zeroAtCurrent: baseProcedure.mutation(async () => {
-        const r = await motor.zeroMeasuredPosition();
-        if (!r.ok) {
-          return {
-            real: { ok: false as const, error: r.error || "Motor zero failed." },
-            sim: { ok: true as const },
-          };
-        }
-        return { real: { ok: true as const }, sim: { ok: true as const } };
-      }),
-      moveAbsolute: baseProcedure
-        .input(
-          z.object({
-            positionCm: z.number().finite(),
-            maxVelocityRpm: z.number().finite().positive().optional(),
-            maxAccelerationRpmPerSec: z.number().finite().positive().optional(),
-          }),
-        )
-        .mutation(async ({ input }) => {
-          const twin = createTwinControlBackend();
-          return twin.moveToPositionCmTwin(input.positionCm, {
-            maxVelocityRpm: input.maxVelocityRpm,
-            maxAccelerationRpmPerSec: input.maxAccelerationRpmPerSec,
-          });
-        }),
-    }),
-    sensor: t.router({
-      connection: t.router({
-        connect: baseProcedure
-          .input(z.object({ serialPort: z.string().optional() }))
-          .mutation(async ({ input }) => {
-            const twin = createTwinControlBackend();
-            const real = await withHardwareGrpc(() => sensor.connectSensor(input.serialPort));
-            const sim = await twin.simulation.connect();
-            return { real, sim };
-          }),
-        disconnect: baseProcedure.mutation(async () => {
-          const twin = createTwinControlBackend();
-          const real = await withHardwareGrpc(() => sensor.disconnectSensor());
-          await twin.simulation.disconnect();
-          return { real, sim: { ok: true as const, error: "" } };
-        }),
-      }),
-      led: t.router({
-        toggle: baseProcedure.mutation(async () => {
-          const twin = createTwinControlBackend();
-          const realState = await twin.getPhysicalState();
-          const simState = await twin.getSimulationState();
-          const real = await twin.physical.setLed(!realState.led.on);
-          const sim = await twin.simulation.setLed(!simState.led.on);
-          const nextReal = await twin.getPhysicalState();
-          const nextSim = await twin.getSimulationState();
-          return {
-            real: { ...real, ledOn: nextReal.led.on },
-            sim: { ...sim, ledOn: nextSim.led.on },
-          };
-        }),
-      }),
-      encoder: t.router({
-        reset: baseProcedure.mutation(async () => ({
-          real: await withHardwareGrpc(() => sensor.resetEncoder()),
-          sim: { ok: true as const, error: "", encoderTicks: 0 },
-        })),
-      }),
-      status: t.router({
-        get: baseProcedure.query(async () => {
-          const { real, sim } = await twinSensorStatus();
-          updateLimitSwitchState(combineLimitSwitchStates(real, sim));
-          return { real, sim };
-        }),
-      }),
-    }),
-  }),
-  /** Limit-switch latch: full motion stop until operator releases. */
-  motion: t.router({
-    latch: t.router({
-      get: baseProcedure.query(() => getMotionLatchStatus()),
-      release: baseProcedure.mutation(() => {
-        clearMotionLatch();
-        return getMotionLatchStatus();
-      }),
-      /** Hold-to-jog toward center only (bypasses latch + travel limits). */
-      jogStart: baseProcedure
-        .input(
-          z
-            .object({
-              rpm: z.number().finite().positive().optional(),
-              maxAccelerationRpmPerSec: z.number().finite().positive().optional(),
-            })
-            .optional(),
-        )
-        .mutation(async ({ ctx, input }) => {
-          const mode: GrpcBackendMode = ctx.grpcBackendMode ?? "hardware";
-          const result = await startRecoveryJog(mode, input ?? {});
-          if (!result.ok) throw new Error(result.error);
-          return result;
-        }),
-      jogStop: baseProcedure.mutation(async ({ ctx }) => {
-        const mode: GrpcBackendMode = ctx.grpcBackendMode ?? "hardware";
-        const result = await stopRecoveryJog(mode);
+          })
+          .optional(),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const result = await startRecoveryJog(ctx.controlBackend, input ?? {});
         if (!result.ok) throw new Error(result.error);
         return result;
       }),
-      /** Profile move to 0 cm while latched (recovery). */
-      moveHome: baseProcedure
-        .input(
-          z
-            .object({
-              maxVelocityRpm: z.number().finite().positive().optional(),
-              maxAccelerationRpmPerSec: z.number().finite().positive().optional(),
-            })
-            .optional(),
-        )
-        .mutation(async ({ ctx, input }) => {
-          const mode: GrpcBackendMode = ctx.grpcBackendMode ?? "hardware";
-          const result = await moveHomeWhileLatched(mode, input ?? {});
-          if ("real" in result) {
-            if (!result.real.ok) {
-              throw new Error(result.real.error);
-            }
-            if (!result.sim.ok && result.sim.error) {
-              throw new Error(`Sim: ${result.sim.error}`);
-            }
-            return result;
-          }
-          if (!result.ok) {
-            throw new Error(result.error);
+    jogStop: publicProcedure.mutation(async ({ ctx }) => {
+      const result = await stopRecoveryJog(ctx.controlBackend);
+      if (!result.ok) throw new Error(result.error);
+      return result;
+    }),
+    moveHome: publicProcedure
+      .input(
+        z
+          .object({
+            maxVelocityRpm: z.number().finite().positive().optional(),
+            maxAccelerationRpmPerSec: z.number().finite().positive().optional(),
+          })
+          .optional(),
+      )
+      .mutation(async ({ ctx, input }) => {
+        const result = await moveHomeWhileLatched(ctx.controlBackend, input ?? {});
+        if ("real" in result) {
+          if (!result.real.ok) throw new Error(result.real.error);
+          if (!result.sim.ok && result.sim.error) {
+            throw new Error(`Sim: ${result.sim.error}`);
           }
           return result;
-        }),
-    }),
+        }
+        if (!result.ok) throw new Error(result.error);
+        return result;
+      }),
   }),
+
   controllers: t.router({
     list: baseProcedure.query(() => listControllers()),
     status: baseProcedure.query(() => getControllerStatus()),
@@ -562,8 +317,8 @@ export const appRouter = t.router({
           params: z.record(z.number()).optional(),
         }),
       )
-      .mutation(async ({ input, ctx }) =>
-        startController(input.id, input.params ?? {}, ctx.grpcBackendMode ?? "hardware"),
+      .mutation(async ({ input }) =>
+        startController(input.id, input.params ?? {}, getClient()),
       ),
     stop: publicProcedure.mutation(() => stopController()),
   }),

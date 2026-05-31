@@ -4,12 +4,14 @@ import {
   physicsSimMoveAbsolute,
   physicsSimStep,
 } from "@real-pendulum/simulation/client";
-import { isMotionBlockedByLatch } from "../../motionLatch.js";
+import { isMotionBlocked, updateLimitSwitchState, updateMotorPosition } from "../../limitSwitchMode/index.js";
 import { setTravelLimitsFromCm, syncTravelLimitsFromMotorConnection } from "../../railTravelLimits.js";
 import { mpsFromCmPerSec } from "../motionUnits.js";
 import {
   railStateFromPhysicsSim,
+  setSimulationCartOffsetAtCurrent,
   setSimulationLedState,
+  simulationCartOffsetM,
 } from "../mappers/simulationMappers.js";
 import type {
   CommandResult,
@@ -17,6 +19,7 @@ import type {
   ControlBackend,
   JogOptions,
   MoveOptions,
+  MachineStateSources,
   RailMachineState,
   TravelLimitsCm,
 } from "../types.js";
@@ -24,14 +27,11 @@ import type {
 const SIM_DT_SEC = 0.02;
 
 export class SimulationControlBackend implements ControlBackend {
-  private plantConnected = false;
-
-  async getState(): Promise<RailMachineState> {
+  private async readRailState(): Promise<RailMachineState> {
     try {
       const reachable = await physicsSimHealthCheck();
       if (!reachable) {
-        this.plantConnected = false;
-        syncTravelLimitsFromMotorConnection(false);
+        syncTravelLimitsFromMotorConnection(false, "simulation");
         return railStateFromPhysicsSim(
           {
             state: {
@@ -56,17 +56,21 @@ export class SimulationControlBackend implements ControlBackend {
           { plantReachable: false },
         );
       }
-      this.plantConnected = true;
-      syncTravelLimitsFromMotorConnection(true);
+      syncTravelLimitsFromMotorConnection(true, "simulation");
       const payload = await physicsSimGetState();
       const state = railStateFromPhysicsSim(payload, { plantReachable: true });
-      if (isMotionBlockedByLatch()) {
+      if (isMotionBlocked()) {
         state.status = "latched";
       }
+      updateMotorPosition(state.cart.positionCm ?? undefined, "simulation");
+      updateLimitSwitchState({
+        connected: state.connection.sensor,
+        limitLeftPressed: state.limitSwitch.leftPressed,
+        limitRightPressed: state.limitSwitch.rightPressed,
+      });
       return state;
     } catch (e) {
-      this.plantConnected = false;
-      syncTravelLimitsFromMotorConnection(false);
+      syncTravelLimitsFromMotorConnection(false, "simulation");
       const msg = e instanceof Error ? e.message : String(e);
       const state = railStateFromPhysicsSim(
         {
@@ -95,14 +99,16 @@ export class SimulationControlBackend implements ControlBackend {
     }
   }
 
-  async connect(): Promise<ConnectResult> {
+  async getState(): Promise<MachineStateSources> {
+    return { simulation: await this.readRailState() };
+  }
+
+  async connectMotor(): Promise<ConnectResult> {
     const ok = await physicsSimHealthCheck();
-    this.plantConnected = ok;
     return ok ? { ok: true, error: "" } : { ok: false, error: "simulation is not reachable." };
   }
 
-  async disconnect(): Promise<void> {
-    this.plantConnected = false;
+  async disconnectMotor(): Promise<void> {
     try {
       await physicsSimStep({ dt: SIM_DT_SEC, vCmdMps: 0 });
     } catch {
@@ -110,8 +116,25 @@ export class SimulationControlBackend implements ControlBackend {
     }
   }
 
+  async connectSensor(): Promise<ConnectResult> {
+    return this.connectMotor();
+  }
+
+  async disconnectSensor(): Promise<ConnectResult> {
+    await this.disconnectMotor();
+    return { ok: true, error: "" };
+  }
+
+  async connect(): Promise<ConnectResult> {
+    return this.connectMotor();
+  }
+
+  async disconnect(): Promise<void> {
+    await this.disconnectMotor();
+  }
+
   async setJogCmPerSec(cmPerSec: number, _opts?: JogOptions): Promise<CommandResult> {
-    if (isMotionBlockedByLatch()) {
+    if (isMotionBlocked()) {
       return { ok: false, error: "Motion latch is engaged." };
     }
     try {
@@ -132,11 +155,11 @@ export class SimulationControlBackend implements ControlBackend {
   }
 
   async moveToPositionCm(cm: number, opts?: MoveOptions): Promise<CommandResult> {
-    if (isMotionBlockedByLatch() && !opts?.recovery) {
+    if (isMotionBlocked() && !opts?.recovery) {
       return { ok: false, error: "Motion latch is engaged." };
     }
     try {
-      const xM = cm / 100;
+      const xM = cm / 100 + simulationCartOffsetM();
       const maxVelocityMps =
         opts?.maxVelocityRpm != null ? (opts.maxVelocityRpm * 0.0007) : undefined;
       await physicsSimMoveAbsolute({
@@ -151,12 +174,26 @@ export class SimulationControlBackend implements ControlBackend {
   }
 
   async setTravelLimits(limits: TravelLimitsCm): Promise<CommandResult> {
-    setTravelLimitsFromCm(limits);
+    setTravelLimitsFromCm(limits, "simulation");
     return { ok: true, error: "" };
   }
 
   async setLed(on: boolean): Promise<CommandResult> {
     setSimulationLedState(on);
     return { ok: true, error: "" };
+  }
+
+  async zeroCartAtCurrent(): Promise<CommandResult> {
+    const reachable = await physicsSimHealthCheck();
+    if (!reachable) {
+      return { ok: false, error: "simulation is not reachable." };
+    }
+    try {
+      const payload = await physicsSimGetState();
+      setSimulationCartOffsetAtCurrent(payload.state.xM);
+      return { ok: true, error: "" };
+    } catch (e) {
+      return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    }
   }
 }

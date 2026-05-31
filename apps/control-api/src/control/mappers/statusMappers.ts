@@ -1,5 +1,5 @@
 import type { MotorStatusForClient } from "../../motorStatusApi.js";
-import type { SensorStatusPayload } from "../../statusPayload.js";
+import type { SensorStatusPayload } from "../../motorStatusApi.js";
 import { cmPerSecToRpm, rpmToCmPerSec } from "../motionUnits.js";
 import type { RailMachineState } from "../types.js";
 

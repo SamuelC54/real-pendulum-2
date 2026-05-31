@@ -1,4 +1,4 @@
-export type ControlMode = "hardware" | "sim" | "twin";
+export type ControlMode = "physical" | "simulation" | "twin";
 
 export type CommandResult = { ok: boolean; error: string };
 
@@ -44,12 +44,32 @@ export type RailMachineState = {
   error?: string;
 };
 
+export type MachineSourceId = "physical" | "simulation";
+
+export type MachineStateSources = Partial<Record<MachineSourceId, RailMachineState>>;
+
+export function railStateForMode(
+  sources: MachineStateSources,
+  mode: ControlMode,
+): RailMachineState {
+  const state =
+    mode === "simulation" ? sources.simulation : sources.physical;
+  if (!state) {
+    throw new Error("Machine state unavailable for active backend.");
+  }
+  return state;
+}
+
 export type Unsubscribe = () => void;
 
 export interface ControlBackend {
-  getState(): Promise<RailMachineState>;
-  subscribeToState?(callback: (state: RailMachineState) => void): Unsubscribe;
+  getState(): Promise<MachineStateSources>;
+  subscribeToState?(callback: (state: MachineStateSources) => void): Unsubscribe;
 
+  connectMotor(): Promise<ConnectResult>;
+  disconnectMotor(): Promise<void>;
+  connectSensor(serialPort?: string): Promise<ConnectResult>;
+  disconnectSensor(): Promise<ConnectResult>;
   connect(): Promise<ConnectResult>;
   disconnect(): Promise<void>;
   setJogCmPerSec(cmPerSec: number, opts?: JogOptions): Promise<CommandResult>;
@@ -57,4 +77,5 @@ export interface ControlBackend {
   moveToPositionCm(cm: number, opts?: MoveOptions): Promise<CommandResult>;
   setTravelLimits(limits: TravelLimitsCm): Promise<CommandResult>;
   setLed(on: boolean): Promise<CommandResult>;
+  zeroCartAtCurrent(): Promise<CommandResult>;
 }

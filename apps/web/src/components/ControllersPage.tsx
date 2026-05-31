@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useAtomValue } from "jotai";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { grpcBackendModeAtom } from "@/stores/grpcBackendMode";
+import { controlBackendModeAtom } from "@/stores/controlBackendMode";
 import { trpc } from "@/trpc";
 import { useMotorStatusQuery, useTwinLinkageStatus } from "@/services/useMotorStatusQuery";
 
@@ -37,13 +37,13 @@ function ParamField({
 }
 
 export function ControllersPage() {
-  const mode = useAtomValue(grpcBackendModeAtom);
+  const mode = useAtomValue(controlBackendModeAtom);
   const motor = useMotorStatusQuery();
   const twinLinkage = useTwinLinkageStatus();
-  const connected = motor.data?.connected ?? false;
+  const connected = motor.data?.connection.cart ?? false;
   const twinMode = mode === "twin";
   const twinReady =
-    twinLinkage.motorHardware && twinLinkage.motorSim;
+    twinLinkage.motorPhysical && twinLinkage.motorSim;
 
   const listQuery = trpc.controllers.list.useQuery(undefined, { retry: 1 });
   const statusQuery = trpc.controllers.status.useQuery(undefined, {
@@ -98,7 +98,7 @@ export function ControllersPage() {
 
       {twinMode && !twinReady ? (
         <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-900 dark:text-amber-100">
-          Connect both <strong>hardware</strong> and <strong>sim</strong> motor on the Control tab
+          Connect both <strong>physical</strong> and <strong>simulation</strong> motor on the Control tab
           (twin mode moves Teknic and the MuJoCo cart together).
         </p>
       ) : null}

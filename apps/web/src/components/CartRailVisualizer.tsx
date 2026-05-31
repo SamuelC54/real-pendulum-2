@@ -1,8 +1,9 @@
 import { memo } from "react";
 import { useAtomValue } from "jotai";
 import { boundsFromTravelLimitsCm } from "@/lib/railPositionCm";
+import { travelLimitsCm } from "@/lib/machineState";
 import { useMotorStatusQuery, useSensorStatusQuery } from "@/services/useMotorStatusQuery";
-import { grpcBackendModeAtom } from "@/stores/grpcBackendMode";
+import { controlBackendModeAtom } from "@/stores/controlBackendMode";
 import { cn } from "@/lib/utils";
 
 type TravelLimitsCm = { leftCm: number | null; rightCm: number | null } | undefined;
@@ -154,15 +155,14 @@ export const CartRailVisualizer = memo(function CartRailVisualizer() {
   const motor = useMotorStatusQuery();
   const sensor = useSensorStatusQuery();
 
-  const mode = useAtomValue(grpcBackendModeAtom);
-  const twinSim =
-    motor.data && "twinSimMotor" in motor.data ? motor.data.twinSimMotor : undefined;
-  const twinSimSensor =
-    sensor.data && "twinSimSensor" in sensor.data ? sensor.data.twinSimSensor : undefined;
+  const mode = useAtomValue(controlBackendModeAtom);
+  const twinSim = motor.data && "twinSim" in motor.data ? motor.data.twinSim : undefined;
   const isTwin = mode === "twin";
 
-  const hardwareMotorConnected = motor.data?.connected ?? false;
-  const simMotorConnected = twinSim?.connected ?? false;
+  const hardwareMotorConnected = motor.data?.connection.cart ?? false;
+  const simMotorConnected = twinSim?.connection.cart ?? false;
+  const hardwareLimits = travelLimitsCm(motor.data);
+  const simLimits = travelLimitsCm(twinSim);
 
   if (!isTwin) {
     if (!hardwareMotorConnected) return null;
@@ -172,11 +172,11 @@ export const CartRailVisualizer = memo(function CartRailVisualizer() {
         <RailTrack
           legLabel="Cart"
           connected={hardwareMotorConnected}
-          pos={motor.data?.positionCm}
-          travelLimits={motor.data?.travelLimits}
-          limitLeft={sensor.data?.limitLeftPressed ?? false}
-          limitRight={sensor.data?.limitRightPressed ?? false}
-          sensorConnected={sensor.data?.connected ?? false}
+          pos={motor.data?.cart.positionCm ?? undefined}
+          travelLimits={hardwareLimits}
+          limitLeft={sensor.data?.limitSwitch.leftPressed ?? false}
+          limitRight={sensor.data?.limitSwitch.rightPressed ?? false}
+          sensorConnected={sensor.data?.connection.sensor ?? false}
           cartClassName="bg-primary"
           cartTitle="Cart position (hardware)"
         />
@@ -198,22 +198,22 @@ export const CartRailVisualizer = memo(function CartRailVisualizer() {
         <RailTrack
           legLabel="Hardware"
           connected={hardwareMotorConnected}
-          pos={motor.data?.positionCm}
-          travelLimits={motor.data?.travelLimits}
-          limitLeft={sensor.data?.limitLeftPressed ?? false}
-          limitRight={sensor.data?.limitRightPressed ?? false}
-          sensorConnected={sensor.data?.connected ?? false}
+          pos={motor.data?.cart.positionCm ?? undefined}
+          travelLimits={hardwareLimits}
+          limitLeft={sensor.data?.limitSwitch.leftPressed ?? false}
+          limitRight={sensor.data?.limitSwitch.rightPressed ?? false}
+          sensorConnected={sensor.data?.connection.sensor ?? false}
           cartClassName="bg-primary"
           cartTitle="Hardware cart position (cm)"
         />
         <RailTrack
           legLabel="Simulator"
           connected={simMotorConnected}
-          pos={twinSim?.positionCm}
-          travelLimits={twinSim?.travelLimits}
-          limitLeft={twinSimSensor?.limitLeftPressed ?? false}
-          limitRight={twinSimSensor?.limitRightPressed ?? false}
-          sensorConnected={twinSimSensor?.connected ?? false}
+          pos={twinSim?.cart.positionCm ?? undefined}
+          travelLimits={simLimits}
+          limitLeft={twinSim?.limitSwitch.leftPressed ?? false}
+          limitRight={twinSim?.limitSwitch.rightPressed ?? false}
+          sensorConnected={twinSim?.connection.sensor ?? false}
           cartClassName="bg-sky-400 dark:bg-sky-300"
           cartTitle="Simulator cart position (cm)"
         />

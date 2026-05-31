@@ -6,7 +6,7 @@ import {
   useSensorStatusConnected,
   useTwinLinkageStatus,
 } from "@/services/useMotorStatusQuery";
-import { grpcBackendModeAtom } from "@/stores/grpcBackendMode";
+import { controlBackendModeAtom } from "@/stores/controlBackendMode";
 import { cn } from "@/lib/utils";
 
 function StatusDot({ connected }: { connected: boolean }) {
@@ -83,18 +83,18 @@ function TwinLegRow({
 }
 
 function TwinLinkageBadge({
-  motorHardware,
-  sensorHardware,
+  motorPhysical,
+  sensorPhysical,
   motorSim,
   sensorSim,
 }: {
-  motorHardware: boolean;
-  sensorHardware: boolean;
+  motorPhysical: boolean;
+  sensorPhysical: boolean;
   motorSim: boolean;
   sensorSim: boolean;
 }) {
-  const allOn = motorHardware && sensorHardware && motorSim && sensorSim;
-  const anyOn = motorHardware || sensorHardware || motorSim || sensorSim;
+  const allOn = motorPhysical && sensorPhysical && motorSim && sensorSim;
+  const anyOn = motorPhysical || sensorPhysical || motorSim || sensorSim;
 
   return (
     <span
@@ -108,8 +108,8 @@ function TwinLinkageBadge({
       )}
     >
       <span className="font-semibold">Twin</span>
-      <TwinLegRow legLabel="Hardware" motor={motorHardware} sensor={sensorHardware} />
-      <TwinLegRow legLabel="Simulator" motor={motorSim} sensor={sensorSim} />
+      <TwinLegRow legLabel="Physical" motor={motorPhysical} sensor={sensorPhysical} />
+      <TwinLegRow legLabel="Simulation" motor={motorSim} sensor={sensorSim} />
     </span>
   );
 }
@@ -131,12 +131,12 @@ function TwinConnectionBadge() {
 }
 
 function ConnectionBadges() {
-  const mode = useAtomValue(grpcBackendModeAtom);
+  const mode = useAtomValue(controlBackendModeAtom);
   return mode === "twin" ? <TwinConnectionBadge /> : <StandardConnectionBadges />;
 }
 
 export function AppHeader({ nav }: { nav: ReactNode }) {
-  const mode = useAtomValue(grpcBackendModeAtom);
+  const mode = useAtomValue(controlBackendModeAtom);
 
   return (
     <header className="border-b border-border bg-card/80 backdrop-blur-sm">
@@ -144,7 +144,7 @@ export function AppHeader({ nav }: { nav: ReactNode }) {
         <div className="min-w-0 shrink-0">{nav}</div>
         <div
           className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end lg:justify-end"
-          aria-label={mode === "twin" ? "Twin hardware and simulator connection status" : "Hardware connection status"}
+          aria-label={mode === "twin" ? "Twin physical and simulation connection status" : "Physical connection status"}
         >
           <BackendModeControl />
           <div className="flex flex-wrap gap-1.5 sm:justify-end">

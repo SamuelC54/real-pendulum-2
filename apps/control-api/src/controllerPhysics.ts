@@ -1,11 +1,10 @@
-import { config } from "@real-pendulum/app-config";
 import {
   controllerServiceList,
   controllerServiceStatus,
   type ControllerMeta,
   type ControllerStatus,
 } from "@real-pendulum/controller-service/client";
-import type { GrpcBackendMode } from "./grpcRequestContext.js";
+import type { ControlClient } from "./control/ControlClient.js";
 import {
   getControllerLoopError,
   isControllerLoopRunning,
@@ -36,26 +35,13 @@ export async function getControllerStatus(): Promise<
 export async function startController(
   id: string,
   params: Record<string, number>,
-  backendMode: GrpcBackendMode = "hardware",
+  controlClient: ControlClient,
 ): Promise<ReturnType<typeof getControllerStatus>> {
-  await startControllerRunner(id, params, backendMode);
+  await startControllerRunner(id, params, controlClient);
   return getControllerStatus();
 }
 
 export async function stopController(): Promise<ReturnType<typeof getControllerStatus>> {
   await stopControllerRunner();
   return getControllerStatus();
-}
-
-export function defaultHomingControllerParams(): Record<string, number> {
-  const h = config.homing;
-  return {
-    jogRpm: h.jogRpm,
-    midPositionTolerance: h.midPositionTolerance,
-    approachPosition: h.approachPosition,
-    approachRpm: h.approachRpm,
-    zeroMotorAtMid: h.zeroMotorPositionAtMid ? 1 : 0,
-    minTravelForLimitCounts: h.minTravelForLimitCounts,
-    phaseTimeoutSec: h.phaseTimeoutMs / 1000,
-  };
 }

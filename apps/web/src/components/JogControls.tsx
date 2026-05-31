@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import { isJogBlockedByTravelLimit, JOG_RPM_SLIDER_MAX, POSITION_MOVE_ACC_SLIDER_MAX } from "@/lib/jogMath";
 import { useMotorSession } from "@/services/motorSession";
 import { useSensorStatusQuery } from "@/services/useMotorStatusQuery";
-import { trpc } from "@/trpc";
+import { useLimitSwitchModeSubscription } from "@/hooks/useLimitSwitchModeSubscription";
 import {
   holdingAtom,
   jogAccelRpmPerSecAtom,
@@ -82,25 +82,22 @@ export const JogControls = memo(function JogControls({ className }: { className?
     connect,
     disconnect,
     setVelocity,
-    stop,
   } = useMotorSession();
   const holding = useAtomValue(holdingAtom);
   const [jogRpm, setJogRpm] = useAtom(jogRpmAtom);
   const [jogAccelRpmPerSec, setJogAccelRpmPerSec] = useAtom(jogAccelRpmPerSecAtom);
   const [keyboardJogEnabled, setKeyboardJogEnabled] = useAtom(keyboardJogEnabledAtom);
   const sensor = useSensorStatusQuery();
-  const motionLatch = trpc.motion.latch.get.useQuery(undefined, {
-    refetchInterval: (q) => (q.state.data?.latched ? 400 : 150),
-  });
+  const limitSwitchMode = useLimitSwitchModeSubscription();
   const travelLimits = {
-    connected: sensor.data?.connected ?? false,
-    limitLeftPressed: sensor.data?.limitLeftPressed ?? false,
-    limitRightPressed: sensor.data?.limitRightPressed ?? false,
+    connected: sensor.data?.connection.sensor ?? false,
+    limitLeftPressed: sensor.data?.limitSwitch.leftPressed ?? false,
+    limitRightPressed: sensor.data?.limitSwitch.rightPressed ?? false,
   };
 
   const connectionBusy = connect.isPending || disconnect.isPending;
   // Stop pending must not disable jog buttons (latch recovery); only block double-starts on setVelocity.
-  const latched = motionLatch.data?.latched === true;
+  const latched = limitSwitchMode.data?.latched === true;
   const disabled =
     !connected ||
     connectionBusy ||

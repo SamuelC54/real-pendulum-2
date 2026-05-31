@@ -1,9 +1,9 @@
-import { useHardwareBackendAutoConnect } from "@/services/useHardwareBackendAutoConnect";
-import { useSimBackendAutoConnect } from "@/services/useSimBackendAutoConnect";
+import { usePhysicalBackendAutoConnect } from "@/services/usePhysicalBackendAutoConnect";
+import { useSimulationBackendAutoConnect } from "@/services/useSimulationBackendAutoConnect";
 
-/** Mount once under tRPC — auto-connect for Simulator (retry) and Hardware (once). */
+/** Mount once under tRPC — auto-connect for simulation (retry) and physical bench (once). */
 export function BackendAutoConnect() {
-  useSimBackendAutoConnect();
-  useHardwareBackendAutoConnect();
+  useSimulationBackendAutoConnect();
+  usePhysicalBackendAutoConnect();
   return null;
 }

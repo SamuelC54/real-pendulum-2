@@ -1,6 +1,6 @@
 import { Code, ConnectError } from "@connectrpc/connect";
 import { describe, expect, it } from "vitest";
-import { friendlyMotorGrpcError } from "./motorErrors.js";
+import { friendlyMotorGrpcError } from "./helpers/physical/motorErrors.js";
 
 describe("friendlyMotorGrpcError", () => {
   it("wraps ConnectError Code.Unavailable", () => {

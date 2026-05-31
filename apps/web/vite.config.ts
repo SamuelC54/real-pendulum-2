@@ -8,9 +8,10 @@ import { config, e2eRealWebPort } from "../../packages/app-config/src/config.ts"
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const appConfigRoot = path.join(repoRoot, "packages/app-config/src");
 
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ mode, command }) => {
   const isE2e = mode === "e2e";
   const e2eReal = mode === "e2e-real";
+  const isDockerBuild = mode === "docker";
   const devPort = isE2e
     ? config.e2e.simWebPort
     : e2eReal
@@ -29,10 +30,17 @@ export default defineConfig(({ mode }) => {
       react({
         babel: {
           plugins: ["babel-plugin-react-compiler"],
+          sourceMaps: command === "serve",
         },
       }),
       tailwindcss(),
     ],
+    css: {
+      devSourcemap: false,
+    },
+    build: {
+      sourcemap: isDockerBuild ? false : command === "build" ? "hidden" : false,
+    },
     resolve: {
       alias: {
         "@": path.resolve(path.dirname(fileURLToPath(import.meta.url)), "./src"),

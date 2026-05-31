@@ -4,11 +4,11 @@ import {
   e2eRealControlApiTrpcUrl,
   webControlApiBaseUrl,
 } from "@real-pendulum/app-config";
-import { httpBatchLink } from "@trpc/client";
+import { httpBatchLink, httpSubscriptionLink, splitLink } from "@trpc/client";
 import { createTRPCReact } from "@trpc/react-query";
 import superjson from "superjson";
 import type { AppRouter } from "@real-pendulum/control-api/router";
-import { grpcBackendModeAtom } from "./stores/grpcBackendMode";
+import { controlBackendModeAtom } from "./stores/controlBackendMode";
 import { jotaiStore } from "./stores/jotaiStore";
 import { lastTraceIdAtom } from "./stores/lastTraceId";
 
@@ -24,25 +24,41 @@ function trpcUrl() {
   return `${webControlApiBaseUrl()}/trpc`;
 }
 
+function tracedFetch(url: RequestInfo | URL, options?: RequestInit): Promise<Response> {
+  return fetch(url, options).then((res) => {
+    const traceId = res.headers.get("x-trace-id");
+    if (traceId) {
+      jotaiStore.set(lastTraceIdAtom, traceId);
+    }
+    return res;
+  });
+}
+
 export function createTrpcClient() {
+  const url = trpcUrl();
+  const linkOptions = {
+    url,
+    transformer: superjson,
+    fetch: tracedFetch,
+  } as const;
+
   return trpc.createClient({
     links: [
-      httpBatchLink({
-        url: trpcUrl(),
-        transformer: superjson,
-        headers() {
-          const mode = jotaiStore.get(grpcBackendModeAtom);
-          return { "x-pendulum-backend": mode };
-        },
-        fetch(url, options) {
-          return fetch(url, options).then((res) => {
-            const traceId = res.headers.get("x-trace-id");
-            if (traceId) {
-              jotaiStore.set(lastTraceIdAtom, traceId);
-            }
-            return res;
-          });
-        },
+      splitLink({
+        condition: (op) => op.type === "subscription",
+        true: httpSubscriptionLink({
+          ...linkOptions,
+          connectionParams: () => ({
+            backend: jotaiStore.get(controlBackendModeAtom),
+          }),
+        }),
+        false: httpBatchLink({
+          ...linkOptions,
+          headers() {
+            const mode = jotaiStore.get(controlBackendModeAtom);
+            return { "x-control-backend": mode };
+          },
+        }),
       }),
     ],
   });

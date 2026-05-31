@@ -3,7 +3,7 @@ import { CartPendulumViewer } from "@/components/CartPendulumViewer";
 import { JogControls } from "@/components/JogControls";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useSimPlantTelemetry } from "@/hooks/useSimPlantTelemetry";
-import { grpcBackendModeAtom } from "@/stores/grpcBackendMode";
+import { controlBackendModeAtom } from "@/stores/controlBackendMode";
 
 function formatCm(n: number | undefined): string {
   if (n === undefined || !Number.isFinite(n)) return "—";
@@ -12,7 +12,7 @@ function formatCm(n: number | undefined): string {
 }
 
 export function DigitalTwinPage() {
-  const mode = useAtomValue(grpcBackendModeAtom);
+  const mode = useAtomValue(controlBackendModeAtom);
   const plant = useSimPlantTelemetry();
 
   return (
@@ -49,7 +49,7 @@ export function DigitalTwinPage() {
             <CardDescription>
               {mode === "twin"
                 ? "Simulation plant — physics runs in MuJoCo on the backend."
-                : mode === "sim"
+                : mode === "simulation"
                   ? "Sim motor + sensor — poses from simulation."
                   : "Switch to Sim or Twin in the header to drive the digital twin."}
             </CardDescription>

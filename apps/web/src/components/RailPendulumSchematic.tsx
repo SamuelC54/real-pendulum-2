@@ -2,8 +2,9 @@ import { memo } from "react";
 import { useAtomValue } from "jotai";
 import { boundsFromTravelLimitsCm } from "@/lib/railPositionCm";
 import { cn } from "@/lib/utils";
+import { travelLimitsCm } from "@/lib/machineState";
 import { useMotorStatusQuery, useSensorStatusQuery } from "@/services/useMotorStatusQuery";
-import { grpcBackendModeAtom } from "@/stores/grpcBackendMode";
+import { controlBackendModeAtom } from "@/stores/controlBackendMode";
 
 /** Match `EncoderDial` default (600 P/R × 4). */
 const COUNTS_PER_REV = 2400;
@@ -22,7 +23,7 @@ function formatMotor(n: number | undefined): string {
   return Number.isInteger(r) ? String(r) : r.toFixed(1);
 }
 
-type LegVariant = "hardware" | "simulator";
+type LegVariant = "physical" | "simulation";
 
 type RailPendulumLegProps = {
   legLabel: string;
@@ -47,7 +48,7 @@ function RailPendulumLeg({
   limitRight,
   ticks,
 }: RailPendulumLegProps) {
-  const isSim = variant === "simulator";
+  const isSim = variant === "simulation";
   const bounds = boundsFromTravelLimitsCm(travelLimits?.leftCm, travelLimits?.rightCm);
   const hasPosition = pos !== undefined && Number.isFinite(pos);
   const span = bounds ? bounds.max - bounds.min : 0;
@@ -234,14 +235,13 @@ function RailPendulumLeg({
  * encoder ticks.
  */
 export const RailPendulumSchematic = memo(function RailPendulumSchematic() {
-  const mode = useAtomValue(grpcBackendModeAtom);
+  const mode = useAtomValue(controlBackendModeAtom);
   const motor = useMotorStatusQuery();
   const sensor = useSensorStatusQuery();
 
-  const twinSim =
-    motor.data && "twinSimMotor" in motor.data ? motor.data.twinSimMotor : undefined;
-  const twinSimSensor =
-    sensor.data && "twinSimSensor" in sensor.data ? sensor.data.twinSimSensor : undefined;
+  const twinSim = motor.data && "twinSim" in motor.data ? motor.data.twinSim : undefined;
+  const motorLimits = travelLimitsCm(motor.data);
+  const simLimits = travelLimitsCm(twinSim);
 
   if (mode === "twin") {
     return (
@@ -249,54 +249,55 @@ export const RailPendulumSchematic = memo(function RailPendulumSchematic() {
         <span className="text-muted-foreground mb-3 block text-xs font-medium">Rail & pendulum (twin)</span>
         <div className="flex flex-col gap-6">
           <RailPendulumLeg
-            legLabel="Hardware"
-            variant="hardware"
-            motorConnected={motor.data?.connected ?? false}
-            sensorConnected={sensor.data?.connected ?? false}
-            pos={motor.data?.positionCm}
-            travelLimits={motor.data?.travelLimits}
-            limitLeft={sensor.data?.limitLeftPressed ?? false}
-            limitRight={sensor.data?.limitRightPressed ?? false}
-            ticks={sensor.data?.encoderTicks ?? 0}
+            legLabel="Physical"
+            variant="physical"
+            motorConnected={motor.data?.connection.cart ?? false}
+            sensorConnected={sensor.data?.connection.sensor ?? false}
+            pos={motor.data?.cart.positionCm ?? undefined}
+            travelLimits={motorLimits}
+            limitLeft={sensor.data?.limitSwitch.leftPressed ?? false}
+            limitRight={sensor.data?.limitSwitch.rightPressed ?? false}
+            ticks={sensor.data?.pendulum.encoderTicks ?? 0}
           />
           <RailPendulumLeg
-            legLabel="Simulator"
-            variant="simulator"
-            motorConnected={twinSim?.connected ?? false}
-            sensorConnected={twinSimSensor?.connected ?? false}
-            pos={twinSim?.positionCm}
-            travelLimits={twinSim?.travelLimits}
-            limitLeft={twinSimSensor?.limitLeftPressed ?? false}
-            limitRight={twinSimSensor?.limitRightPressed ?? false}
-            ticks={twinSimSensor?.encoderTicks ?? 0}
+            legLabel="Simulation"
+            variant="simulation"
+            motorConnected={twinSim?.connection.cart ?? false}
+            sensorConnected={twinSim?.connection.sensor ?? false}
+            pos={twinSim?.cart.positionCm ?? undefined}
+            travelLimits={simLimits}
+            limitLeft={twinSim?.limitSwitch.leftPressed ?? false}
+            limitRight={twinSim?.limitSwitch.rightPressed ?? false}
+            ticks={twinSim?.pendulum.encoderTicks ?? 0}
           />
         </div>
         <p className="text-muted-foreground mt-3 text-[10px] leading-snug">
-          Twin mode: hardware and simulator schematics. Open the Digital Twin tab for the large 3D
+          Twin mode: physical and simulation schematics. Open the Digital Twin tab for the large 3D
           view.
         </p>
       </div>
     );
   }
 
-  const isSim = mode === "sim";
+  const isSim = mode === "simulation";
+  const limits = travelLimitsCm(motor.data);
 
   return (
     <div className="w-full max-w-md border-t border-border pt-4">
       <RailPendulumLeg
-        legLabel={isSim ? "Simulator" : "Rail & pendulum"}
-        variant={isSim ? "simulator" : "hardware"}
-        motorConnected={motor.data?.connected ?? false}
-        sensorConnected={sensor.data?.connected ?? false}
-        pos={motor.data?.positionCm}
-        travelLimits={motor.data?.travelLimits}
-        limitLeft={sensor.data?.limitLeftPressed ?? false}
-        limitRight={sensor.data?.limitRightPressed ?? false}
-        ticks={sensor.data?.encoderTicks ?? 0}
+        legLabel={isSim ? "Simulation" : "Rail & pendulum"}
+        variant={isSim ? "simulation" : "physical"}
+        motorConnected={motor.data?.connection.cart ?? false}
+        sensorConnected={sensor.data?.connection.sensor ?? false}
+        pos={motor.data?.cart.positionCm ?? undefined}
+        travelLimits={limits}
+        limitLeft={sensor.data?.limitSwitch.leftPressed ?? false}
+        limitRight={sensor.data?.limitSwitch.rightPressed ?? false}
+        ticks={sensor.data?.pendulum.encoderTicks ?? 0}
       />
       <p className="text-muted-foreground mt-2 text-[10px] leading-snug">
         {isSim
-          ? "2D schematic for the simulator. Use the Digital Twin tab for the large 3D view."
+          ? "2D schematic for the simulation plant. Use the Digital Twin tab for the large 3D view."
           : "Cart follows Teknic measured position (cm: left negative, right positive). Rod and bob follow the quadrature encoder on the Sensor Board (same phase as the dial card)."}
       </p>
     </div>

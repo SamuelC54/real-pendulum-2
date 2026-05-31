@@ -7,6 +7,7 @@ import {
   JOG_RPM_DEFAULT,
 } from "@/lib/jogMath";
 import { useMotorStatusConnected } from "@/services/useMotorStatusQuery";
+import { useLimitSwitchModeSubscription } from "@/hooks/useLimitSwitchModeSubscription";
 import { trpc } from "@/trpc";
 
 function RecoveryHoldJogButton({
@@ -94,28 +95,24 @@ function RecoveryHoldJogButton({
   );
 }
 
-export function MotionLatchBanner() {
+export function LimitSwitchModeBanner() {
   const { data: connected = false } = useMotorStatusConnected();
   const utils = trpc.useUtils();
 
-  const latchQuery = trpc.motion.latch.get.useQuery(undefined, {
-    refetchInterval: (q) => (q.state.data?.latched ? 400 : 150),
+  const modeSub = useLimitSwitchModeSubscription();
+  const release = trpc.limitSwitchMode.release.useMutation({
+    onSuccess: () => modeSub.reset(),
   });
-  const release = trpc.motion.latch.release.useMutation({
-    onSuccess: () => void latchQuery.refetch(),
-  });
-  const jogStart = trpc.motion.latch.jogStart.useMutation();
-  const jogStop = trpc.motion.latch.jogStop.useMutation({
+  const jogStart = trpc.limitSwitchMode.jogStart.useMutation();
+  const jogStop = trpc.limitSwitchMode.jogStop.useMutation({
     onSettled: () => {
-      void utils.status.get.invalidate();
-      void utils.twin.status.get.invalidate();
+      void utils.machine.state.get.invalidate();
     },
   });
-  const moveHome = trpc.motion.latch.moveHome.useMutation({
+  const moveHome = trpc.limitSwitchMode.moveHome.useMutation({
     onSuccess: () => {
-      void latchQuery.refetch();
-      void utils.status.get.invalidate();
-      void utils.twin.status.get.invalidate();
+      modeSub.reset();
+      void utils.machine.state.get.invalidate();
     },
   });
 
@@ -129,22 +126,21 @@ export function MotionLatchBanner() {
   const stopRecoveryJog = useCallback(() => {
     void jogStop.mutate(undefined, {
       onSuccess: () => {
-        void utils.status.get.invalidate();
-        void utils.twin.status.get.invalidate();
+        void utils.machine.state.get.invalidate();
       },
     });
   }, [jogStop, utils]);
 
-  const latch = latchQuery.data;
-  if (!latch?.latched) return null;
+  const mode = modeSub.data;
+  if (!mode?.latched) return null;
 
   const sideLabel =
-    latch.side === "left" ? "Left" : latch.side === "right" ? "Right" : "Travel";
+    mode.side === "left" ? "Left" : mode.side === "right" ? "Right" : "Travel";
   const cause =
-    latch.reason === "position"
+    mode.reason === "position"
       ? `${sideLabel.toLowerCase()} travel limit exceeded (position out of range)`
       : `${sideLabel.toLowerCase()} limit switch`;
-  const toward = latch.towardCenterJog;
+  const toward = mode.towardCenterJog;
   const moveHomeBusy = moveHome.isPending;
 
   return (

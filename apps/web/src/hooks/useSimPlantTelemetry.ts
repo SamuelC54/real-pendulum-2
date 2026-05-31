@@ -1,9 +1,9 @@
 import { useAtomValue } from "jotai";
 import { useMotorStatusQuery, useSensorStatusQuery } from "@/services/useMotorStatusQuery";
-import { grpcBackendModeAtom, type GrpcBackendMode } from "@/stores/grpcBackendMode";
+import { controlBackendModeAtom, type ControlBackendMode } from "@/stores/controlBackendMode";
 
 export type SimPlantTelemetry = {
-  mode: GrpcBackendMode;
+  mode: ControlBackendMode;
   positionCm: number | undefined;
   encoderTicks: number;
   connected: boolean;
@@ -13,30 +13,27 @@ export type SimPlantTelemetry = {
 
 /** Motor + encoder for the **simulator** leg (sim mode or twin `sim` snapshot). */
 export function useSimPlantTelemetry(): SimPlantTelemetry {
-  const mode = useAtomValue(grpcBackendModeAtom);
+  const mode = useAtomValue(controlBackendModeAtom);
   const motor = useMotorStatusQuery();
   const sensor = useSensorStatusQuery();
 
   if (mode === "twin") {
-    const twinSimMotor =
-      motor.data && "twinSimMotor" in motor.data ? motor.data.twinSimMotor : undefined;
-    const twinSimSensor =
-      sensor.data && "twinSimSensor" in sensor.data ? sensor.data.twinSimSensor : undefined;
+    const twinSim = motor.data && "twinSim" in motor.data ? motor.data.twinSim : undefined;
     return {
       mode,
-      positionCm: twinSimMotor?.positionCm,
-      encoderTicks: twinSimSensor?.encoderTicks ?? 0,
-      connected: Boolean(twinSimMotor?.connected && twinSimSensor?.connected),
+      positionCm: twinSim?.cart.positionCm ?? undefined,
+      encoderTicks: twinSim?.pendulum.encoderTicks ?? 0,
+      connected: Boolean(twinSim?.connection.cart && twinSim?.connection.sensor),
       supportsTwinView: true,
     };
   }
 
-  if (mode === "sim") {
+  if (mode === "simulation") {
     return {
       mode,
-      positionCm: motor.data?.positionCm,
-      encoderTicks: sensor.data?.encoderTicks ?? 0,
-      connected: Boolean(motor.data?.connected && sensor.data?.connected),
+      positionCm: motor.data?.cart.positionCm ?? undefined,
+      encoderTicks: sensor.data?.pendulum.encoderTicks ?? 0,
+      connected: Boolean(motor.data?.connection.cart && sensor.data?.connection.sensor),
       supportsTwinView: true,
     };
   }

@@ -1,8 +1,7 @@
 import * as motor from "@real-pendulum/physical-motor-service/sdk";
-import type { RailHomingResult } from "./homing.js";
-import { homingResultForClient, type RailHomingResultForClient } from "./homingApi.js";
+import type { ControlClient } from "./control/ControlClient.js";
+import { displayCountsToCm, teknicMeasuredToCm } from "./railPositionCm.js";
 import { setTravelLimitsFromHoming } from "./railTravelLimits.js";
-import type { GrpcBackendMode } from "./grpcRequestContext.js";
 
 export type HomingTickComplete = {
   posAtLeft: number;
@@ -11,6 +10,56 @@ export type HomingTickComplete = {
   midMotorPosition: number;
   zeroMotorAtMid: boolean;
 };
+
+/** Raw homing payload from controller-service tick (Teknic counts). */
+type RailHomingResultRaw = {
+  ok: boolean;
+  error?: string;
+  motorPositionAtLeftLimit?: number;
+  motorPositionAtRightLimit?: number;
+  motorSpanCounts?: number;
+  midMotorPosition?: number;
+  motorPositionZeroedAtMid?: boolean;
+  motorAbsRevolutions?: number;
+  log: string[];
+};
+
+/** Homing result on tRPC `controllers.status` (rail positions in cm). */
+export type RailHomingResultForClient = Omit<
+  RailHomingResultRaw,
+  "motorPositionAtLeftLimit" | "motorPositionAtRightLimit" | "motorSpanCounts" | "midMotorPosition"
+> & {
+  motorPositionAtLeftLimitCm?: number;
+  motorPositionAtRightLimitCm?: number;
+  motorSpanCm?: number;
+  midPositionCm?: number;
+};
+
+function homingResultForClient(r: RailHomingResultRaw): RailHomingResultForClient {
+  const {
+    motorPositionAtLeftLimit,
+    motorPositionAtRightLimit,
+    motorSpanCounts,
+    midMotorPosition,
+    ...rest
+  } = r;
+  const leftCm =
+    motorPositionAtLeftLimit != null ? teknicMeasuredToCm(motorPositionAtLeftLimit) : undefined;
+  const rightCm =
+    motorPositionAtRightLimit != null ? teknicMeasuredToCm(motorPositionAtRightLimit) : undefined;
+  return {
+    ...rest,
+    motorPositionAtLeftLimitCm: leftCm,
+    motorPositionAtRightLimitCm: rightCm,
+    motorSpanCm:
+      motorSpanCounts != null
+        ? displayCountsToCm(motorSpanCounts)
+        : leftCm != null && rightCm != null
+          ? Math.abs(rightCm - leftCm)
+          : undefined,
+    midPositionCm: midMotorPosition != null ? teknicMeasuredToCm(midMotorPosition) : undefined,
+  };
+}
 
 let lastHomingResult: RailHomingResultForClient | null = null;
 
@@ -26,14 +75,15 @@ export async function completeHomingFromTick(
   payload: HomingTickComplete,
   log: string[],
   motorAbsRevolutions: number | undefined,
-  backendMode: GrpcBackendMode,
+  controlClient: ControlClient,
 ): Promise<RailHomingResultForClient> {
   const { posAtLeft, posAtRight, zeroMotorAtMid } = payload;
   const span = Math.abs(posAtRight - posAtLeft);
   const mid = (posAtLeft + posAtRight) / 2;
+  const mode = controlClient.mode;
 
   let motorPositionZeroedAtMid: boolean | undefined;
-  if (zeroMotorAtMid && backendMode !== "sim") {
+  if (zeroMotorAtMid && mode !== "simulation") {
     const r = await motor.zeroMeasuredPosition();
     motorPositionZeroedAtMid = r.ok;
     if (r.ok) {
@@ -43,9 +93,14 @@ export async function completeHomingFromTick(
     }
   }
 
-  setTravelLimitsFromHoming(posAtLeft, posAtRight, motorPositionZeroedAtMid === true);
+  setTravelLimitsFromHoming(
+    posAtLeft,
+    posAtRight,
+    motorPositionZeroedAtMid === true,
+    mode === "simulation" ? "simulation" : "physical",
+  );
 
-  const result: RailHomingResult = {
+  const result: RailHomingResultRaw = {
     ok: true,
     motorPositionAtLeftLimit: posAtLeft,
     motorPositionAtRightLimit: posAtRight,
@@ -64,7 +119,7 @@ export async function completeHomingFailure(
   log: string[],
   motorAbsRevolutions: number | undefined,
 ): Promise<RailHomingResultForClient> {
-  const result: RailHomingResult = {
+  const result: RailHomingResultRaw = {
     ok: false,
     error,
     motorAbsRevolutions,

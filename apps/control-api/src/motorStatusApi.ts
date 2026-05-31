@@ -1,9 +1,5 @@
 import type * as motor from "@real-pendulum/physical-motor-service/sdk";
-import {
-  teknicMeasuredToCm,
-  travelLimitsToCm,
-  type TravelLimitsCm,
-} from "./railPositionCm.js";
+import type { TravelLimitsCm } from "./railPositionCm.js";
 
 export type { TravelLimitsCm };
 
@@ -17,18 +13,13 @@ export type MotorStatusForClient = {
   travelLimits: TravelLimitsCm;
 };
 
-type RawMotorStatus = Awaited<ReturnType<typeof motor.getMotorStatus>> & {
-  travelLimits: { left: number | null; right: number | null };
+/** Sensor board snapshot derived from {@link RailMachineState} (control/mappers/statusMappers). */
+export type SensorStatusPayload = {
+  connected: boolean;
+  ledOn: boolean;
+  detail: string;
+  serialPort: string;
+  encoderTicks: number;
+  limitLeftPressed: boolean;
+  limitRightPressed: boolean;
 };
-
-export function motorStatusForClient(st: RawMotorStatus): MotorStatusForClient {
-  const { measuredPosition, travelLimits, ...rest } = st;
-  return {
-    ...rest,
-    positionCm:
-      measuredPosition !== undefined && Number.isFinite(measuredPosition)
-        ? teknicMeasuredToCm(measuredPosition)
-        : undefined,
-    travelLimits: travelLimitsToCm(travelLimits),
-  };
-}

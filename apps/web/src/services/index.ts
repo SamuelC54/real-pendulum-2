@@ -3,8 +3,8 @@ export type { MotorSessionValue } from "./motorSession";
 export { useConnectMotorMutation } from "./useConnectMotorMutation";
 export { useDisconnectMotorMutation } from "./useDisconnectMotorMutation";
 export { useConnectSensorMutation } from "./useConnectSensorMutation";
-export { useSimBackendAutoConnect } from "./useSimBackendAutoConnect";
-export { useHardwareBackendAutoConnect } from "./useHardwareBackendAutoConnect";
+export { useSimulationBackendAutoConnect } from "./useSimulationBackendAutoConnect";
+export { usePhysicalBackendAutoConnect } from "./usePhysicalBackendAutoConnect";
 export { useJogSetVelocityMutation } from "./useJogSetVelocityMutation";
 export { useJogStopMutation } from "./useJogStopMutation";
 export {

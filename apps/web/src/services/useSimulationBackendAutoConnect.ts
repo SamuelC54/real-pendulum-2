@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useAtomValue } from "jotai";
-import { grpcBackendModeAtom } from "@/stores/grpcBackendMode";
+import { controlBackendModeAtom } from "@/stores/controlBackendMode";
 import { trpc } from "@/trpc";
 import { useConnectMotorMutation } from "./useConnectMotorMutation";
 import { useConnectSensorMutation } from "./useConnectSensorMutation";
@@ -9,17 +9,17 @@ import { useMotorStatusConnected, useSensorStatusConnected } from "./useMotorSta
 const RETRY_MS = 2500;
 
 /**
- * In **sim** backend mode, connect motor + sensor gRPC to the simulation plant without USB boards.
+ * In **simulation** backend mode, connect motor + sensor via control-api to the simulation plant.
  * Retries until both report connected (e.g. while simulation is still starting).
  */
-export function useSimBackendAutoConnect(): {
+export function useSimulationBackendAutoConnect(): {
   active: boolean;
   pending: boolean;
   ready: boolean;
   lastError: string | null;
 } {
-  const mode = useAtomValue(grpcBackendModeAtom);
-  const active = mode === "sim";
+  const mode = useAtomValue(controlBackendModeAtom);
+  const active = mode === "simulation";
   const utils = trpc.useUtils();
   const motorConnected = useMotorStatusConnected();
   const sensorConnected = useSensorStatusConnected();
@@ -46,8 +46,7 @@ export function useSimBackendAutoConnect(): {
     let cancelled = false;
 
     const invalidate = () => {
-      void utils.status.get.invalidate();
-      void utils.sensor.status.get.invalidate();
+      void utils.machine.state.get.invalidate();
     };
 
     const tick = async () => {

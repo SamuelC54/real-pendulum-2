@@ -1,6 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ProfileSlider } from "@/components/ProfileSlider";
-import { useAtomValue } from "jotai";
 import { Crosshair, Home, LocateFixed } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,9 +13,10 @@ import {
   isMoveTargetBlockedByTravelLimit,
 } from "@/lib/jogMath";
 import { boundsFromTravelLimitsCm } from "@/lib/railPositionCm";
-import { grpcBackendModeAtom } from "@/stores/grpcBackendMode";
+import { travelLimitsCm } from "@/lib/machineState";
 import { trpc } from "@/trpc";
 import { useMotorStatusQuery, useSensorStatusQuery } from "@/services/useMotorStatusQuery";
+import { useLimitSwitchModeSubscription } from "@/hooks/useLimitSwitchModeSubscription";
 
 function clamp(n: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, n));
@@ -24,20 +24,17 @@ function clamp(n: number, min: number, max: number): number {
 
 
 export const PositionMoveControls = memo(function PositionMoveControls() {
-  const mode = useAtomValue(grpcBackendModeAtom);
   const utils = trpc.useUtils();
   const status = useMotorStatusQuery();
   const sensor = useSensorStatusQuery();
-  const motionLatch = trpc.motion.latch.get.useQuery(undefined, {
-    refetchInterval: (q) => (q.state.data?.latched ? 400 : 150),
-  });
+  const limitSwitchMode = useLimitSwitchModeSubscription();
 
-  const connected = status.data?.connected ?? false;
-  const sensorConnected = sensor.data?.connected ?? false;
-  const positionNowCm = status.data?.positionCm;
+  const connected = status.data?.connection.cart ?? false;
+  const sensorConnected = sensor.data?.connection.sensor ?? false;
+  const positionNowCm = status.data?.cart.positionCm ?? undefined;
 
-  const limitLeft = sensor.data?.limitLeftPressed ?? false;
-  const limitRight = sensor.data?.limitRightPressed ?? false;
+  const limitLeft = sensor.data?.limitSwitch.leftPressed ?? false;
+  const limitRight = sensor.data?.limitSwitch.rightPressed ?? false;
 
   /** Rising-edge → server snapshots motor position (`rail.limits.record`). */
   const prevLimits = useRef({ L: false, R: false });
@@ -47,36 +44,20 @@ export const PositionMoveControls = memo(function PositionMoveControls() {
   const [maxAccelRpmPerSec, setMaxAccelRpmPerSec] = useState(DEFAULT_PROFILE_ACC_RPM_PER_SEC);
   const [targetCm, setTargetCm] = useState(0);
 
-  const moveSingle = trpc.rail.moveAbsolute.useMutation({
-    onSuccess: () => {
-      void utils.status.get.invalidate();
-      void utils.twin.status.get.invalidate();
-    },
-  });
-  const moveTwin = trpc.twin.rail.moveAbsolute.useMutation({
-    onSuccess: () => {
-      void utils.status.get.invalidate();
-      void utils.twin.status.get.invalidate();
-    },
-  });
-  const moveAbsolute = mode === "twin" ? moveTwin : moveSingle;
+  const invalidateMachineState = useCallback(() => {
+    void utils.machine.state.get.invalidate();
+  }, [utils]);
 
-  const recordSingle = trpc.rail.limits.record.useMutation({
-    onSuccess: () => {
-      void utils.status.get.invalidate();
-      void utils.twin.status.get.invalidate();
-    },
+  const moveAbsolute = trpc.machine.move.toPosition.useMutation({
+    onSuccess: invalidateMachineState,
   });
-  const recordTwin = trpc.twin.rail.limits.record.useMutation({
-    onSuccess: () => {
-      void utils.status.get.invalidate();
-      void utils.twin.status.get.invalidate();
-    },
+
+  const recordTravelLimit = trpc.machine.travelLimits.recordSide.useMutation({
+    onSuccess: invalidateMachineState,
   });
-  const recordTravelLimit = mode === "twin" ? recordTwin : recordSingle;
 
   const busy = moveAbsolute.isPending;
-  const latched = motionLatch.data?.latched === true;
+  const latched = limitSwitchMode.data?.latched === true;
   const disabled = !connected || busy || latched;
 
   /** When serial opens, seed edge detector so the first poll is not a false rising edge. */
@@ -89,7 +70,7 @@ export const PositionMoveControls = memo(function PositionMoveControls() {
 
   useEffect(() => {
     if (!sensorConnected || !connected) return;
-    const pos = status.data?.positionCm;
+    const pos = status.data?.cart.positionCm;
     if (pos === undefined || !Number.isFinite(pos)) return;
 
     if (limitLeft && !prevLimits.current.L) {
@@ -101,11 +82,11 @@ export const PositionMoveControls = memo(function PositionMoveControls() {
     prevLimits.current = { L: limitLeft, R: limitRight };
     // recordTravelLimit.mutateAsync is stable (tRPC / React Query).
     // eslint-disable-next-line react-hooks/exhaustive-deps -- see above
-  }, [connected, sensorConnected, limitLeft, limitRight, status.data?.positionCm]);
+  }, [connected, sensorConnected, limitLeft, limitRight, status.data?.cart.positionCm]);
 
-  const travelLimits = status.data?.travelLimits;
-  const leftStopCm = travelLimits?.leftCm ?? null;
-  const rightStopCm = travelLimits?.rightCm ?? null;
+  const limits = travelLimitsCm(status.data);
+  const leftStopCm = limits.leftCm;
+  const rightStopCm = limits.rightCm;
 
   const {
     targetSliderMin,
@@ -278,21 +259,7 @@ export const PositionMoveControls = memo(function PositionMoveControls() {
       {moveAbsolute.error ? (
         <p className="text-destructive wrap-break-word text-xs">{moveAbsolute.error.message}</p>
       ) : null}
-      {moveAbsolute.data && "real" in moveAbsolute.data ? (
-        <>
-          {!moveAbsolute.data.real.ok && moveAbsolute.data.real.error ? (
-            <p className="text-destructive wrap-break-word text-xs">{moveAbsolute.data.real.error}</p>
-          ) : null}
-          {!moveAbsolute.data.sim.ok && moveAbsolute.data.sim.error ? (
-            <p className="text-destructive wrap-break-word text-xs">
-              Sim move: {moveAbsolute.data.sim.error}
-            </p>
-          ) : null}
-        </>
-      ) : moveAbsolute.data &&
-        !("real" in moveAbsolute.data) &&
-        !moveAbsolute.data.ok &&
-        moveAbsolute.data.error ? (
+      {moveAbsolute.data && !moveAbsolute.data.ok && moveAbsolute.data.error ? (
         <p className="text-destructive wrap-break-word text-xs">{moveAbsolute.data.error}</p>
       ) : null}
     </Card>

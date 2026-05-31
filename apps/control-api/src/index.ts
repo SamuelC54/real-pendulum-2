@@ -8,9 +8,12 @@ import { cliPort, cliString } from "@real-pendulum/app-config/cli";
 import http from "node:http";
 import cors from "cors";
 import { createHTTPHandler } from "@trpc/server/adapters/standalone";
-import "./motionLatchStop.js";
+import "./limitSwitchMode/index.js";
 import { appRouter } from "./router.js";
-import type { GrpcBackendMode } from "./grpcRequestContext.js";
+import {
+  parseControlBackendFromUrl,
+  parseControlBackendHeader,
+} from "./helpers/controlBackendHeader.js";
 
 const motorGrpcUrl = cliString("--motor-grpc-url");
 if (motorGrpcUrl) {
@@ -24,20 +27,13 @@ if (sensorGrpcUrl) {
 
 const port = cliPort("--port", config.controlApi.port);
 
-function parseGrpcBackendMode(header: string | string[] | undefined): GrpcBackendMode {
-  const v = Array.isArray(header) ? header[0] : header;
-  if (typeof v !== "string") return "hardware";
-  const t = v.trim().toLowerCase();
-  if (t === "sim" || t === "simulator") return "sim";
-  if (t === "twin" || t === "digital-twin") return "twin";
-  return "hardware";
-}
-
 const handler = createHTTPHandler({
   router: appRouter,
   createContext({ req }) {
+    const fromParams = parseControlBackendFromUrl(req.url?.split("?")[1]);
+    const header = req.headers["x-control-backend"] ?? req.headers["x-pendulum-backend"];
     return {
-      grpcBackendMode: parseGrpcBackendMode(req.headers["x-pendulum-backend"]),
+      controlBackend: fromParams ?? parseControlBackendHeader(header) ?? undefined,
     };
   },
   basePath: "/trpc/",

@@ -1,160 +1,112 @@
 import { useAtomValue } from "jotai";
-import { grpcBackendModeAtom } from "@/stores/grpcBackendMode";
+
+import {
+  machineStateRefetchInterval,
+  primaryMachineState,
+  primarySourceKey,
+  simulationMachineState,
+  type MachineStateSources,
+  type RailMachineState,
+} from "@/lib/machineState";
+import { controlBackendModeAtom, type ControlBackendMode } from "@/stores/controlBackendMode";
+
 import { trpc } from "@/trpc";
 
-/** Faster polling while connected so Teknic measured position updates smoothly on screen. */
-function motorStatusRefetchInterval(query: {
-  state: { data?: { connected?: boolean } };
-}): number {
-  return query.state.data?.connected ? 300 : 1500;
+export type TwinMachineState = RailMachineState & {
+  twinSim?: RailMachineState;
+};
+
+function withTwinSim(
+  primary: RailMachineState | undefined,
+  sources: MachineStateSources | undefined,
+  mode: ControlBackendMode,
+): TwinMachineState | undefined {
+  if (!primary) return undefined;
+  const sim = mode === "twin" ? simulationMachineState(sources) : undefined;
+  return sim ? { ...primary, twinSim: sim } : primary;
 }
 
-function motorTwinRefetchInterval(query: {
-  state: { data?: { real?: { connected?: boolean }; sim?: { connected?: boolean } } };
-}): number {
-  const d = query.state.data;
-  if (!d) return 1500;
-  return d.real?.connected || d.sim?.connected ? 300 : 1500;
-}
-
-/** Same poll as `useMotorStatusQuery`, but subscribes only to `connected`. Other fields (e.g. rpm) can change every tick without re-rendering observers — avoids cascading rerenders under MotorSessionProvider. */
 export function useMotorStatusConnected() {
-  const mode = useAtomValue(grpcBackendModeAtom);
-  const single = trpc.status.get.useQuery(undefined, {
-    enabled: mode !== "twin",
-    refetchInterval: motorStatusRefetchInterval,
-    select: (row) => row?.connected ?? false,
+  const mode = useAtomValue(controlBackendModeAtom);
+
+  return trpc.machine.state.get.useQuery(undefined, {
+    refetchInterval: machineStateRefetchInterval,
+    select: (row) => {
+      if (!row) return false;
+      if (mode === "twin") {
+        const physical = row.physical;
+        const simulation = row.simulation;
+        return (
+          (physical?.connection.cart ?? false) ||
+          (simulation?.connection.cart ?? false)
+        );
+      }
+      return row[primarySourceKey(mode)]?.connection.cart ?? false;
+    },
   });
-  const twin = trpc.twin.status.get.useQuery(undefined, {
-    enabled: mode === "twin",
-    refetchInterval: motorTwinRefetchInterval,
-    select: (row) => (row?.real.connected ?? false) || (row?.sim.connected ?? false),
-  });
-  return mode === "twin" ? twin : single;
 }
 
-/** Matches **`SensorLedCard`** poll: faster while serial is open. */
-function sensorStatusRefetchInterval(query: {
-  state: { data?: { connected?: boolean } };
-}): number {
-  return query.state.data?.connected ? 80 : 1500;
-}
-
-function sensorTwinRefetchInterval(query: {
-  state: { data?: { real?: { connected?: boolean }; sim?: { connected?: boolean } } };
-}): number {
-  const d = query.state.data;
-  if (!d) return 1500;
-  return d.real?.connected || d.sim?.connected ? 80 : 1500;
-}
-
-/** Subscribes only to Arduino / physical-sensor-service **connected** (hardware side when in twin mode). */
 export function useSensorStatusConnected() {
-  const mode = useAtomValue(grpcBackendModeAtom);
-  const single = trpc.sensor.status.get.useQuery(undefined, {
-    enabled: mode !== "twin",
-    refetchInterval: sensorStatusRefetchInterval,
-    select: (row) => row?.connected ?? false,
-  });
-  const twin = trpc.twin.sensor.status.get.useQuery(undefined, {
-    enabled: mode === "twin",
-    refetchInterval: sensorTwinRefetchInterval,
-    select: (row) => row?.real.connected ?? false,
-  });
-  return mode === "twin" ? twin : single;
-}
+  const mode = useAtomValue(controlBackendModeAtom);
+  const sub = trpc.machine.state.subscribe.useSubscription(undefined);
 
-/** Motor + sensor **real** / **sim** `connected` flags for the twin header badge. */
-export function useTwinLinkageStatus() {
-  const mode = useAtomValue(grpcBackendModeAtom);
-  const motor = trpc.twin.status.get.useQuery(undefined, {
-    enabled: mode === "twin",
-    refetchInterval: motorTwinRefetchInterval,
-    select: (row) => ({
-      hardware: row?.real?.connected ?? false,
-      sim: row?.sim?.connected ?? false,
-    }),
-  });
-  const sensor = trpc.twin.sensor.status.get.useQuery(undefined, {
-    enabled: mode === "twin",
-    refetchInterval: sensorTwinRefetchInterval,
-    select: (row) => ({
-      hardware: row?.real?.connected ?? false,
-      sim: row?.sim?.connected ?? false,
-    }),
-  });
-  const motorRow = motor.data;
-  const sensorRow = sensor.data;
   return {
-    motorHardware: motorRow?.hardware ?? false,
-    sensorHardware: sensorRow?.hardware ?? false,
-    motorSim: motorRow?.sim ?? false,
-    sensorSim: sensorRow?.sim ?? false,
+    ...sub,
+    data:
+      mode === "twin"
+        ? (sub.data?.physical?.connection.sensor ?? false)
+        : (sub.data?.[primarySourceKey(mode)]?.connection.sensor ?? false),
+    isFetching: sub.status === "connecting",
   };
 }
 
-/**
- * Motor status for UI. In **twin** mode, reads `twin.status.get` and merges **`real`** into the top-level
- * shape (so existing screens keep working), plus **`twinSimMotor`** for the simulated plant snapshot.
- */
+export function useTwinLinkageStatus() {
+  const mode = useAtomValue(controlBackendModeAtom);
+  const split = trpc.machine.state.get.useQuery(undefined, {
+    enabled: mode === "twin",
+    refetchInterval: machineStateRefetchInterval,
+    select: (row) => ({
+      motorPhysical: row?.physical?.connection.cart ?? false,
+      sensorPhysical: row?.physical?.connection.sensor ?? false,
+      motorSim: row?.simulation?.connection.cart ?? false,
+      sensorSim: row?.simulation?.connection.sensor ?? false,
+    }),
+  });
+  const row = split.data;
+  return {
+    motorPhysical: row?.motorPhysical ?? false,
+    sensorPhysical: row?.sensorPhysical ?? false,
+    motorSim: row?.motorSim ?? false,
+    sensorSim: row?.sensorSim ?? false,
+  };
+}
+
+/** Primary {@link RailMachineState} for the active backend mode; twin adds `twinSim`. */
 export function useMotorStatusQuery() {
-  const mode = useAtomValue(grpcBackendModeAtom);
-  const single = trpc.status.get.useQuery(undefined, {
-    enabled: mode !== "twin",
-    refetchInterval: motorStatusRefetchInterval,
+  const mode = useAtomValue(controlBackendModeAtom);
+  const q = trpc.machine.state.get.useQuery(undefined, {
+    refetchInterval: machineStateRefetchInterval,
+    select: (row) => withTwinSim(primaryMachineState(row, mode), row, mode),
   });
-  const twin = trpc.twin.status.get.useQuery(undefined, {
-    enabled: mode === "twin",
-    refetchInterval: motorTwinRefetchInterval,
-  });
-
-  if (mode === "twin") {
-    return {
-      ...twin,
-      data: twin.data
-        ? {
-            ...twin.data.real,
-            twinSimMotor: twin.data.sim,
-            twin: true as const,
-          }
-        : undefined,
-    };
-  }
-  return single;
+  return q;
 }
 
-/** Full `{ real, sim }` sensor snapshot; only fetches when backend mode is **twin**. */
 export function useTwinSensorStatusQuery() {
-  const mode = useAtomValue(grpcBackendModeAtom);
-  return trpc.twin.sensor.status.get.useQuery(undefined, {
+  const mode = useAtomValue(controlBackendModeAtom);
+  return trpc.machine.state.subscribe.useSubscription(undefined, {
     enabled: mode === "twin",
-    refetchInterval: sensorTwinRefetchInterval,
   });
 }
 
-/** Sensor status: hardware-only shape in hardware/sim; in twin, maps **`real`** to the same fields as `sensor.status.get`. */
+/** Primary {@link RailMachineState} from SSE; twin adds `twinSim`. */
 export function useSensorStatusQuery() {
-  const mode = useAtomValue(grpcBackendModeAtom);
-  const single = trpc.sensor.status.get.useQuery(undefined, {
-    enabled: mode !== "twin",
-    refetchInterval: sensorStatusRefetchInterval,
-  });
-  const twin = trpc.twin.sensor.status.get.useQuery(undefined, {
-    enabled: mode === "twin",
-    refetchInterval: sensorTwinRefetchInterval,
-  });
-
-  if (mode === "twin") {
-    return {
-      ...twin,
-      data: twin.data
-        ? {
-            ...twin.data.real,
-            twinSimSensor: twin.data.sim,
-            twin: true as const,
-          }
-        : undefined,
-    };
-  }
-  return single;
+  const mode = useAtomValue(controlBackendModeAtom);
+  const sub = trpc.machine.state.subscribe.useSubscription(undefined);
+  const primary = primaryMachineState(sub.data, mode);
+  const data = withTwinSim(primary, sub.data, mode);
+  return {
+    ...sub,
+    data,
+    isFetching: sub.status === "connecting",
+  };
 }

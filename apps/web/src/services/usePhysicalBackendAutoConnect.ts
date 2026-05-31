@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useAtomValue } from "jotai";
 import { resolveSensorPortForAutoConnect } from "@/lib/sensorPortAutoConnect";
-import { grpcBackendModeAtom } from "@/stores/grpcBackendMode";
+import { controlBackendModeAtom } from "@/stores/controlBackendMode";
 import { sensorSerialPortAtom } from "@/stores/sensorSerialPort";
 import { trpc } from "@/trpc";
 import { useConnectMotorMutation } from "./useConnectMotorMutation";
@@ -9,12 +9,12 @@ import { useConnectSensorMutation } from "./useConnectSensorMutation";
 import { useMotorStatusConnected, useSensorStatusConnected } from "./useMotorStatusQuery";
 
 /**
- * In **hardware** backend mode, try once per visit to connect motor + sensor (saved USB port when set).
+ * In **physical** backend mode, try once per visit to connect motor + sensor (saved USB port when set).
  */
-export function useHardwareBackendAutoConnect(): void {
-  const mode = useAtomValue(grpcBackendModeAtom);
+export function usePhysicalBackendAutoConnect(): void {
+  const mode = useAtomValue(controlBackendModeAtom);
   const savedPort = useAtomValue(sensorSerialPortAtom);
-  const active = mode === "hardware";
+  const active = mode === "physical";
   const utils = trpc.useUtils();
   const motorConnected = useMotorStatusConnected();
   const sensorConnected = useSensorStatusConnected();
@@ -49,8 +49,7 @@ export function useHardwareBackendAutoConnect(): void {
     attemptedRef.current = true;
 
     const invalidate = () => {
-      void utils.status.get.invalidate();
-      void utils.sensor.status.get.invalidate();
+      void utils.machine.state.get.invalidate();
     };
 
     void (async () => {

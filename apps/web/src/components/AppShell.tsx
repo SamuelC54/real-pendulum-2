@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { HomingControls } from "@/components/HomingControls";
-import { MotionLatchBanner } from "@/components/MotionLatchBanner";
+import { LimitSwitchModeBanner } from "@/components/LimitSwitchModeBanner";
 import { JogControls } from "@/components/JogControls";
 import { MotorStatusBlocks } from "@/components/MotorStatusBlocks";
 import { PositionMoveControls } from "@/components/PositionMoveControls";
@@ -102,7 +102,7 @@ export function AppShell() {
             : "max-w-7xl",
         )}
       >
-        <MotionLatchBanner />
+        <LimitSwitchModeBanner />
         <div className={page === "control" ? undefined : "hidden"} aria-hidden={page !== "control"}>
           <ControlPage />
         </div>

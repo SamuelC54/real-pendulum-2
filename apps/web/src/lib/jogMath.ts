@@ -19,7 +19,19 @@ export const POSITION_MOVE_VEL_SLIDER_MAX = 4000;
 /** Aligns with **`TeknicCfg::kPositionMoveAccCeilingRpmPerSec`**. */
 export const POSITION_MOVE_ACC_SLIDER_MAX = 50000;
 
+import { config } from "@real-pendulum/app-config";
 import { displayCountsPerCm } from "@/lib/railPositionCm";
+
+/** Teknic/simulation jog: +RPM moves rail in +cm/s direction (matches control-api motionUnits). */
+export function rpmToCmPerSec(rpm: number): number {
+  const mpsPerRpm = config.sim.plant.mpsPerRpm;
+  return -rpm * mpsPerRpm * 100;
+}
+
+export function cmPerSecToRpm(cmPerSec: number): number {
+  const mpsPerRpm = config.sim.plant.mpsPerRpm;
+  return -cmPerSec / (mpsPerRpm * 100);
+}
 
 /** Fallback target slider span (cm) when travel-limit stops are not yet recorded (~±1000 display counts). */
 export const POSITION_TARGET_SLIDER_MIN_CM = -1000 / displayCountsPerCm();
@@ -36,7 +48,7 @@ export type TravelLimitSwitchState = {
   limitRightPressed: boolean;
 };
 
-export type MotionLatchState = {
+export type LimitSwitchModeState = {
   latched: boolean;
   side: "left" | "right" | null;
   towardCenterJog?: "left" | "right" | null;
@@ -44,12 +56,12 @@ export type MotionLatchState = {
 
 /** Jog direction allowed toward 0 cm while latched (left limit → right, etc.). */
 export function towardCenterJogDirection(
-  latch: MotionLatchState | undefined,
+  mode: LimitSwitchModeState | undefined,
 ): "left" | "right" | null {
-  if (!latch?.latched) return null;
-  if (latch.towardCenterJog) return latch.towardCenterJog;
-  if (latch.side === "left") return "right";
-  if (latch.side === "right") return "left";
+  if (!mode?.latched) return null;
+  if (mode.towardCenterJog) return mode.towardCenterJog;
+  if (mode.side === "left") return "right";
+  if (mode.side === "right") return "left";
   return null;
 }
 
@@ -57,10 +69,10 @@ export function towardCenterJogDirection(
 export function isJogBlockedByTravelLimit(
   dir: "left" | "right",
   limits: TravelLimitSwitchState,
-  latch?: MotionLatchState,
+  mode?: LimitSwitchModeState,
 ): boolean {
   if (!limits.connected) return false;
-  if (towardCenterJogDirection(latch) === dir) return false;
+  if (towardCenterJogDirection(mode) === dir) return false;
   if (dir === "left" && limits.limitLeftPressed) return true;
   if (dir === "right" && limits.limitRightPressed) return true;
   return false;
@@ -70,10 +82,10 @@ export function isJogBlockedByTravelLimit(
 export function shouldReleaseJogHoldForTravelLimit(
   holding: "left" | "right" | null,
   limits: TravelLimitSwitchState,
-  latch?: MotionLatchState,
+  mode?: LimitSwitchModeState,
 ): boolean {
   if (!holding) return false;
-  return isJogBlockedByTravelLimit(holding, limits, latch);
+  return isJogBlockedByTravelLimit(holding, limits, mode);
 }
 
 export function isMoveTargetBlockedByTravelLimit(
@@ -90,32 +102,32 @@ export function isMoveTargetBlockedByTravelLimit(
 }
 
 /** While latched, only the toward-center jog direction is enabled. */
-export function isJogBlockedByMotionLatch(
+export function isJogBlockedWhileLatched(
   dir: "left" | "right",
-  latch: MotionLatchState | undefined,
+  mode: LimitSwitchModeState | undefined,
 ): boolean {
-  const toward = towardCenterJogDirection(latch);
+  const toward = towardCenterJogDirection(mode);
   if (!toward) return false;
   return dir !== toward;
 }
 
-export function isMoveTargetBlockedByMotionLatch(
+export function isMoveTargetBlockedWhileLatched(
   targetCm: number,
   currentCm: number | undefined,
-  latch: MotionLatchState | undefined,
+  mode: LimitSwitchModeState | undefined,
 ): boolean {
-  if (!latch?.latched || !latch.side || currentCm === undefined || !Number.isFinite(currentCm)) {
+  if (!mode?.latched || !mode.side || currentCm === undefined || !Number.isFinite(currentCm)) {
     return false;
   }
-  if (latch.side === "left" && targetCm < currentCm) return true;
-  if (latch.side === "right" && targetCm > currentCm) return true;
+  if (mode.side === "left" && targetCm < currentCm) return true;
+  if (mode.side === "right" && targetCm > currentCm) return true;
   return false;
 }
 
-export function shouldReleaseJogHoldForMotionLatch(
+export function shouldReleaseJogHoldWhileLatched(
   holding: "left" | "right" | null,
-  latch: MotionLatchState | undefined,
+  mode: LimitSwitchModeState | undefined,
 ): boolean {
   if (!holding) return false;
-  return isJogBlockedByMotionLatch(holding, latch);
+  return isJogBlockedWhileLatched(holding, mode);
 }

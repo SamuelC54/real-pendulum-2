@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./router": "./src/router.ts"
+    "./router": "./src/router.ts",
+    "./types": "./src/control/types.ts"
   },
   "scripts": {
     "dev": "tsx watch src/index.ts",

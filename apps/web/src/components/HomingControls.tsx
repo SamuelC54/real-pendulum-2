@@ -3,8 +3,9 @@ import { useAtomValue } from "jotai";
 import { Flag, Home, LocateFixed } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useSimBackendAutoConnect } from "@/services/useSimBackendAutoConnect";
-import { grpcBackendModeAtom } from "@/stores/grpcBackendMode";
+import { useSimulationBackendAutoConnect } from "@/services/useSimulationBackendAutoConnect";
+import { controlBackendModeAtom } from "@/stores/controlBackendMode";
+import { travelLimitsCm } from "@/lib/machineState";
 import { trpc } from "@/trpc";
 import {
   useMotorStatusConnected,
@@ -95,55 +96,25 @@ function HomingResultDetail({ title, railHomeResult }: { title: string; railHome
   );
 }
 
-function TwinWireErrors({
-  label,
-  data,
-}: {
-  label: string;
-  data: { real: { ok: boolean; error?: string }; sim: { ok: boolean; error?: string } } | undefined;
-}) {
-  if (!data) return null;
-  const lines: string[] = [];
-  if (!data.real.ok && data.real.error) lines.push(`${label} hardware: ${data.real.error}`);
-  if (!data.sim.ok && data.sim.error) lines.push(`${label} simulation: ${data.sim.error}`);
-  if (lines.length === 0) return null;
-  return (
-    <div className="text-destructive flex flex-col gap-1 text-xs">
-      {lines.map((line) => (
-        <p key={line}>{line}</p>
-      ))}
-    </div>
-  );
-}
-
 export const HomingControls = memo(function HomingControls() {
-  const mode = useAtomValue(grpcBackendModeAtom);
-  const simAuto = useSimBackendAutoConnect();
+  const mode = useAtomValue(controlBackendModeAtom);
+  const simAuto = useSimulationBackendAutoConnect();
   const utils = trpc.useUtils();
   const motorStatus = useMotorStatusQuery();
   const motorConnected = useMotorStatusConnected().data ?? false;
   const sensorConnected = useSensorStatusConnected().data ?? false;
 
   const invalidateMotor = () => {
-    void utils.status.get.invalidate();
-    void utils.twin.status.get.invalidate();
+    void utils.machine.state.get.invalidate();
   };
 
-  const homeSingle = trpc.controllers.start.useMutation({
+  const home = trpc.controllers.start.useMutation({
     onSuccess: () => {
       invalidateMotor();
-      void utils.sensor.status.get.invalidate();
+      void utils.machine.state.get.invalidate();
       void utils.controllers.status.invalidate();
     },
   });
-  const homeTwin = trpc.controllers.start.useMutation({
-    onSuccess: () => {
-      invalidateMotor();
-      void utils.sensor.status.get.invalidate();
-      void utils.controllers.status.invalidate();
-    },
-  });
-  const home = mode === "twin" ? homeTwin : homeSingle;
   const controllerStatus = trpc.controllers.status.useQuery(undefined, {
     refetchInterval: (q) =>
       q.state.data?.active || home.isPending ? 500 : false,
@@ -153,17 +124,11 @@ export const HomingControls = memo(function HomingControls() {
     void home.mutateAsync({ id: "rail_homing", params: {} });
   }, [home]);
 
-  const zeroSingle = trpc.rail.zeroAtCurrent.useMutation({ onSuccess: invalidateMotor });
-  const zeroTwin = trpc.twin.rail.zeroAtCurrent.useMutation({ onSuccess: invalidateMotor });
-  const zeroAtCurrent = mode === "twin" ? zeroTwin : zeroSingle;
-
-  const recordSingle = trpc.rail.limits.record.useMutation({ onSuccess: invalidateMotor });
-  const recordTwin = trpc.twin.rail.limits.record.useMutation({ onSuccess: invalidateMotor });
-  const recordLimit = mode === "twin" ? recordTwin : recordSingle;
-
-  const spanSingle = trpc.rail.limits.setSymmetricSpan.useMutation({ onSuccess: invalidateMotor });
-  const spanTwin = trpc.twin.rail.limits.setSymmetricSpan.useMutation({ onSuccess: invalidateMotor });
-  const setSymmetricSpan = mode === "twin" ? spanTwin : spanSingle;
+  const zeroAtCurrent = trpc.machine.zeroAtCurrent.useMutation({ onSuccess: invalidateMotor });
+  const recordLimit = trpc.machine.travelLimits.recordSide.useMutation({ onSuccess: invalidateMotor });
+  const setSymmetricSpan = trpc.machine.travelLimits.setSymmetricSpan.useMutation({
+    onSuccess: invalidateMotor,
+  });
 
   const [switchDistanceCm, setSwitchDistanceCm] = useState(20);
 
@@ -180,10 +145,10 @@ export const HomingControls = memo(function HomingControls() {
   }, [setSymmetricSpan, switchDistanceCm]);
 
   const railHomeResult = controllerStatus.data?.homingResult ?? undefined;
-  const positionCm = motorStatus.data?.positionCm;
-  const travelLimits = motorStatus.data?.travelLimits;
-  const leftStopCm = travelLimits?.leftCm;
-  const rightStopCm = travelLimits?.rightCm;
+  const positionCm = motorStatus.data?.cart.positionCm;
+  const limits = travelLimitsCm(motorStatus.data);
+  const leftStopCm = limits.leftCm;
+  const rightStopCm = limits.rightCm;
 
   return (
     <Card className="flex flex-col gap-4 p-6">
@@ -212,7 +177,7 @@ export const HomingControls = memo(function HomingControls() {
       </Button>
       {!motorConnected ? (
         <p className="text-muted-foreground text-xs">
-          {mode === "sim"
+          {mode === "simulation"
             ? simAuto.pending
               ? "Connecting to simulator (motor)…"
               : simAuto.lastError ?? "Waiting for simulation — run npm run dev (Docker stack)."
@@ -221,7 +186,7 @@ export const HomingControls = memo(function HomingControls() {
       ) : null}
       {!sensorConnected ? (
         <p className="text-muted-foreground text-xs">
-          {mode === "sim"
+          {mode === "simulation"
             ? simAuto.pending
               ? "Connecting to simulator (sensor)…"
               : simAuto.lastError ?? "Waiting for simulation — limits and encoder come from the plant."
@@ -231,15 +196,7 @@ export const HomingControls = memo(function HomingControls() {
       {home.error ? (
         <p className="text-destructive text-xs">{home.error.message}</p>
       ) : null}
-      {railHomeResult && "real" in railHomeResult ? (
-        <div className="flex flex-col gap-4">
-          <HomingResultDetail title="Hardware" railHomeResult={railHomeResult.real} />
-          <HomingResultDetail title="Simulation" railHomeResult={railHomeResult.sim} />
-        </div>
-      ) : null}
-      {railHomeResult && !("real" in railHomeResult) ? (
-        <HomingResultDetail title="Rail" railHomeResult={railHomeResult} />
-      ) : null}
+      {railHomeResult ? <HomingResultDetail title="Rail" railHomeResult={railHomeResult} /> : null}
 
       <div className="border-border flex flex-col gap-3 border-t pt-4">
         <span className="text-muted-foreground text-sm font-medium">Manual</span>
@@ -356,15 +313,6 @@ export const HomingControls = memo(function HomingControls() {
         ) : null}
         {setSymmetricSpan.error ? (
           <p className="text-destructive text-xs">{setSymmetricSpan.error.message}</p>
-        ) : null}
-        {mode === "twin" && zeroAtCurrent.data && "real" in zeroAtCurrent.data ? (
-          <TwinWireErrors label="Zero" data={zeroAtCurrent.data} />
-        ) : null}
-        {mode === "twin" && recordLimit.data && "real" in recordLimit.data ? (
-          <TwinWireErrors label="Limit" data={recordLimit.data} />
-        ) : null}
-        {mode === "twin" && setSymmetricSpan.data && "real" in setSymmetricSpan.data ? (
-          <TwinWireErrors label="Span" data={setSymmetricSpan.data} />
         ) : null}
       </div>
     </Card>

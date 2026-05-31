@@ -11,11 +11,14 @@ vi.mock("@/components/RailPendulumSchematic", () => ({
 vi.mock("@/services/useMotorStatusQuery", () => ({
   useSensorStatusQuery: () => ({
     data: {
-      connected: true,
-      limitLeftPressed: false,
-      limitRightPressed: false,
+      connection: { sensor: true },
+      limitSwitch: { leftPressed: false, rightPressed: false },
     },
   }),
+}));
+
+vi.mock("@/hooks/useLimitSwitchModeSubscription", () => ({
+  useLimitSwitchModeSubscription: () => ({ data: undefined }),
 }));
 
 vi.mock("@/trpc", () => ({

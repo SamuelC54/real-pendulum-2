@@ -9,7 +9,7 @@ import {
 } from "react";
 import { useAtomValue, useSetAtom } from "jotai";
 import { dispatchJogForceStop } from "@/lib/keyboardJog";
-import { jogRpmForDirection } from "@/lib/jogMath";
+import { jogRpmForDirection, rpmToCmPerSec } from "@/lib/jogMath";
 import { holdingAtom, jogAccelRpmPerSecAtom, jogRpmAtom, type JogHold } from "@/stores/jog";
 import { trpc } from "@/trpc";
 import { useConnectMotorMutation } from "./useConnectMotorMutation";
@@ -17,6 +17,7 @@ import { useDisconnectMotorMutation } from "./useDisconnectMotorMutation";
 import { useJogSetVelocityMutation } from "./useJogSetVelocityMutation";
 import { useJogStopMutation } from "./useJogStopMutation";
 import { useMotorStatusConnected } from "./useMotorStatusQuery";
+import { useLimitSwitchModeSubscription } from "@/hooks/useLimitSwitchModeSubscription";
 
 export type MotorSessionValue = {
   connect: ReturnType<typeof useConnectMotorMutation>;
@@ -43,9 +44,7 @@ export function MotorSessionProvider({ children }: { children: ReactNode }) {
   const { data: connected = false } = useMotorStatusConnected();
   const jogRpm = useAtomValue(jogRpmAtom);
   const jogAccelRpmPerSec = useAtomValue(jogAccelRpmPerSecAtom);
-  const motionLatch = trpc.motion.latch.get.useQuery(undefined, {
-    refetchInterval: (q) => (q.state.data?.latched ? 400 : 150),
-  });
+  const limitSwitchMode = useLimitSwitchModeSubscription();
   const utils = trpc.useUtils();
   const connect = useConnectMotorMutation();
   const disconnect = useDisconnectMotorMutation();
@@ -63,8 +62,7 @@ export function MotorSessionProvider({ children }: { children: ReactNode }) {
   const stopThrottleRef = useRef(0);
 
   const invalidateMotorQueries = useCallback(() => {
-    void utils.status.get.invalidate();
-    void utils.twin.status.get.invalidate();
+    void utils.machine.state.get.invalidate();
   }, [utils]);
 
   const connectionBusy = connect.isPending || disconnect.isPending;
@@ -118,19 +116,13 @@ export function MotorSessionProvider({ children }: { children: ReactNode }) {
     motorDirRef.current = dir;
     if (jogEpochRef.current !== epoch) return;
 
+    const rpm = jogRpmForDirection(dir, jogRpm);
     const result = await setVelocity.mutateAsync({
-      rpm: jogRpmForDirection(dir, jogRpm),
+      cmPerSec: rpmToCmPerSec(rpm),
       maxAccelerationRpmPerSec: jogAccelRpmPerSec,
     });
-    if ("real" in result) {
-      if (!result.real.ok) {
-        console.warn("[jog] setVelocity (hardware) rejected:", result.real.error);
-        motorDirRef.current = null;
-        setHolding(null);
-        return;
-      }
-    } else if (!result.ok) {
-      console.warn("[jog] setVelocity rejected:", result.error);
+    if (!result.ok) {
+      console.warn("[jog] set rejected:", result.error);
       motorDirRef.current = null;
       setHolding(null);
       return;
@@ -198,7 +190,7 @@ export function MotorSessionProvider({ children }: { children: ReactNode }) {
 
   /** On latch rising edge: clear jog UI only (control-api stops motors via stopAllMotionOnLatch). */
   useEffect(() => {
-    const latched = motionLatch.data?.latched === true;
+    const latched = limitSwitchMode.data?.latched === true;
     if (latched && !prevLatchedRef.current) {
       jogEpochRef.current += 1;
       pointerDirRef.current = null;
@@ -207,21 +199,14 @@ export function MotorSessionProvider({ children }: { children: ReactNode }) {
       dispatchJogForceStop();
     }
     prevLatchedRef.current = latched;
-  }, [motionLatch.data?.latched, setHolding]);
+  }, [limitSwitchMode.data?.latched, setHolding]);
 
   const connectMotor = useCallback(async () => {
     connect.reset();
     try {
       const r = await connect.mutateAsync();
       invalidateMotorQueries();
-      if ("real" in r) {
-        if (!r.real.ok && r.real.error) {
-          console.warn("[jog] motor connect (hardware) failed:", r.real.error);
-        }
-        if (!r.sim.ok && r.sim.error) {
-          console.warn("[jog] motor connect (sim) failed:", r.sim.error);
-        }
-      } else if (!r.ok && r.error) {
+      if (!r.ok && r.error) {
         console.warn("[jog] connect failed:", r.error);
       }
     } catch (e) {

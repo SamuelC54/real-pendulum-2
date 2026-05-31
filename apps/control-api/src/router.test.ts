@@ -14,8 +14,6 @@ vi.mock("@real-pendulum/physical-motor-service/sdk", () => ({
   zeroMeasuredPosition: vi.fn(),
 }));
 
-vi.mock("./homing.js", () => ({}));
-
 vi.mock("@real-pendulum/simulation/client", () => ({
   physicsSimHealthCheck: vi.fn(async () => true),
   physicsSimGetState: vi.fn(async () => ({
@@ -56,10 +54,11 @@ vi.mock("@real-pendulum/physical-sensor-service/sdk", () => ({
 }));
 
 import * as motor from "@real-pendulum/physical-motor-service/sdk";
-import * as sensor from "@real-pendulum/physical-sensor-service/sdk";
 import * as physicsSim from "@real-pendulum/simulation/client";
+import * as sensor from "@real-pendulum/physical-sensor-service/sdk";
 import { resetTravelLimitsStateForTests } from "./railTravelLimits.js";
 import { appRouter } from "./router.js";
+
 describe("appRouter (motor mocked)", () => {
   beforeEach(() => {
     vi.mocked(motor.connectMotor).mockReset();
@@ -81,55 +80,68 @@ describe("appRouter (motor mocked)", () => {
     resetTravelLimitsStateForTests();
   });
 
-  it("status.get returns friendly detail when motor is unreachable", async () => {
+  it("machine.state.get returns friendly detail when motor is unreachable", async () => {
     vi.mocked(motor.getMotorStatus).mockRejectedValue(
       Object.assign(new Error("14 UNAVAILABLE: Connection refused"), { code: 14 }),
     );
-    const caller = appRouter.createCaller({});
-    const res = await caller.status.get();
-    expect(res.connected).toBe(false);
-    expect(res.commandedRpm).toBeCloseTo(0);
-    expect(res.travelLimits).toEqual({ leftCm: null, rightCm: null });
-    expect(res.detail).toContain("Motor service not reachable at http://127.0.0.1:50051");
+    const caller = appRouter.createCaller({ controlBackend: "physical" });
+    const res = await caller.machine.state.get();
+    const state = res.physical!;
+    expect(state.connection.cart).toBe(false);
+    expect(state.cart.commandedCmPerSec).toBeCloseTo(0);
+    expect(state.cart.travelLimitsCm).toEqual({ left: null, right: null });
+    expect(state.error).toContain("Motor service not reachable at http://127.0.0.1:50051");
   });
 
-  it("status.get returns live status when client succeeds", async () => {
+  it("machine.state.get returns live status when client succeeds", async () => {
     vi.mocked(motor.getMotorStatus).mockResolvedValue({
       connected: true,
       commandedRpm: 12.5,
       detail: "ok",
       measuredPosition: 7,
     });
-    const caller = appRouter.createCaller({});
-    const res = await caller.status.get();
-    expect(res.connected).toBe(true);
-    expect(res.commandedRpm).toBeCloseTo(12.5);
-    expect(res.detail).toBe("ok");
-    expect(res.positionCm).toBeCloseTo(-7 / 232.8, 6);
-    expect(res.travelLimits).toEqual({ leftCm: null, rightCm: null });
+    const caller = appRouter.createCaller({ controlBackend: "physical" });
+    const res = await caller.machine.state.get();
+    const state = res.physical!;
+    expect(state.connection.cart).toBe(true);
+    expect(state.cart.commandedCmPerSec).toBeCloseTo(-12.5 * 0.0007 * 100);
+    expect(state.cart.positionCm).toBeCloseTo(-7 / 232.8, 6);
+    expect(state.cart.travelLimitsCm).toEqual({ left: null, right: null });
   });
 
-  it("connection.connect wraps motor errors", async () => {
+  it("machine.connect wraps motor errors", async () => {
     vi.mocked(motor.connectMotor).mockRejectedValue(new Error("ECONNREFUSED"));
-    const caller = appRouter.createCaller({});
-    await expect(caller.connection.connect()).rejects.toThrow(/Motor service not reachable/);
+    const caller = appRouter.createCaller({ controlBackend: "physical" });
+    await expect(caller.machine.connect()).rejects.toThrow(/Connect failed|ECONNREFUSED/);
   });
 
-  it("connection.connect returns motor result on success", async () => {
+  it("machine.connect returns motor result on success", async () => {
     vi.mocked(motor.connectMotor).mockResolvedValue({ ok: true, error: "" });
-    const caller = appRouter.createCaller({});
-    await expect(caller.connection.connect()).resolves.toEqual({ ok: true, error: "" });
+    const caller = appRouter.createCaller({ controlBackend: "physical" });
+    await expect(caller.machine.connect()).resolves.toEqual({ ok: true, error: "" });
   });
 
-  it("jog.setVelocity forwards rpm", async () => {
+  it("machine.jog.set forwards cm/s as rpm to motor", async () => {
     vi.mocked(motor.setJogVelocityRpm).mockResolvedValue({ ok: true, error: "" });
-    const caller = appRouter.createCaller({});
-    await caller.jog.setVelocity({ rpm: 100 });
+    vi.mocked(motor.getMotorStatus).mockResolvedValue({
+      connected: true,
+      commandedRpm: 0,
+      detail: "ok",
+      measuredPosition: 0,
+    });
+    const caller = appRouter.createCaller({ controlBackend: "physical" });
+    await caller.machine.jog.set({ cmPerSec: -7 });
     expect(motor.setJogVelocityRpm).toHaveBeenCalledWith(expect.closeTo(100));
   });
 
-  it("jog.setVelocity clamps rpm when left limit is pressed", async () => {
+  it("machine.jog.set blocks jog when left limit is pressed", async () => {
     vi.mocked(motor.setJogVelocityRpm).mockResolvedValue({ ok: true, error: "" });
+    vi.mocked(motor.getMotorStatus).mockResolvedValue({
+      connected: true,
+      commandedRpm: 0,
+      detail: "ok",
+      measuredPosition: 0,
+    });
     vi.mocked(sensor.getSensorStatus).mockResolvedValue({
       connected: true,
       ledOn: false,
@@ -139,26 +151,26 @@ describe("appRouter (motor mocked)", () => {
       limitLeftPressed: true,
       limitRightPressed: false,
     });
-    const caller = appRouter.createCaller({});
-    const res = await caller.jog.setVelocity({ rpm: 100 });
+    const caller = appRouter.createCaller({ controlBackend: "physical" });
+    const res = await caller.machine.jog.set({ cmPerSec: -7 });
     expect(res.ok).toBe(false);
     expect(motor.setJogVelocityRpm).not.toHaveBeenCalled();
   });
 
-  it("rail.limits.record stores display count from motor measured position", async () => {
+  it("machine.travelLimits.recordSide stores limit from cart position", async () => {
     vi.mocked(motor.getMotorStatus).mockResolvedValue({
       connected: true,
       commandedRpm: 0,
       detail: "ok",
       measuredPosition: 42,
     });
-    const caller = appRouter.createCaller({});
-    await caller.rail.limits.record({ side: "left" });
-    const st = await caller.status.get();
-    expect(st.travelLimits?.leftCm).toBeCloseTo(-42 / 232.8, 6);
+    const caller = appRouter.createCaller({ controlBackend: "physical" });
+    await caller.machine.travelLimits.recordSide({ side: "left" });
+    const st = await caller.machine.state.get();
+    expect(st.physical!.cart.travelLimitsCm.left).toBeCloseTo(-42 / 232.8, 6);
   });
 
-  it("rail.zeroAtCurrent calls Teknic zero when motor is connected", async () => {
+  it("machine.zeroAtCurrent calls Teknic zero when motor is connected", async () => {
     vi.mocked(motor.getMotorStatus).mockResolvedValue({
       connected: true,
       commandedRpm: 0,
@@ -166,66 +178,69 @@ describe("appRouter (motor mocked)", () => {
       measuredPosition: 12,
     });
     vi.mocked(motor.zeroMeasuredPosition).mockResolvedValue({ ok: true, error: "" });
-    const caller = appRouter.createCaller({});
-    await expect(caller.rail.zeroAtCurrent()).resolves.toEqual({ ok: true });
+    const caller = appRouter.createCaller({ controlBackend: "physical" });
+    await expect(caller.machine.zeroAtCurrent()).resolves.toEqual({ ok: true });
     expect(motor.zeroMeasuredPosition).toHaveBeenCalledTimes(1);
   });
 
-  it("rail.limits.setSymmetricSpan sets left/right from current position ± half span", async () => {
+  it("machine.travelLimits.setSymmetricSpan sets left/right from current position ± half span", async () => {
     vi.mocked(motor.getMotorStatus).mockResolvedValue({
       connected: true,
       commandedRpm: 0,
       detail: "ok",
       measuredPosition: 0,
     });
-    const caller = appRouter.createCaller({});
-    const r = await caller.rail.limits.setSymmetricSpan({ halfSpanCm: 20 });
+    const caller = appRouter.createCaller({ controlBackend: "physical" });
+    const r = await caller.machine.travelLimits.setSymmetricSpan({ halfSpanCm: 20 });
     expect(r.ok).toBe(true);
     expect(r.centerCm).toBeCloseTo(0, 9);
     expect(r.leftCm).toBeCloseTo(-20, 9);
     expect(r.rightCm).toBeCloseTo(20, 9);
-    const st = await caller.status.get();
-    expect(st.travelLimits?.leftCm).toBeCloseTo(-20, 6);
-    expect(st.travelLimits?.rightCm).toBeCloseTo(20, 6);
+    const st = await caller.machine.state.get();
+    expect(st.physical!.cart.travelLimitsCm.left).toBeCloseTo(-20, 6);
+    expect(st.physical!.cart.travelLimitsCm.right).toBeCloseTo(20, 6);
   });
 
-  it("rail.zeroAtCurrent fails when motor is not connected", async () => {
+  it("machine.zeroAtCurrent zeros simulation display frame", async () => {
+    vi.mocked(motor.getMotorStatus).mockResolvedValue({
+      connected: true,
+      commandedRpm: 0,
+      detail: "ok",
+      measuredPosition: 0,
+    });
+    const caller = appRouter.createCaller({ controlBackend: "simulation" });
+    await expect(caller.machine.zeroAtCurrent()).resolves.toEqual({ ok: true });
+    const st = await caller.machine.state.get();
+    expect(st.simulation!.cart.positionCm).toBeCloseTo(0, 6);
+  });
+
+  it("machine.zeroAtCurrent fails when motor is not connected", async () => {
     vi.mocked(motor.zeroMeasuredPosition).mockClear();
     vi.mocked(motor.getMotorStatus).mockResolvedValue({
       connected: false,
       commandedRpm: 0,
       detail: "",
     });
-    const caller = appRouter.createCaller({});
-    await expect(caller.rail.zeroAtCurrent()).rejects.toThrow(/Motor is not connected/);
+    const caller = appRouter.createCaller({ controlBackend: "physical" });
+    await expect(caller.machine.zeroAtCurrent()).rejects.toThrow(/Motor is not connected/);
     expect(motor.zeroMeasuredPosition).not.toHaveBeenCalled();
   });
 
-  it("twin.connection.connect returns real ok when simulation is down", async () => {
-    vi.mocked(motor.connectMotor).mockResolvedValue({ ok: true, error: "" });
-    vi.mocked(physicsSim.physicsSimHealthCheck).mockResolvedValueOnce(false);
-    const caller = appRouter.createCaller({});
-    const r = await caller.twin.connection.connect();
-    expect(r.real).toEqual({ ok: true, error: "" });
-    expect(r.sim.ok).toBe(false);
-    expect(r.sim.error).toContain("simulation");
-  });
-
-  it("twin.status.get returns real and sim motor snapshots", async () => {
+  it("machine.state.get returns physical and simulation sources in twin mode", async () => {
     vi.mocked(motor.getMotorStatus).mockResolvedValue({
       connected: true,
       commandedRpm: 3,
       detail: "ok",
       measuredPosition: 9,
     });
-    const caller = appRouter.createCaller({});
-    const r = await caller.twin.status.get();
-    expect(r.real.connected).toBe(true);
-    expect(r.real.commandedRpm).toBe(3);
-    expect(r.sim.connected).toBe(true);
-    expect(r.sim.commandedRpm).toBe(3);
-    expect(r.real.travelLimits).toEqual({ leftCm: null, rightCm: null });
-    expect(r.sim.travelLimits).toEqual({ leftCm: null, rightCm: null });
-    expect(r.real.positionCm).toBeCloseTo(-9 / 232.8, 6);
+    const caller = appRouter.createCaller({ controlBackend: "twin" });
+    const r = await caller.machine.state.get();
+    expect(r.physical!.connection.cart).toBe(true);
+    expect(r.physical!.cart.commandedCmPerSec).toBeCloseTo(-3 * 0.0007 * 100);
+    expect(r.simulation!.connection.cart).toBe(true);
+    expect(r.simulation!.cart.commandedCmPerSec).toBeCloseTo(-3 * 0.0007 * 100);
+    expect(r.physical!.cart.travelLimitsCm).toEqual({ left: null, right: null });
+    expect(r.simulation!.cart.travelLimitsCm).toEqual({ left: null, right: null });
+    expect(r.physical!.cart.positionCm).toBeCloseTo(-9 / 232.8, 6);
   });
 });

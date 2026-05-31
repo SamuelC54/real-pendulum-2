@@ -1,6 +1,5 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import { displayCountsPerCm } from "./railPositionCm.js";
-import { withGrpcBackendMode } from "./grpcRequestContext.js";
 import {
   clearTravelLimits,
   getTravelLimitDisplays,
@@ -55,12 +54,10 @@ describe("railTravelLimits", () => {
   });
 
   it("isolates travel limits between hardware and sim backend modes", () => {
-    recordTravelLimitFromTeknicMeasured(10, "left");
-    expect(getTravelLimitDisplays().left).toBe(-10);
-    withGrpcBackendMode("sim", () => {
-      recordTravelLimitFromTeknicMeasured(20, "left");
-      expect(getTravelLimitDisplays().left).toBe(-20);
-    });
-    expect(getTravelLimitDisplays().left).toBe(-10);
+    recordTravelLimitFromTeknicMeasured(10, "left", "physical");
+    expect(getTravelLimitDisplays("physical").left).toBe(-10);
+    recordTravelLimitFromTeknicMeasured(20, "left", "simulation");
+    expect(getTravelLimitDisplays("simulation").left).toBe(-20);
+    expect(getTravelLimitDisplays("physical").left).toBe(-10);
   });
 });

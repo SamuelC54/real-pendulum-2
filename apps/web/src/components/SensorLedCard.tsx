@@ -12,9 +12,9 @@ import { Card } from "@/components/ui/card";
 import { EncoderDial } from "@/components/EncoderDial";
 import { LimitSwitchIndicators } from "@/components/LimitSwitchIndicators";
 import { Button } from "@/components/ui/button";
-import { grpcBackendModeAtom } from "@/stores/grpcBackendMode";
+import { controlBackendModeAtom } from "@/stores/controlBackendMode";
 import { sensorSerialPortAtom } from "@/stores/sensorSerialPort";
-import { useSimBackendAutoConnect } from "@/services/useSimBackendAutoConnect";
+import { useSimulationBackendAutoConnect } from "@/services/useSimulationBackendAutoConnect";
 import { useSensorStatusQuery } from "@/services/useMotorStatusQuery";
 import { trpc } from "@/trpc";
 
@@ -28,18 +28,9 @@ function portLabel(p: {
   return extra ? `${p.path} — ${extra}` : p.path;
 }
 
-type SensorConnectResult =
-  | { ok: boolean; error: string }
-  | { real: { ok: boolean; error: string }; sim: { ok: boolean; error: string } };
-
-function hardwareSensorConnectOk(data: SensorConnectResult, twin: boolean): boolean {
-  if (twin) return "real" in data && data.real.ok;
-  return "ok" in data && data.ok;
-}
-
 export function SensorLedCard() {
-  const mode = useAtomValue(grpcBackendModeAtom);
-  const simAuto = useSimBackendAutoConnect();
+  const mode = useAtomValue(controlBackendModeAtom);
+  const simAuto = useSimulationBackendAutoConnect();
   const utils = trpc.useUtils();
   const [serialPort, setSerialPort] = useAtom(sensorSerialPortAtom);
 
@@ -50,69 +41,46 @@ export function SensorLedCard() {
   const status = useSensorStatusQuery();
 
   const invalidateSensorQueries = useCallback(() => {
-    void utils.sensor.status.get.invalidate();
-    void utils.twin.sensor.status.get.invalidate();
+    void utils.machine.state.get.invalidate();
   }, [utils]);
 
-  const onSensorConnectSuccess = useCallback(
-    (data: SensorConnectResult, variables: { serialPort?: string }) => {
+  const connect = trpc.sensor.connection.connect.useMutation({
+    onSuccess: (data, variables) => {
       invalidateSensorQueries();
       const port = variables.serialPort?.trim();
-      if (port && hardwareSensorConnectOk(data, mode === "twin")) {
+      if (port && data.ok) {
         setSerialPort(port);
       }
     },
-    [invalidateSensorQueries, mode, setSerialPort],
-  );
+  });
 
-  const connectSingle = trpc.sensor.connection.connect.useMutation({
-    onSuccess: onSensorConnectSuccess,
+  const disconnect = trpc.sensor.connection.disconnect.useMutation({
+    onSuccess: invalidateSensorQueries,
   });
-  const connectTwin = trpc.twin.sensor.connection.connect.useMutation({
-    onSuccess: onSensorConnectSuccess,
-  });
-  const connect = mode === "twin" ? connectTwin : connectSingle;
 
-  const disconnectSingle = trpc.sensor.connection.disconnect.useMutation({
+  const setLed = trpc.machine.led.set.useMutation({
     onSuccess: invalidateSensorQueries,
   });
-  const disconnectTwin = trpc.twin.sensor.connection.disconnect.useMutation({
-    onSuccess: invalidateSensorQueries,
-  });
-  const disconnect = mode === "twin" ? disconnectTwin : disconnectSingle;
-
-  const toggleSingle = trpc.sensor.led.toggle.useMutation({
-    onSuccess: invalidateSensorQueries,
-  });
-  const toggleTwin = trpc.twin.sensor.led.toggle.useMutation({
-    onSuccess: invalidateSensorQueries,
-  });
-  const toggleLed = mode === "twin" ? toggleTwin : toggleSingle;
 
   const flashFirmware = trpc.sensor.firmware.flash.useMutation({
     onSuccess: async () => {
-      await utils.sensor.status.get.invalidate();
-      await utils.twin.sensor.status.get.invalidate();
+      await utils.machine.state.get.invalidate();
       await utils.sensor.serial.list.invalidate();
     },
   });
 
-  const resetSingle = trpc.sensor.encoder.reset.useMutation({
+  const resetEncoder = trpc.sensor.encoder.reset.useMutation({
     onSuccess: invalidateSensorQueries,
   });
-  const resetTwin = trpc.twin.sensor.encoder.reset.useMutation({
-    onSuccess: invalidateSensorQueries,
-  });
-  const resetEncoder = mode === "twin" ? resetTwin : resetSingle;
 
   const ports = portsQuery.data ?? [];
   const busy =
     connect.isPending ||
     disconnect.isPending ||
-    toggleLed.isPending ||
+    setLed.isPending ||
     flashFirmware.isPending ||
     resetEncoder.isPending;
-  const connected = status.data?.connected ?? false;
+  const connected = status.data?.connection.sensor ?? false;
 
   /** When exactly one device is present, use it; otherwise the user must choose. */
   const portToConnect =
@@ -122,19 +90,9 @@ export function SensorLedCard() {
 
   const connectError =
     connect.error?.message ??
-    (connect.isSuccess && connect.data && "real" in connect.data
-      ? [
-          !connect.data.real.ok ? connect.data.real.error : null,
-          !connect.data.sim.ok ? connect.data.sim.error : null,
-        ]
-          .filter(Boolean)
-          .join(" · ")
-      : connect.isSuccess && connect.data && "ok" in connect.data && !connect.data.ok
-        ? connect.data.error
-        : undefined);
+    (connect.isSuccess && connect.data && !connect.data.ok ? connect.data.error : undefined);
 
-  const flashPort =
-    portToConnect.trim() || status.data?.serialPort?.trim() || "";
+  const flashPort = portToConnect.trim() || serialPort.trim() || "";
   const flashBlocked = !flashPort;
 
   return (
@@ -144,15 +102,11 @@ export function SensorLedCard() {
           Sensor Board
         </span>
         <span className="font-mono text-xs text-muted-foreground">
-          {status.data?.serialPort ? (
-            <span title={status.data.serialPort}>{status.data.serialPort}</span>
-          ) : (
-            "serial closed"
-          )}
+          {connected ? "connected" : "serial closed"}
         </span>
       </div>
       <p className="text-muted-foreground text-[11px] leading-snug">
-        {mode === "sim" ? (
+        {mode === "simulation" ? (
           <>
             Simulator mode: sensor limits and encoder come from the simulation plant (no USB). Motor and
             sensor connect automatically.
@@ -169,8 +123,8 @@ export function SensorLedCard() {
       </p>
       {connected ? (
         <LimitSwitchIndicators
-          leftPressed={status.data?.limitLeftPressed ?? false}
-          rightPressed={status.data?.limitRightPressed ?? false}
+          leftPressed={status.data?.limitSwitch.leftPressed ?? false}
+          rightPressed={status.data?.limitSwitch.rightPressed ?? false}
         />
       ) : (
         <div className="rounded-lg border border-dashed border-border bg-muted/20 px-3 py-2.5 text-muted-foreground text-xs">
@@ -178,15 +132,15 @@ export function SensorLedCard() {
           D5 right): connect to see switch state and where the cart is against the stops.
         </div>
       )}
-      {connected && status.data && "twinSimSensor" in status.data && status.data.twinSimSensor ? (
+      {connected && status.data && "twinSim" in status.data && status.data.twinSim ? (
         <p className="text-muted-foreground text-[10px] leading-snug">
           <span className="font-medium text-sky-900 dark:text-sky-200">Simulation</span> (same command
-          mirrored): encoder {status.data.twinSimSensor.encoderTicks} ticks · limits L
-          {status.data.twinSimSensor.limitLeftPressed ? " on" : " off"} · R
-          {status.data.twinSimSensor.limitRightPressed ? " on" : " off"}
+          mirrored): encoder {status.data.twinSim.pendulum.encoderTicks} ticks · limits L
+          {status.data.twinSim.limitSwitch.leftPressed ? " on" : " off"} · R
+          {status.data.twinSim.limitSwitch.rightPressed ? " on" : " off"}
         </p>
       ) : null}
-      {!connected && mode !== "sim" ? (
+      {!connected && mode !== "simulation" ? (
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
           <label className="flex min-w-[200px] flex-1 flex-col gap-1 text-xs">
             <span className="text-muted-foreground">Serial port</span>
@@ -235,7 +189,7 @@ export function SensorLedCard() {
           </label>
         </div>
       ) : null}
-      {mode !== "sim" ? (
+      {mode !== "simulation" ? (
       <Button
         type="button"
         variant="outline"
@@ -258,7 +212,7 @@ export function SensorLedCard() {
         Flash firmware
       </Button>
       ) : null}
-      {portsQuery.isError && mode !== "sim" ? (
+      {portsQuery.isError && mode !== "simulation" ? (
         <p className="text-destructive text-xs">
           Could not list serial ports: {portsQuery.error.message}
         </p>
@@ -266,7 +220,7 @@ export function SensorLedCard() {
       <div className="flex flex-wrap items-center gap-3">
         <span className="text-sm">
           {connected ? (
-            status.data?.ledOn ? (
+            status.data?.led.on ? (
               <span className="flex items-center gap-2 text-amber-500">
                 <Lightbulb aria-hidden className="h-5 w-5" />
                 LED on
@@ -282,8 +236,8 @@ export function SensorLedCard() {
           )}
         </span>
       </div>
-      {status.data?.detail ? (
-        <p className="text-muted-foreground text-xs">{status.data.detail}</p>
+      {status.data?.error ? (
+        <p className="text-muted-foreground text-xs">{status.data.error}</p>
       ) : null}
       {connectError ? (
         <p className="text-destructive text-xs">{connectError}</p>
@@ -310,28 +264,11 @@ export function SensorLedCard() {
       {resetEncoder.error ? (
         <p className="text-destructive text-xs">{resetEncoder.error.message}</p>
       ) : null}
-      {resetEncoder.isSuccess &&
-      resetEncoder.data &&
-      "real" in resetEncoder.data &&
-      (!resetEncoder.data.real.ok || !resetEncoder.data.sim.ok) ? (
-        <p className="text-destructive text-xs">
-          {!resetEncoder.data.real.ok && resetEncoder.data.real.error
-            ? resetEncoder.data.real.error
-            : null}
-          {!resetEncoder.data.sim.ok && resetEncoder.data.sim.error
-            ? `${!resetEncoder.data.real.ok ? " · " : ""}Sim: ${resetEncoder.data.sim.error}`
-            : null}
-        </p>
-      ) : null}
-      {resetEncoder.isSuccess &&
-      resetEncoder.data &&
-      !("real" in resetEncoder.data) &&
-      !resetEncoder.data.ok &&
-      resetEncoder.data.error ? (
+      {resetEncoder.isSuccess && resetEncoder.data && !resetEncoder.data.ok && resetEncoder.data.error ? (
         <p className="text-destructive text-xs">{resetEncoder.data.error}</p>
       ) : null}
       <div className="flex flex-wrap gap-2">
-        {!connected && mode === "sim" ? (
+        {!connected && mode === "simulation" ? (
           <p className="text-muted-foreground text-xs leading-relaxed">
             {simAuto.pending
               ? "Connecting to simulationulator…"
@@ -339,7 +276,7 @@ export function SensorLedCard() {
                 "Auto-connect pending — start the stack with npm run dev (Docker).")}
           </p>
         ) : null}
-        {!connected && mode !== "sim" ? (
+        {!connected && mode !== "simulation" ? (
           <Button
             type="button"
             variant="default"
@@ -372,7 +309,9 @@ export function SensorLedCard() {
               variant="secondary"
               size="sm"
               disabled={busy}
-              onClick={() => void toggleLed.mutateAsync()}
+              onClick={() =>
+                void setLed.mutateAsync({ on: !(status.data?.led.on ?? false) })
+              }
             >
               Toggle LED
             </Button>
@@ -382,7 +321,7 @@ export function SensorLedCard() {
       <div className="mt-6 flex flex-col gap-3 border-t border-border pt-4">
         <EncoderDial
           connected={connected}
-          ticks={status.data?.encoderTicks ?? 0}
+          ticks={status.data?.pendulum.encoderTicks ?? 0}
           onReset={
             connected ? () => void resetEncoder.mutateAsync() : undefined
           }
