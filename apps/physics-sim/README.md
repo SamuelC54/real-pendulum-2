@@ -1,6 +1,6 @@
 # Physics sim (MuJoCo)
 
-Python **MuJoCo** cart–pendulum engine used by the coupled gRPC sim.
+Python **MuJoCo** cart–pendulum engine used by the simulation gRPC stack.
 
 ## Setup
 
@@ -21,7 +21,7 @@ pip install -r requirements.txt
 python -m cart_pendulum.server --port 58871
 ```
 
-`npm run dev` also starts this service before the coupled sim.
+`npm run dev` also starts this service before the simulation.
 
 ## HTTP API
 

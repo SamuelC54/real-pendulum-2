@@ -7,7 +7,7 @@
     ".": "./src/config.ts",
     "./cli": "./src/cli.ts",
     "./node": "./src/node.ts",
-    "./coupled-sim-parameters": "./src/coupledSimParameters.ts",
+    "./simulation-parameters": "./src/simulationParameters.ts",
     "./rail": "./src/rail.ts",
     "./pendulum": "./src/pendulum.ts",
     "./sim-limits": "./src/simLimits.ts"

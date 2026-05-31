@@ -6,7 +6,7 @@ export function displayCountsPerCm(): number {
 }
 
 /**
- * Teknic/display scale shared by hardware status and coupled sim.
+ * Teknic/display scale shared by hardware status and simulation.
  * Plant `xM` (m) → display counts = `xM / metersPerDisplayCount` → cm = display / {@link displayCountsPerCm}.
  */
 export function metersPerDisplayCount(): number {

@@ -1,7 +1,7 @@
 import { config } from "@real-pendulum/app-config";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
-  defaultCoupledSimGrpcUrl,
+  defaultSimulationGrpcUrl,
   resolveSimMotorGrpcUrl,
   resolveSimSensorGrpcUrl,
 } from "./grpcSimDefaults.js";
@@ -17,12 +17,12 @@ describe("grpcSimDefaults", () => {
     Object.assign(config.sim, savedSim);
   });
 
-  it("defaultCoupledSimGrpcUrl uses config.sim.coupledGrpcPort", () => {
-    config.sim.coupledGrpcPort = 58870;
-    expect(defaultCoupledSimGrpcUrl()).toBe("http://127.0.0.1:58870");
+  it("defaultSimulationGrpcUrl uses config.sim.simulationGrpcPort", () => {
+    config.sim.simulationGrpcPort = 58870;
+    expect(defaultSimulationGrpcUrl()).toBe("http://127.0.0.1:58870");
 
-    config.sim.coupledGrpcPort = 60001;
-    expect(defaultCoupledSimGrpcUrl()).toBe("http://127.0.0.1:60001");
+    config.sim.simulationGrpcPort = 60001;
+    expect(defaultSimulationGrpcUrl()).toBe("http://127.0.0.1:60001");
   });
 
   it("resolveSimMotorGrpcUrl prefers motorSimGrpcUrl", () => {
@@ -31,10 +31,10 @@ describe("grpcSimDefaults", () => {
     expect(resolveSimMotorGrpcUrl()).toBe("http://192.168.1.5:7777");
   });
 
-  it("resolveSimSensorGrpcUrl falls back to coupled default", () => {
+  it("resolveSimSensorGrpcUrl falls back to simulation default", () => {
     config.sim.motorSimGrpcUrl = undefined;
     config.sim.sensorSimGrpcUrl = undefined;
-    config.sim.coupledGrpcPort = 58870;
+    config.sim.simulationGrpcPort = 58870;
     expect(resolveSimSensorGrpcUrl()).toBe("http://127.0.0.1:58870");
   });
 });

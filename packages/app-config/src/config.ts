@@ -45,9 +45,9 @@ export type AppConfig = {
   };
 
   pendulum: {
-    /** Shaft encoder quadrature counts per revolution (Arduino + coupled sim). */
+    /** Shaft encoder quadrature counts per revolution (Arduino + simulation). */
     encoderCountsPerRevolution: number;
-    /** Gravity for coupled cart–pendulum plant (m/s²). */
+    /** Gravity for simulation cart–pendulum plant (m/s²). */
     gravityMS2: number;
   };
 
@@ -63,15 +63,15 @@ export type AppConfig = {
   };
 
   sim: {
-    /** Coupled motor+sensor gRPC (default when sim URLs unset). */
-    coupledGrpcPort: number;
+    /** Simulation motor+sensor gRPC (default when sim URLs unset). */
+    simulationGrpcPort: number;
     /** MuJoCo physics HTTP service (`apps/physics-sim`). */
     physicsSimHttpPort: number;
     physicsSimHttpUrl?: string;
     motorSimGrpcUrl?: string;
     sensorSimGrpcUrl?: string;
-    /** Plant parameters in `config/coupled-sim.parameters.json` (see `@real-pendulum/app-config/coupled-sim-parameters`). */
-    /** Cart position (m) where coupled-sim left/right limit switches assert. */
+    /** Plant parameters in `config/simulation.parameters.json` (see `@real-pendulum/app-config/simulation-parameters`). */
+    /** Cart position (m) where simulation left/right limit switches assert. */
     limitLeftXM: number;
     limitRightXM: number;
   };
@@ -89,7 +89,7 @@ export type AppConfig = {
     connectTimeoutMs: number;
     /** Playwright sim stack: isolated ports (no Teknic DLL). */
     physicsSimHttpPort: number;
-    coupledGrpcPort: number;
+    simulationGrpcPort: number;
     controlApiPort: number;
     simWebPort: number;
     /** Real-hardware E2E web dev port; default `web.devPort`. */
@@ -150,7 +150,7 @@ export const config: AppConfig = {
   },
 
   sim: {
-    coupledGrpcPort: 58870,
+    simulationGrpcPort: 58870,
     physicsSimHttpPort: 58871,
     physicsSimHttpUrl: undefined,
     motorSimGrpcUrl: undefined,
@@ -170,7 +170,7 @@ export const config: AppConfig = {
     useRealMotor: false,
     connectTimeoutMs: 120_000,
     physicsSimHttpPort: 50571,
-    coupledGrpcPort: 50552,
+    simulationGrpcPort: 50552,
     controlApiPort: 14001,
     simWebPort: 4174,
     webPort: undefined,
@@ -190,8 +190,8 @@ export function sensorGrpcBaseUrl(): string {
   return `http://127.0.0.1:${config.sensor.grpcPort}`;
 }
 
-export function coupledSimGrpcBaseUrl(): string {
-  return `http://127.0.0.1:${config.sim.coupledGrpcPort}`;
+export function simulationGrpcBaseUrl(): string {
+  return `http://127.0.0.1:${config.sim.simulationGrpcPort}`;
 }
 
 export function physicsSimHttpBaseUrl(): string {
@@ -211,9 +211,9 @@ export function e2ePhysicsSimHttpUrl(): string {
   return `http://127.0.0.1:${config.e2e.physicsSimHttpPort}`;
 }
 
-/** Playwright E2E sim stack — coupled motor + sensor gRPC base URL. */
-export function e2eCoupledGrpcUrl(): string {
-  return `http://127.0.0.1:${config.e2e.coupledGrpcPort}`;
+/** Playwright E2E sim stack — simulation motor + sensor gRPC base URL. */
+export function e2eSimulationGrpcUrl(): string {
+  return `http://127.0.0.1:${config.e2e.simulationGrpcPort}`;
 }
 
 /** Playwright E2E sim stack — browser tRPC URL (Vite `mode: e2e`). */

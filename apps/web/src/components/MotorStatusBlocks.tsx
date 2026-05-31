@@ -86,9 +86,9 @@ export function MotorStatusBlocks() {
             {!connected && mode === "sim" ? (
               <p className="text-muted-foreground text-xs leading-relaxed">
                 {simAuto.pending
-                  ? "Connecting to coupled simulator…"
+                  ? "Connecting to simulationulator…"
                   : (simAuto.lastError ??
-                    "Simulator auto-connect — ensure coupled sim is running (npm run dev).")}
+                    "Simulator auto-connect — ensure simulation is running (npm run dev).")}
               </p>
             ) : null}
             {!connected && mode !== "sim" ? (

@@ -220,7 +220,7 @@ export const CartRailVisualizer = memo(function CartRailVisualizer() {
       </div>
       <p className="text-muted-foreground text-[10px] leading-snug">
         Twin mode: each row uses its own motor travel limits and sensor limit switches. Hardware
-        uses the physical Motor and Sensor boards; Simulator uses the coupled plant gRPC backends.
+        uses the physical Motor and Sensor boards; Simulator uses the simulation plant gRPC backends.
       </p>
     </div>
   );

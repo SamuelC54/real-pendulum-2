@@ -207,7 +207,7 @@ export const HomingControls = memo(function HomingControls() {
           {mode === "sim"
             ? simAuto.pending
               ? "Connecting to simulator (motor)…"
-              : simAuto.lastError ?? "Waiting for coupled sim — run npm run dev or serve:coupled-sim."
+              : simAuto.lastError ?? "Waiting for simulation — run npm run dev or serve:simulation."
             : "Connect the Motor Board first."}
         </p>
       ) : null}
@@ -216,7 +216,7 @@ export const HomingControls = memo(function HomingControls() {
           {mode === "sim"
             ? simAuto.pending
               ? "Connecting to simulator (sensor)…"
-              : simAuto.lastError ?? "Waiting for coupled sim — limits and encoder come from the plant."
+              : simAuto.lastError ?? "Waiting for simulation — limits and encoder come from the plant."
             : "Connect the Sensor Board first."}
         </p>
       ) : null}

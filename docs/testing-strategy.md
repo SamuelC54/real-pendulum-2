@@ -21,9 +21,9 @@ This document describes how the repo is tested **without** relying on a single �
                     │ Manual / smoke  │  bench, cleared travel, operator
                     │ on real hardware│
                 ┌───┴─────────────────┴───┐
-                │ E2E                       │  Playwright — coupled sim gRPC + control-api + Vite dev
+                │ E2E                       │  Playwright — simulation gRPC + control-api + Vite dev
             ┌───┴─────────────────────────┴───┐
-            │ Integration                    │  motor-service SDK ↔ coupled sim `MotorService` (in-process Connect)
+            │ Integration                    │  motor-service SDK ↔ simulation `MotorService` (in-process Connect)
         ┌───┴─────────────────────────────────┴───┐
         │ Contract / proto                         │  Golden JSON + `mapMotorInfo` snapshot (`motor-service`)
     ┌───┴─────────────────────────────────────────┴───┐
@@ -60,8 +60,8 @@ When **`motor.proto`** or **`mapMotorInfo`** changes, update the fixture and/or 
 
 | Area | Location |
 |------|-----------|
-| In-process coupled sim **MotorService** + **SensorService** (same `.proto` as production) | `apps/motor-service/src/test-support/coupledSimGrpcServer.ts` (**`@real-pendulum/motor-service/test-support/coupled-sim-server`**) |
-| Connect SDK against coupled sim | `apps/motor-service/src/sdk/coupledSim.integration.test.ts` |
+| In-process simulation **MotorService** + **SensorService** (same `.proto` as production) | `apps/motor-service/src/test-support/simulationGrpcServer.ts` (**`@real-pendulum/motor-service/test-support/simulation-server`**) |
+| Connect SDK against simulation | `apps/motor-service/src/sdk/simulation.integration.test.ts` |
 
 Uses ephemeral HTTP (`http://127.0.0.1:<port>` from **`127.0.0.1:0`** bind), sets **`MOTOR_GRPC_URL`**, and **`resetMotorGrpcClientForTests()`** so the Connect client cache does not leak between runs. Vitest global setup starts **physics-sim** when needed.
 
@@ -85,7 +85,7 @@ Uses ephemeral HTTP (`http://127.0.0.1:<port>` from **`127.0.0.1:0`** bind), set
 
 | Mode | Command | Orchestrator | Ports (defaults) |
 |------|---------|--------------|------------------|
-| **Coupled sim** (default, CI) | **`npm run test:e2e`** | **`scripts/e2e-stack.ts`** — **physics-sim** + coupled **`MotorService`** / **`SensorService`** → **`start:tsx`** control-api → **Vite dev** | **50571** / **50552** / **14001** / **4174** — avoids clashing with **`npm run dev`** |
+| **Simulation** (default, CI) | **`npm run test:e2e`** | **`scripts/e2e-stack.ts`** — **physics-sim** + simulation **`MotorService`** / **`SensorService`** → **`start:tsx`** control-api → **Vite dev** | **50571** / **50552** / **14001** / **4174** — avoids clashing with **`npm run dev`** |
 | **Real motor** (local + hardware) | **`npm run test:e2e:real`** | **`scripts/e2e-stack-real.ts`** — motor service → control-api → Vite | **`config`** defaults **50051** / **4000** / **5173** (`playwright.real.config.cjs` sets **`config.e2e.useRealMotor`**) |
 
 **`npm run test:e2e:ci`** uses **`playwright.ci.config.cjs`** (`config.e2e.continuousIntegration`). Real runs need **`teknic_motor.dll`**, hub power, and **ClearView** closed — **[hardware-smoke-checklist.md](./hardware-smoke-checklist.md)**.
@@ -120,7 +120,7 @@ Set repository variable **`TEKNIC_SDK_ROOT`** if the SDK is not under the defaul
 | Command | Purpose |
 |---------|---------|
 | `npm test` | All workspace Vitest suites (`control-api` + `web`). |
-| `npm run test:e2e` | Playwright (`e2e/`); coupled sim stack via **`scripts/e2e-stack.ts`**. **`npm run build`** first. |
+| `npm run test:e2e` | Playwright (`e2e/`); simulation stack via **`scripts/e2e-stack.ts`**. **`npm run build`** first. |
 | `npm run test:e2e:real` | Playwright with the **real motor service** via **`scripts/e2e-stack-real.mjs`** (**`E2E_USE_REAL_MOTOR=1`**). Requires native DLL + hardware. |
 | `npm run test:e2e:ui` | Playwright UI mode (local debugging). |
 | `npm run test -w @real-pendulum/control-api` | API/router/integration only. |

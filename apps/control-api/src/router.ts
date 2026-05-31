@@ -12,7 +12,7 @@ import {
 import { runLedToggleFlash } from "./runFlashScript.js";
 import * as motor from "@real-pendulum/motor-service/sdk";
 import * as sensor from "@real-pendulum/sensor-service/sdk";
-import { defaultCoupledSimGrpcUrl, resolveSimMotorGrpcUrl, resolveSimSensorGrpcUrl } from "./grpcSimDefaults.js";
+import { defaultSimulationGrpcUrl, resolveSimMotorGrpcUrl, resolveSimSensorGrpcUrl } from "./grpcSimDefaults.js";
 import { runRailHoming } from "./homing.js";
 import {
   clearMotionLatch,
@@ -123,8 +123,8 @@ const publicProcedure = t.procedure.use(grpcWireMiddleware);
 export const appRouter = t.router({
   meta: t.router({
     backends: baseProcedure.query(() => ({
-      /** Used when **`MOTOR_SIM_GRPC_URL`** / **`SENSOR_SIM_GRPC_URL`** are unset (coupled sim). */
-      simDefaultUrl: defaultCoupledSimGrpcUrl(),
+      /** Used when **`MOTOR_SIM_GRPC_URL`** / **`SENSOR_SIM_GRPC_URL`** are unset (simulation). */
+      simDefaultUrl: defaultSimulationGrpcUrl(),
     })),
     rail: baseProcedure.query(() => ({
       /** Display motor counts per cm (`config.rail.displayCountsPerCm`, default 232.8). */

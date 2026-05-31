@@ -5,7 +5,7 @@ export function displayCountsPerCm(): number {
   return config.rail.displayCountsPerCm;
 }
 
-/** Teknic/display m per count — same formula as `@real-pendulum/app-config/rail` and coupled sim. */
+/** Teknic/display m per count — same formula as `@real-pendulum/app-config/rail` and simulation. */
 export function metersPerDisplayCount(): number {
   const cpc = displayCountsPerCm();
   return 1 / (cpc * 100);

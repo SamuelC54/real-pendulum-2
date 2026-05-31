@@ -154,7 +154,7 @@ export function SensorLedCard() {
       <p className="text-muted-foreground text-[11px] leading-snug">
         {mode === "sim" ? (
           <>
-            Simulator mode: sensor limits and encoder come from the coupled plant (no USB). Motor and
+            Simulator mode: sensor limits and encoder come from the simulation plant (no USB). Motor and
             sensor connect automatically.
           </>
         ) : (
@@ -334,9 +334,9 @@ export function SensorLedCard() {
         {!connected && mode === "sim" ? (
           <p className="text-muted-foreground text-xs leading-relaxed">
             {simAuto.pending
-              ? "Connecting to coupled simulator…"
+              ? "Connecting to simulationulator…"
               : (simAuto.lastError ??
-                "Auto-connect pending — start coupled sim (included in npm run dev).")}
+                "Auto-connect pending — start simulation (included in npm run dev).")}
           </p>
         ) : null}
         {!connected && mode !== "sim" ? (

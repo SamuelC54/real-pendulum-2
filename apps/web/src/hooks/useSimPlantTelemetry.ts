@@ -7,7 +7,7 @@ export type SimPlantTelemetry = {
   positionCm: number | undefined;
   encoderTicks: number;
   connected: boolean;
-  /** True when sim or twin mode exposes a coupled plant snapshot. */
+  /** True when sim or twin mode exposes a simulation plant snapshot. */
   supportsTwinView: boolean;
 };
 

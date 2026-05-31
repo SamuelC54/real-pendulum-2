@@ -59,7 +59,7 @@ function ViewerEnvironment() {
   );
 }
 
-/** Rail + cart + pendulum rig (poses mirror physics-sim / coupled-sim telemetry). */
+/** Rail + cart + pendulum rig (poses mirror physics-sim / simulation telemetry). */
 function CartPendulumRig({ xM, thetaRad }: { xM: number; thetaRad: number }) {
   return (
     <group position={[xM, 0, 0]}>

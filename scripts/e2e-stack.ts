@@ -1,5 +1,5 @@
 /**
- * Coupled sim (physics-sim + MuJoCo) → control-api → Vite for Playwright E2E (no Teknic DLL).
+ * Simulation (physics-sim + MuJoCo) → control-api → Vite for Playwright E2E (no Teknic DLL).
  * Ports: `config.e2e` in packages/app-config/src/config.ts
  */
 import { spawn, type ChildProcess } from "node:child_process";
@@ -9,17 +9,17 @@ import waitOn from "wait-on";
 import treeKill from "tree-kill";
 import {
   config,
-  e2eCoupledGrpcUrl,
+  e2eSimulationGrpcUrl,
   e2ePhysicsSimHttpUrl,
 } from "@real-pendulum/app-config";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const physicsSimDir = path.join(root, "apps/physics-sim");
 const physicsPort = config.e2e.physicsSimHttpPort;
-const coupledPort = config.e2e.coupledGrpcPort;
+const simulationPort = config.e2e.simulationGrpcPort;
 const controlPort = config.e2e.controlApiPort;
 const webPort = config.e2e.simWebPort;
-const coupledUrl = e2eCoupledGrpcUrl();
+const simulationUrl = e2eSimulationGrpcUrl();
 const physicsUrl = e2ePhysicsSimHttpUrl();
 
 const children: ChildProcess[] = [];
@@ -50,12 +50,12 @@ await waitOn({
 
 launch(
   "npm",
-  ["run", "serve:coupled-sim", "-w", "@real-pendulum/motor-service", "--", "--port", String(coupledPort)],
+  ["run", "serve:simulation", "-w", "@real-pendulum/motor-service", "--", "--port", String(simulationPort)],
   { env: { PHYSICS_SIM_URL: physicsUrl } },
 );
 
 await waitOn({
-  resources: [`tcp:127.0.0.1:${coupledPort}`],
+  resources: [`tcp:127.0.0.1:${simulationPort}`],
   timeout: 60_000,
 });
 
@@ -68,9 +68,9 @@ launch("npm", [
   "--port",
   String(controlPort),
   "--motor-grpc-url",
-  coupledUrl,
+  simulationUrl,
   "--sensor-grpc-url",
-  coupledUrl,
+  simulationUrl,
 ]);
 
 await waitOn({
@@ -99,7 +99,7 @@ await waitOn({
 });
 
 console.log(
-  `[e2e-stack] Ready — http://127.0.0.1:${webPort} (physics ${physicsPort}, coupled ${coupledPort}, control-api ${controlPort})`,
+  `[e2e-stack] Ready — http://127.0.0.1:${webPort} (physics ${physicsPort}, simulation ${simulationPort}, control-api ${controlPort})`,
 );
 
 function shutdown() {

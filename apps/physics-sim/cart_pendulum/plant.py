@@ -1,4 +1,4 @@
-"""MuJoCo cart–pendulum plant (matches coupled-sim telemetry conventions)."""
+"""MuJoCo cart–pendulum plant (matches simulation telemetry conventions)."""
 
 from __future__ import annotations
 

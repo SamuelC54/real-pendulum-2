@@ -1,6 +1,6 @@
 # Simulation & bench mode — technical design
 
-This document extends the stack overview in [`TECHDOC.md`](./TECHDOC.md). It describes how to run the application **without physical motor or sensor hardware**, how to combine **live hardware with a coupled plant simulation** for comparison, **§2.2** (coupled sim motor and sensor as **two facades over one plant**), how **`CartPendulumPlant`** maps onto gRPC (**§3.5**), and the **`@real-pendulum/physics-sim`** MuJoCo service.
+This document extends the stack overview in [`TECHDOC.md`](./TECHDOC.md). It describes how to run the application **without physical motor or sensor hardware**, how to combine **live hardware with a simulation plant simulation** for comparison, **§2.2** (simulation motor and sensor as **two facades over one plant**), how **`CartPendulumPlant`** maps onto gRPC (**§3.5**), and the **`@real-pendulum/physics-sim`** MuJoCo service.
 
 ---
 
@@ -22,7 +22,7 @@ This document extends the stack overview in [`TECHDOC.md`](./TECHDOC.md). It des
 
 - Today, **`apps/control-api`** calls **`@real-pendulum/motor-service/sdk`** and **`@real-pendulum/sensor-service/sdk`** (see `router.ts`, `homing.ts`). URLs come from **`packages/app-config/src/config.ts`** (hardware) and **`config.sim`** (simulator).
 - **Simulation** should implement the **same protos and RPCs** as production (or a documented subset), so **homing, limits, jog, and UI-facing procedures stay identical** whether the backend is hardware or simulated. **You do not branch business logic** (“if sim then … else …”) inside **`control-api`** for behavior that already exists behind the motor/sensor SDK — only the **target URL** (or an extra bench client) changes.
-- The repo includes a **coupled sim gRPC** entrypoint: `apps/control-api/scripts/serve-coupled-sim-grpc.ts` → `@real-pendulum/motor-service/test-support/coupled-sim-server` (motor + sensor, one plant; see **§3.5**).
+- The repo includes a **simulation gRPC** entrypoint: `apps/control-api/scripts/serve-simulation-grpc.ts` → `@real-pendulum/motor-service/test-support/simulation-server` (motor + sensor, one plant; see **§3.5**).
 
 ### 2.2 Two gRPC facades, one shared plant (solo sim)
 
@@ -33,8 +33,8 @@ flowchart TB
   subgraph solo [Solo simulation]
     WEB1[web]
     API1[control-api]
-    FM[coupled sim motor gRPC]
-    FS[coupled sim sensor gRPC]
+    FM[simulation motor gRPC]
+    FS[simulation sensor gRPC]
     WEB1 --> API1
     API1 --> FM
     API1 --> FS
@@ -59,12 +59,12 @@ flowchart TB
 
 ## 3. Solo simulation (no hardware)
 
-In the coupled design, **coupled sim** and **coupled sim sensor** processes are **not** two independent worlds: they are **two gRPC interfaces** into **one plant** (see **§2.2**). The subsections below separate concerns for readability; implementation should keep a **single** integrator state.
+In the simulation design, **simulation** motor and **simulation** sensor processes are **not** two independent worlds: they are **two gRPC interfaces** into **one plant** (see **§2.2**). The subsections below separate concerns for readability; implementation should keep a **single** integrator state.
 
 ### 3.1 Motor
 
 - Run or extend the **simulated `MotorService`** so it exposes believable **`status.get`** fields (measured position, commanded RPM, connection flags) and implements **jog / stop / connect** used by the UI.
-- Integrate **cart motion** with the plant (below): either the coupled sim owns the integrator that updates `x`, or a **combined “hardware sim”** process owns both motor and sensor state and implements both protos.
+- Integrate **cart motion** with the plant (below): either the simulation owns the integrator that updates `x`, or a **combined “hardware sim”** process owns both motor and sensor state and implements both protos.
 
 ### 3.2 Sensor
 
@@ -81,11 +81,11 @@ In the coupled design, **coupled sim** and **coupled sim sensor** processes are 
 
 - Optional: show a **“SIM”** badge when the API exposes metadata (e.g. `status.get.detail` or a dedicated `meta` query) indicating simulation backends.
 
-### 3.5 How physics drives coupled sim motor and sensor gRPC
+### 3.5 How physics drives simulation motor and sensor gRPC
 
-When **`control-api`** is pointed at **simulated** motor and/or sensor processes (instead of the DLL-backed motor service and USB-backed sensor service), the **same protobuf RPCs** apply, but **state comes from one coupled `CartPendulumPlant`** (in-memory mirror synced via **`@real-pendulum/physics-sim/client`**) instead of Teknic and the Sensor Board. Physics runs in **MuJoCo** (`apps/physics-sim`); see **§5** for the HTTP API and plant mirror types.
+When **`control-api`** is pointed at **simulated** motor and/or sensor processes (instead of the DLL-backed motor service and USB-backed sensor service), the **same protobuf RPCs** apply, but **state comes from one `CartPendulumPlant`** (in-memory mirror synced via **`@real-pendulum/physics-sim/client`**) instead of Teknic and the Sensor Board. Physics runs in **MuJoCo** (`apps/physics-sim`); see **§5** for the HTTP API and plant mirror types.
 
-The **coupled sim** and **coupled sim sensor** handlers are **facades** over this one object (**§2.2**): **`GetStatus`** and **`GetSensorStatus`** must reflect the **same** step of physics.
+The **simulation** and **simulation sensor** handlers are **facades** over this one object (**§2.2**): **`GetStatus`** and **`GetSensorStatus`** must reflect the **same** step of physics.
 
 #### Commanded vs effective velocity vs what the UI reads
 
@@ -98,9 +98,9 @@ The **coupled sim** and **coupled sim sensor** handlers are **facades** over thi
 
 #### End-to-end jog example (solo sim)
 
-1. Operator **jog** in the UI → **`control-api`** → **`SetJogVelocity`** (RPM) on the coupled sim.  
-2. Coupled sim maps **RPM → `vCmdMps`**, stores on **`plant.state.vCmdMps`**.  
-3. On each poll (or timer), the coupled sim server computes **`dt`**, calls **`physics-sim` `POST /step`** → updates **`xM`**, **`vMps`**, **`θ`**, **`ω`**, encoder integral.  
+1. Operator **jog** in the UI → **`control-api`** → **`SetJogVelocity`** (RPM) on the simulation.  
+2. Simulation maps **RPM → `vCmdMps`**, stores on **`plant.state.vCmdMps`**.  
+3. On each poll (or timer), the simulation server computes **`dt`**, calls **`physics-sim` `POST /step`** → updates **`xM`**, **`vMps`**, **`θ`**, **`ω`**, encoder integral.  
 4. **`GetStatus`** returns **`xM` / `vMps`** (via counts + RPM fields expected by the UI).  
 5. **`GetSensorStatus`** returns **`encoderTicksInt(plant)`**, **limit booleans** from **`xM`** vs thresholds, **`connected`**.
 
@@ -108,7 +108,7 @@ The **coupled sim** and **coupled sim sensor** handlers are **facades** over thi
 
 ```mermaid
 flowchart TB
-  subgraph sim [Coupled sim gRPC host in-memory]
+  subgraph sim [Simulation gRPC host in-memory]
     P["CartPendulumPlant: x, v, theta, omega"]
     M[MotorService handler]
     S[SensorService handler]
@@ -146,15 +146,15 @@ This repeats **§2.2** for readers who jump straight here: if motor and separate
 
 #### Implementation pointers
 
-- **Coupled sim (one `CartPendulumPlant`, two facades):** `@real-pendulum/motor-service/test-support/coupled-sim-server` — `createCoupledSimGrpcModel`, `startCoupledSimGrpcServer`; registers **`motor.v1.MotorService`** and **`sensor.v1.SensorService`** on one HTTP port.
+- **Simulation (one `CartPendulumPlant`, two facades):** `@real-pendulum/motor-service/test-support/simulation-server` — `createSimulationGrpcModel`, `startSimulationGrpcServer`; registers **`motor.v1.MotorService`** and **`sensor.v1.SensorService`** on one HTTP port.
 
-##### Running the coupled sim daemon
+##### Running the simulation daemon
 
-- **From motor-service:** `npm run serve:coupled-sim -w @real-pendulum/motor-service`
-- **From control-api (re-exports same server):** `npm run serve:coupled-sim -w @real-pendulum/control-api`
+- **From motor-service:** `npm run serve:simulation -w @real-pendulum/motor-service`
+- **From control-api (re-exports same server):** `npm run serve:simulation -w @real-pendulum/control-api`
 - Hardware URLs: **`motorGrpcBaseUrl()`** / **`sensorGrpcBaseUrl()`** (defaults **50051** / **50052**).
-- **Web “Simulator”** mode uses **`resolveSimMotorGrpcUrl()`** / **`resolveSimSensorGrpcUrl()`** (default coupled sim **58870** on **`config.sim.coupledGrpcPort`**). The browser sends **`x-pendulum-backend: sim`**; **Hardware** uses config hardware URLs.
-- Tunables: **`config/coupled-sim.parameters.json`** (`mpsPerRpm`, plant). Sim limit positions: **`config.sim.limitLeftXM`** / **`limitRightXM`** in `packages/app-config/src/config.ts`. Rail cm scale comes from **`config.rail.displayCountsPerCm`** (shared with hardware).
+- **Web “Simulator”** mode uses **`resolveSimMotorGrpcUrl()`** / **`resolveSimSensorGrpcUrl()`** (default simulation **58870** on **`config.sim.simulationGrpcPort`**). The browser sends **`x-pendulum-backend: sim`**; **Hardware** uses config hardware URLs.
+- Tunables: **`config/simulation.parameters.json`** (`mpsPerRpm`, plant). Sim limit positions: **`config.sim.limitLeftXM`** / **`limitRightXM`** in `packages/app-config/src/config.ts`. Rail cm scale comes from **`config.rail.displayCountsPerCm`** (shared with hardware).
 
 ---
 
@@ -182,9 +182,9 @@ Pick one pattern (or evolve from A → B):
 |-------|------|
 | `motor.grpcUrl` / `motor.grpcPort` | Primary motor backend (hardware or simulated). |
 | `sensor.grpcUrl` / `sensor.grpcPort` | Primary sensor backend. |
-| `sim.motorSimGrpcUrl` | Optional sim motor URL; if unset, coupled sim default (**58870**). |
-| `sim.sensorSimGrpcUrl` | Optional sim sensor URL; if unset, uses motor sim URL or coupled default. |
-| `sim.coupledGrpcPort` | Coupled sim listen port (`serve:coupled-sim`). |
+| `sim.motorSimGrpcUrl` | Optional sim motor URL; if unset, simulation default (**58870**). |
+| `sim.sensorSimGrpcUrl` | Optional sim sensor URL; if unset, uses motor sim URL or simulation default. |
+| `sim.simulationGrpcPort` | Simulation listen port (`serve:simulation`). |
 | `BENCH_COMMAND_TARGET` (future) | `real` \| `sim` \| `both` (if `both` is ever allowed, document hazards). |
 
 ### 4.4 Web UX
@@ -194,11 +194,11 @@ Pick one pattern (or evolve from A → B):
 
 ---
 
-## 5. Coupled cart–pendulum physics
+## 5. Cart–pendulum physics
 
 **Runtime engine:** [`apps/physics-sim`](../apps/physics-sim/) — **Python + MuJoCo** HTTP service (default `http://127.0.0.1:58871`).  
 **TypeScript bridge:** `apps/physics-sim/client` (`physicsSimClient`).  
-**gRPC facades:** `apps/motor-service` coupled sim (§3.5) steps the live plant over HTTP on each status poll.
+**gRPC facades:** `apps/motor-service` simulation (§3.5) steps the live plant over HTTP on each status poll.
 
 ### 5.1 State & parameters
 
@@ -239,9 +239,9 @@ Pick one pattern (or evolve from A → B):
 
 | Phase | Deliverable |
 |-------|-------------|
-| **1** | Documented scripts: coupled sim (+ minimal status) sufficient for web smoke; CI runs control-api tests against sim backends. |
+| **1** | Documented scripts: simulation (+ minimal status) sufficient for web smoke; CI runs control-api tests against sim backends. |
 | **2** | Simulated **sensor** + limit logic from sim `xM`; encoder from physics-sim. |
-| **3** | **Coupled** plant in one process; homing against sim limits end-to-end. |
+| **3** | **Simulation** plant in one process; homing against sim limits end-to-end. |
 | **4** | **Bench:** second gRPC client pair + tRPC read (and optional guarded write) + web split view. |
 | **5** | Optional **log comparison** UI for education. |
 
@@ -250,7 +250,7 @@ Pick one pattern (or evolve from A → B):
 ## 7. Testing strategy (cross-reference)
 
 - **Unit:** `pip install -r apps/physics-sim/requirements.txt && npm test -w @real-pendulum/physics-sim` (MuJoCo). Node tests auto-start physics-sim via Vitest global setup.
-- **Integration:** control-api against coupled sim motor and sensor in CI (no DLL, no serial). See also [`testing-strategy.md`](./testing-strategy.md).
+- **Integration:** control-api against simulation motor and sensor in CI (no DLL, no serial). See also [`testing-strategy.md`](./testing-strategy.md).
 
 ---
 
@@ -267,5 +267,5 @@ Pick one pattern (or evolve from A → B):
 | Date | Change |
 |------|--------|
 | 2026-05-12 | Review pass: §2 split + no branching logic; §2.2 dual facades; §3 intro; velocity table + E2E jog flow; time step callout; bench wording; §3.5 “Why” reprise. |
-| 2026-05-12 | Simulator gRPC URLs default to coupled sim host/port (**`SIM_COUPLED_GRPC_PORT`**); **`MOTOR_SIM_GRPC_URL`** optional. |
+| 2026-05-12 | Simulator gRPC URLs default to simulation host/port (**`SIM_COUPLED_GRPC_PORT`**); **`MOTOR_SIM_GRPC_URL`** optional. |
 | 2026-05-12 | Initial doc: simulation, bench mode, and physics-sim integration notes. |

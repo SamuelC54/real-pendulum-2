@@ -108,7 +108,7 @@ export type RailMoveForBackendResult =
 
 /**
  * Absolute profile move on the active backend(s).
- * Twin: Teknic (hardware gRPC) and MuJoCo coupled-sim (sim gRPC) in parallel.
+ * Twin: Teknic (hardware gRPC) and MuJoCo simulation (sim gRPC) in parallel.
  */
 export async function moveToPositionCmForBackend(
   mode: GrpcBackendMode,

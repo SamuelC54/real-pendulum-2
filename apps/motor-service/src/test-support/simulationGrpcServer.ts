@@ -40,14 +40,14 @@ import {
   ToggleLedReplySchema,
 } from "@real-pendulum/motor-proto/gen/sensor_pb.js";
 import {
-  loadCoupledSimParametersForStartup,
-  type CoupledSimParameters,
-} from "@real-pendulum/app-config/coupled-sim-parameters";
+  loadSimulationParametersForStartup,
+  type SimulationParameters,
+} from "@real-pendulum/app-config/simulation-parameters";
 import { encoderTicksPerRadian, plantGravityMS2 } from "@real-pendulum/app-config/pendulum";
 import { metersPerDisplayCount } from "@real-pendulum/app-config/rail";
 import { simLimitLeftXM, simLimitRightXM } from "@real-pendulum/app-config/sim-limits";
 
-export type CoupledSimGrpcOptions = {
+export type SimulationGrpcOptions = {
   port?: number;
   /** `vCmdMps = -rpm * mpsPerRpm` when jogging (matches Teknic/display: +rpm → display counts decrease). */
   mpsPerRpm: number;
@@ -57,7 +57,7 @@ export type CoupledSimGrpcOptions = {
   limitRightXM: number;
 };
 
-export type CoupledSimGrpcModel = {
+export type SimulationGrpcModel = {
   plant: CartPendulumPlant;
   motorConnected: boolean;
   sensorConnected: boolean;
@@ -70,7 +70,7 @@ export type CoupledSimGrpcModel = {
   detail: string;
 };
 
-export type CoupledSimConfigSnapshot = {
+export type SimulationConfigSnapshot = {
   metersPerDisplayCount: number;
   mpsPerRpm: number;
   limitLeftXM: number;
@@ -84,7 +84,7 @@ export type CoupledSimConfigSnapshot = {
   };
 };
 
-export function getCoupledSimConfigSnapshot(model: CoupledSimGrpcModel): CoupledSimConfigSnapshot {
+export function getSimulationConfigSnapshot(model: SimulationGrpcModel): SimulationConfigSnapshot {
   const c = model.plant.config;
   return {
     metersPerDisplayCount: metersPerDisplayCount(),
@@ -101,14 +101,14 @@ export function getCoupledSimConfigSnapshot(model: CoupledSimGrpcModel): Coupled
   };
 }
 
-export async function patchCoupledSimConfig(
-  model: CoupledSimGrpcModel,
-  patch: Partial<CoupledSimConfigSnapshot> & { plant?: Partial<CoupledSimConfigSnapshot["plant"]> },
+export async function patchSimulationConfig(
+  model: SimulationGrpcModel,
+  patch: Partial<SimulationConfigSnapshot> & { plant?: Partial<SimulationConfigSnapshot["plant"]> },
 ): Promise<void> {
   if (patch.mpsPerRpm != null && Number.isFinite(patch.mpsPerRpm)) {
     model.mpsPerRpm = patch.mpsPerRpm;
   }
-  const plantPatch: Partial<CoupledSimConfigSnapshot["plant"]> = {};
+  const plantPatch: Partial<SimulationConfigSnapshot["plant"]> = {};
   if (patch.plant) {
     const cfg = model.plant.config as CartPendulumPlant["config"] & Record<string, number>;
     if (patch.plant.gravity != null && Number.isFinite(patch.plant.gravity)) {
@@ -140,11 +140,11 @@ export async function patchCoupledSimConfig(
 function handleAdminConfig(
   req: http.IncomingMessage,
   res: http.ServerResponse,
-  model: CoupledSimGrpcModel,
+  model: SimulationGrpcModel,
 ): void {
   if (req.method === "GET") {
     res.writeHead(200, { "content-type": "application/json" });
-    res.end(JSON.stringify(getCoupledSimConfigSnapshot(model)));
+    res.end(JSON.stringify(getSimulationConfigSnapshot(model)));
     return;
   }
   if (req.method === "PATCH") {
@@ -154,10 +154,10 @@ function handleAdminConfig(
       void (async () => {
         try {
           const raw = Buffer.concat(chunks).toString("utf8");
-          const patch = raw ? (JSON.parse(raw) as Partial<CoupledSimConfigSnapshot>) : {};
-          await patchCoupledSimConfig(model, patch);
+          const patch = raw ? (JSON.parse(raw) as Partial<SimulationConfigSnapshot>) : {};
+          await patchSimulationConfig(model, patch);
           res.writeHead(200, { "content-type": "application/json" });
-          res.end(JSON.stringify(getCoupledSimConfigSnapshot(model)));
+          res.end(JSON.stringify(getSimulationConfigSnapshot(model)));
         } catch (e) {
           res.writeHead(400, { "content-type": "text/plain" });
           res.end(e instanceof Error ? e.message : String(e));
@@ -170,7 +170,7 @@ function handleAdminConfig(
   res.end("GET or PATCH only");
 }
 
-function plantFromParameters(file: CoupledSimParameters): CartPendulumPlant {
+function plantFromParameters(file: SimulationParameters): CartPendulumPlant {
   return createCartPendulumPlant(
     {
       gravity: plantGravityMS2(),
@@ -189,15 +189,15 @@ function plantFromParameters(file: CoupledSimParameters): CartPendulumPlant {
   );
 }
 
-export async function createCoupledSimGrpcModel(
-  partial?: Partial<CoupledSimGrpcOptions> & { plant?: CartPendulumPlant },
-): Promise<CoupledSimGrpcModel> {
-  const file = loadCoupledSimParametersForStartup();
+export async function createSimulationGrpcModel(
+  partial?: Partial<SimulationGrpcOptions> & { plant?: CartPendulumPlant },
+): Promise<SimulationGrpcModel> {
+  const file = loadSimulationParametersForStartup();
   const mpsPerRpm = partial?.mpsPerRpm ?? file.mpsPerRpm;
   const limitLeftXM = partial?.limitLeftXM ?? simLimitLeftXM();
   const limitRightXM = partial?.limitRightXM ?? simLimitRightXM();
   const plant = partial?.plant ?? plantFromParameters(file);
-  const model: CoupledSimGrpcModel = {
+  const model: SimulationGrpcModel = {
     plant,
     motorConnected: false,
     sensorConnected: false,
@@ -206,7 +206,7 @@ export async function createCoupledSimGrpcModel(
     mpsPerRpm,
     limitLeftXM,
     limitRightXM,
-    detail: "SIM: coupled cart + pendulum (MuJoCo physics-sim)",
+    detail: "SIM: cart + pendulum (MuJoCo physics-sim)",
   };
 
   const ok = await physicsSimHealthCheck();
@@ -225,13 +225,13 @@ export async function createCoupledSimGrpcModel(
 }
 
 /** Teknic `PosnMeasured` counts: UI display = `-measuredPosition` → `measured = -display = -xM / metersPerDisplay`. */
-function teknicMeasuredFromPlant(model: CoupledSimGrpcModel): number {
+function teknicMeasuredFromPlant(model: SimulationGrpcModel): number {
   const x = model.plant.state.xM;
   return -x / metersPerDisplayCount();
 }
 
 /** Stop velocity commands that would drive further into an active limit switch. */
-function enforceTravelLimitOnPlant(model: CoupledSimGrpcModel): void {
+function enforceTravelLimitOnPlant(model: SimulationGrpcModel): void {
   if (!model.sensorConnected) return;
   const x = model.plant.state.xM;
   const atLeft = x <= model.limitLeftXM;
@@ -247,7 +247,7 @@ function enforceTravelLimitOnPlant(model: CoupledSimGrpcModel): void {
   }
 }
 
-async function syncPlantToPhysics(model: CoupledSimGrpcModel): Promise<void> {
+async function syncPlantToPhysics(model: SimulationGrpcModel): Promise<void> {
   const payload = await physicsSimReset({
     config: { ...model.plant.config },
     initial: { ...model.plant.state },
@@ -255,7 +255,7 @@ async function syncPlantToPhysics(model: CoupledSimGrpcModel): Promise<void> {
   applyPhysicsPayloadToPlant(model.plant, payload);
 }
 
-async function advancePhysics(model: CoupledSimGrpcModel, lastMs: { t: number }): Promise<void> {
+async function advancePhysics(model: SimulationGrpcModel, lastMs: { t: number }): Promise<void> {
   const now = Date.now();
   const dt = Math.min(0.25, Math.max(0, (now - lastMs.t) / 1000));
   lastMs.t = now;
@@ -271,8 +271,8 @@ async function advancePhysics(model: CoupledSimGrpcModel, lastMs: { t: number })
   enforceTravelLimitOnPlant(model);
 }
 
-export function startCoupledSimGrpcServer(
-  model: CoupledSimGrpcModel,
+export function startSimulationGrpcServer(
+  model: SimulationGrpcModel,
   options?: { port?: number },
 ): Promise<{ url: string; close: () => Promise<void> }> {
   const explicit = options?.port;
@@ -325,7 +325,7 @@ export function startCoupledSimGrpcServer(
           reply.motor = create(MotorInfoSchema, {
             nodeIndex: 0,
             nodeTypeCode: 0,
-            nodeTypeLabel: "CoupledSim",
+            nodeTypeLabel: "Simulation",
             userId: "sim",
             firmwareVersion: "0",
             serialNumber: BigInt(0),
@@ -404,7 +404,7 @@ export function startCoupledSimGrpcServer(
         return create(SensorGetStatusReplySchema, {
           connected: model.sensorConnected,
           ledOn: model.ledOn,
-          detail: model.sensorConnected ? "SIM coupled sensor" : "SIM sensor disconnected",
+          detail: model.sensorConnected ? "SIM sensor" : "SIM sensor disconnected",
           serialPort: model.sensorConnected ? "SIM" : "",
           encoderTicks: clamped,
           limitLeftPressed: left,
@@ -417,8 +417,8 @@ export function startCoupledSimGrpcServer(
             create(SerialPortInfoSchema, {
               path: "SIM",
               manufacturer: "real-pendulum",
-              serialNumber: "coupled-sim",
-              friendlyName: "Coupled plant (no USB)",
+              serialNumber: "simulation",
+              friendlyName: "Simulation plant (no USB)",
             }),
           ],
         });
@@ -451,7 +451,7 @@ export function startCoupledSimGrpcServer(
     server.listen(listenPort, "127.0.0.1", () => {
       const addr = server.address();
       if (!addr || typeof addr === "string") {
-        reject(new Error("coupled sim: no listen address"));
+        reject(new Error("simulation: no listen address"));
         return;
       }
       resolve({

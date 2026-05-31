@@ -12,7 +12,7 @@ export function withHardwareGrpc<T>(fn: () => T | Promise<T>): T | Promise<T> {
   );
 }
 
-/** Simulated plant (coupled sim motor + sensor sharing physics state). */
+/** Simulated plant (simulation motor + sensor sharing physics state). */
 export function withSimGrpc<T>(fn: () => T | Promise<T>): T | Promise<T> {
   const motorUrl = resolveSimMotorGrpcUrl();
   const sensorUrl = resolveSimSensorGrpcUrl();

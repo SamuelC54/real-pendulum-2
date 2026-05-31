@@ -15,12 +15,12 @@ import {
 } from "./index.js";
 import { metersPerDisplayCount } from "@real-pendulum/app-config/rail";
 import {
-  createCoupledSimGrpcModel,
-  startCoupledSimGrpcServer,
-  type CoupledSimGrpcModel,
-} from "../test-support/coupledSimGrpcServer.js";
+  createSimulationGrpcModel,
+  startSimulationGrpcServer,
+  type SimulationGrpcModel,
+} from "../test-support/simulationGrpcServer.js";
 
-/** Teknic counts for cart `xM` (m) under coupled-sim display sign convention. */
+/** Teknic counts for cart `xM` (m) under simulation display sign convention. */
 function teknicCountsForXM(xM: number): number {
   return -xM / metersPerDisplayCount();
 }
@@ -29,19 +29,19 @@ function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-describe("Coupled sim (MotorService + SensorService, one plant)", () => {
-  let model: CoupledSimGrpcModel;
+describe("Simulation (MotorService + SensorService, one plant)", () => {
+  let model: SimulationGrpcModel;
   let url: string;
   let close: () => Promise<void>;
   let sensor: ReturnType<typeof createClient<typeof SensorService>>;
 
   beforeAll(async () => {
-    model = await createCoupledSimGrpcModel({
+    model = await createSimulationGrpcModel({
       mpsPerRpm: 0.001,
       limitLeftXM: -0.01,
       limitRightXM: 0.4,
     });
-    const started = await startCoupledSimGrpcServer(model, { port: 0 });
+    const started = await startSimulationGrpcServer(model, { port: 0 });
     url = started.url;
     close = started.close;
     setDefaultMotorGrpcUrlForTests(url);

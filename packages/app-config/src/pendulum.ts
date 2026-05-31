@@ -5,7 +5,7 @@ export function encoderCountsPerRevolution(): number {
   return config.pendulum.encoderCountsPerRevolution;
 }
 
-/** Coupled cart–pendulum plant gravity (m/s²). */
+/** Simulation cart–pendulum plant gravity (m/s²). */
 export function plantGravityMS2(): number {
   const g = config.pendulum.gravityMS2;
   if (!Number.isFinite(g) || g <= 0) {

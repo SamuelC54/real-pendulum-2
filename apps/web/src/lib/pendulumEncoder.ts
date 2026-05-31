@@ -1,6 +1,6 @@
 import { config } from "@real-pendulum/app-config";
 
-/** Shaft encoder CPR — shared by Arduino firmware and coupled sim. */
+/** Shaft encoder CPR — shared by Arduino firmware and simulation. */
 export function encoderCountsPerRevolution(): number {
   return config.pendulum.encoderCountsPerRevolution;
 }

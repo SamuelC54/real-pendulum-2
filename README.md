@@ -31,13 +31,13 @@ npm install
 npm test
 ```
 
-Runs **Vitest** for **`@real-pendulum/control-api`** (unit tests, **coupled-sim `MotorService`** integration tests, contract fixtures) and **`web`** (`jogMath`, **`JogControls`**). No Teknic hardware required.
+Runs **Vitest** for **`@real-pendulum/control-api`** (unit tests, **simulation `MotorService`** integration tests, contract fixtures) and **`web`** (`jogMath`, **`JogControls`**). No Teknic hardware required.
 
 **End-to-end (Playwright)** — **`npm run build`** then:
 
 | Command | Stack |
 |---------|--------|
-| **`npm run test:e2e`** | Coupled sim (**physics-sim** + **MotorService** / **SensorService**) + **control-api** + **Vite** on isolated ports (**50552** / **14001** / **4174**, see **`playwright.config.cjs`**) — default CI/local smoke, no hardware. |
+| **`npm run test:e2e`** | Simulation (**physics-sim** + **MotorService** / **SensorService**) + **control-api** + **Vite** on isolated ports (**50552** / **14001** / **4174**, see **`playwright.config.cjs`**) — default CI/local smoke, no hardware. |
 | **`npm run test:e2e:real`** | Real **motor service** (Teknic DLL) + **control-api** + **Vite** on dev ports from **`config`** (defaults **50051** / **4000** / **5173**). Uses **`playwright.real.config.cjs`**. Build native first: **`npm run build:native -w @real-pendulum/motor-service`**, ClearView closed. Extra spec **`e2e/motor-api-real.spec.ts`** (skipped in sim E2E). |
 
 UI mode: **`npm run test:e2e:ui`**, **`npm run test:e2e:real:ui`** — or **`npx playwright test --ui`**.
@@ -51,7 +51,7 @@ UI mode: **`npm run test:e2e:ui`**, **`npm run test:e2e:real:ui`** — or **`npx
 
 ### Configuration
 
-Edit **`packages/app-config/src/config.ts`** for ports, homing, coupled-sim parameters, Teknic native build paths, flash options, and E2E sim-stack ports (`config.e2e`). Services accept optional CLI overrides (`--port`, `--motor-grpc-url`) when spawned by scripts.
+Edit **`packages/app-config/src/config.ts`** for ports, homing, simulation parameters, Teknic native build paths, flash options, and E2E sim-stack ports (`config.e2e`). Services accept optional CLI overrides (`--port`, `--motor-grpc-url`) when spawned by scripts.
 
 **Teknic motion limits** are in **`TeknicCfg`** (`apps/motor-service/native/teknic_motor/teknic_cfg.h`) — rebuild the DLL after changes. **`FindComHubPorts`** only sees the **SC4-HUB** USB adapter; for motor diagnostic USB set **`TeknicCfg::kManualComWhenDiscoveryEmpty`** ≥ 1.
 

@@ -9,8 +9,8 @@ import { useMotorStatusConnected, useSensorStatusConnected } from "./useMotorSta
 const RETRY_MS = 2500;
 
 /**
- * In **sim** backend mode, connect motor + sensor gRPC to the coupled plant without USB boards.
- * Retries until both report connected (e.g. while `serve:coupled-sim` is still starting).
+ * In **sim** backend mode, connect motor + sensor gRPC to the simulation plant without USB boards.
+ * Retries until both report connected (e.g. while `serve:simulation` is still starting).
  */
 export function useSimBackendAutoConnect(): {
   active: boolean;

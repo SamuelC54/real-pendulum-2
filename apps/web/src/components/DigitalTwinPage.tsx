@@ -21,7 +21,7 @@ export function DigitalTwinPage() {
         <div>
           <h1 className="text-lg font-semibold">Digital twin</h1>
           <p className="text-muted-foreground mt-1 max-w-2xl text-sm leading-snug">
-            Jog the coupled simulator; the 3D view mirrors physics-sim poses (motor cm + encoder).
+            Jog the simulationulator; the 3D view mirrors physics-sim poses (motor cm + encoder).
             Use backend mode <strong className="text-foreground font-medium">Sim</strong> or{" "}
             <strong className="text-foreground font-medium">Twin</strong>.
           </p>
@@ -48,7 +48,7 @@ export function DigitalTwinPage() {
             <CardTitle className="text-base">Simulator (3D)</CardTitle>
             <CardDescription>
               {mode === "twin"
-                ? "Coupled-sim plant — physics runs in MuJoCo on the backend."
+                ? "Simulation plant — physics runs in MuJoCo on the backend."
                 : mode === "sim"
                   ? "Sim motor + sensor — poses from physics-sim."
                   : "Switch to Sim or Twin in the header to drive the digital twin."}
