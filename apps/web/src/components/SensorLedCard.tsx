@@ -159,7 +159,7 @@ export function SensorLedCard() {
           </>
         ) : (
           <>
-            USB list via sensor-service — pick a port or{" "}
+            USB list via physical-sensor-service — pick a port or{" "}
             <code className="text-foreground">SENSOR_SERIAL_PORT</code>.{" "}
             <strong className="text-foreground font-medium">Flash</strong>: CLI on control-api.{" "}
             <code className="text-foreground">npm run flash:sensor-firmware -- COM3</code>: CLI where npm

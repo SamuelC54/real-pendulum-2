@@ -1,5 +1,5 @@
 /**
- * Compile and upload `apps/sensor-service/firmware/led_toggle` via Arduino CLI.
+ * Compile and upload `apps/physical-sensor-service/firmware/led_toggle` via Arduino CLI.
  *
  * Prerequisites: install https://arduino.github.io/arduino-cli/ and run once:
  *   arduino-cli core install arduino:avr
@@ -19,7 +19,7 @@ const LOG = "[flash-sensor-firmware]";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, "..");
-const sketch = join(root, "apps/sensor-service/firmware/led_toggle");
+const sketch = join(root, "apps/physical-sensor-service/firmware/led_toggle");
 
 const fqbn = config.flash.arduinoFqbn;
 const portArg = process.argv[2]?.trim();
@@ -87,7 +87,7 @@ async function main() {
   if (shouldRetryWindows) {
     console.error(`
 ${LOG} First upload failed — waiting ${retryMs} ms for Windows to release ${port},
-then retrying once (common after closing serial / sensor-service).
+then retrying once (common after closing serial / physical-sensor-service).
 `);
     await delay(retryMs);
     upload = uploadSketch(port);
@@ -104,7 +104,7 @@ then retrying once (common after closing serial / sensor-service).
   if (comStateStuck) {
     console.error(`
 ${LOG} Still seeing COM errors — waiting ${stallMs} ms, then one more upload attempt.
-If this keeps failing: fully STOP the dev stack (\`npm run dev\`) so sensor-service exits,
+If this keeps failing: fully STOP the dev stack (\`npm run dev\`) so physical-sensor-service exits,
 or Task Manager → end node.exe holding the port. Disconnect in the UI alone is not always enough.
 `);
     await delay(stallMs);
@@ -120,7 +120,7 @@ If avrdude said **cannot find the file specified** for \\\\.\\COMn:
     Run \`arduino-cli board list\` and pass that Port (README examples like COM3 are placeholders only).
 
 If you see **can't set com-state** / **SetCommState** / **access denied**:
-  • Something still owns the COM port. Stop **sensor-service** (quit \`npm run dev\` / the concurrent
+  • Something still owns the COM port. Stop **physical-sensor-service** (quit \`npm run dev\` / the concurrent
     "sensor" process, or kill the Node process). Disconnect in the browser is not enough if that
     process is still running. Close Arduino IDE Serial Monitor and any other serial terminals.
 

@@ -31,7 +31,7 @@ launch("npm", [
   "run",
   "start",
   "-w",
-  "@real-pendulum/motor-service",
+  "@real-pendulum/physical-motor-service",
   "--",
   "--port",
   String(motorPort),

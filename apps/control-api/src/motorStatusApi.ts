@@ -1,4 +1,4 @@
-import type * as motor from "@real-pendulum/motor-service/sdk";
+import type * as motor from "@real-pendulum/physical-motor-service/sdk";
 import {
   teknicMeasuredToCm,
   travelLimitsToCm,

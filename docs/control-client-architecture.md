@@ -11,13 +11,13 @@ This document describes the **target** architecture for machine control in real-
 
 | Goal                    | Detail                                                                                                                                 |
 | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| **Stable app API**      | Web and other callers use **tRPC on control-api** only. They do not talk to motor-service, sensor-service, or physics-sim directly.    |
+| **Stable app API**      | Web and other callers use **tRPC on control-api** only. They do not talk to physical-motor-service, physical-sensor-service, or simulation directly.    |
 | **Backend isolation**   | control-api routes all rail motion and sensor reads through a **ControlClient** that delegates to a **ControlBackend** implementation. |
 | **Swappable execution** | The same ControlClient API works for **physical** hardware, **simulation** (MuJoCo), and (later) **twin** (both in parallel).          |
 | **Mapping at the edge** | Protocol details (gRPC protos, Teknic counts, cm, MuJoCo state) stay inside backends—not in the UI.                                    |
 
 
-Phase 1 focuses on **manual rail control** (connect, jog, stop, absolute move, travel limits, LED) and **state reads**. **Closed-loop controllers** live in a separate Python package (see §6)—not inside `physics-sim`.
+Phase 1 focuses on **manual rail control** (connect, jog, stop, absolute move, travel limits, LED) and **state reads**. **Closed-loop controllers** live in a separate Python package (see §6)—not inside `simulation`.
 
 ---
 
@@ -46,8 +46,8 @@ flowchart TB
   end
 
   subgraph physical [Physical stack]
-    MS[motor-service gRPC]
-    SS[sensor-service gRPC]
+    MS[physical-motor-service gRPC]
+    SS[physical-sensor-service gRPC]
     DLL[teknic_motor.dll]
     ARDUINO[Sensor board USB]
     MS --> DLL
@@ -55,7 +55,7 @@ flowchart TB
   end
 
   subgraph simulation [Simulation stack]
-    PHYS[physics-sim\nMuJoCo plant HTTP]
+    PHYS[simulation\nMuJoCo plant HTTP]
   end
 
   subgraph controllers [Controllers]
@@ -81,12 +81,12 @@ flowchart TB
 | **Web**                            | UI, operator workflows, React Query / tRPC client. Sends **backend mode** (hardware / sim / twin) on requests; no gRPC to motor or sim processes.                                       |
 | **control-api tRPC**               | Auth-less bench API: validation, motion latch, travel limits, controller runner. **Constructs ControlClient** from the requested mode and calls it.               |
 | **ControlClient**                  | Thin façade: `getState`, `setJogCmPerSec`, `stop`, `moveToPositionCm`, `setTravelLimits`, `setLed`, connect/disconnect, etc. Delegates to the injected backend. Rail motion is in **cm** and **cm/s**—not motor RPM. |
-| **PhysicalControlBackend**         | Uses **@real-pendulum/motor-service/sdk** and **sensor-service/sdk** against production URLs (Teknic + Arduino).                                                                        |
-| **SimulationControlBackend**       | Talks **directly** to **physics-sim** HTTP (`GET /state`, actuator commands, `/step`). Maps MuJoCo plant state → `RailMachineState`. **No motor-service or sensor-service.**            |
+| **PhysicalControlBackend**         | Uses **@real-pendulum/physical-motor-service/sdk** and **physical-sensor-service/sdk** against production URLs (Teknic + Arduino).                                                                        |
+| **SimulationControlBackend**       | Talks **directly** to **simulation** HTTP (`GET /state`, actuator commands, `/step`). Maps MuJoCo plant state → `RailMachineState`. **No physical-motor-service or physical-sensor-service.**            |
 | **TwinControlBackend** (planned)   | Composes physical + simulation backends so one command runs on **both** rails (current product behavior).                                                                               |
-| **motor-service / sensor-service** | **Physical stack only** (Teknic DLL + USB sensor board). Not part of the simulation stack.                                                                                              |
-| **physics-sim**                    | **Simulation plant only:** MuJoCo HTTP API (`/state`, `/step`, `/actuator`, …). Cart position, pendulum angle, virtual limit switches. **No closed-loop controllers.** |
-| **rail-controllers**               | Python package of rail control algorithms (LQR, go-to-center, oscillate, …). **Moved out of** `apps/physics-sim/controllers/`. |
+| **physical-motor-service / physical-sensor-service** | **Physical stack only** (Teknic DLL + USB sensor board). Not part of the simulation stack.                                                                                              |
+| **simulation**                    | **Simulation plant only:** MuJoCo HTTP API (`/state`, `/step`, `/actuator`, …). Cart position, pendulum angle, virtual limit switches. **No closed-loop controllers.** |
+| **rail-controllers**               | Python package of rail control algorithms (LQR, go-to-center, oscillate, …). **Moved out of** `apps/simulation/controllers/`. |
 | **controller-service**             | Thin HTTP process hosting `rail-controllers` (`/controllers/list`, `/start`, `/stop`, `/tick`). **controllerRunner** in control-api orchestrates ticks + applies commands via ControlClient / motor. |
 
 
@@ -216,10 +216,10 @@ Optional later split (only if needed): `ControllerBackend` for closed-loop start
 
 | Concern | Implementation                                                                                                                                                       |
 | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Motor   | `motor-service` gRPC (`Connect`, `SetJogVelocity`, `Stop`, `MoveToPosition`, `GetStatus`, …) — **PhysicalControlBackend converts cm/s ↔ RPM** at this boundary only. `connection.cart` from motor connect status. |
-| Sensor  | `sensor-service` gRPC (limits, encoder ticks, LED, connect) — **PhysicalControlBackend converts encoder ticks → `angleDeg`**; maps limit switches → `limitSwitch`, LED → `led`. `connection.sensor` from sensor connect status. |
+| Motor   | `physical-motor-service` gRPC (`Connect`, `SetJogVelocity`, `Stop`, `MoveToPosition`, `GetStatus`, …) — **PhysicalControlBackend converts cm/s ↔ RPM** at this boundary only. `connection.cart` from motor connect status. |
+| Sensor  | `physical-sensor-service` gRPC (limits, encoder ticks, LED, connect) — **PhysicalControlBackend converts encoder ticks → `angleDeg`**; maps limit switches → `limitSwitch`, LED → `led`. `connection.sensor` from sensor connect status. |
 | Travel limits | `setTravelLimits({ left, right })` stores cm bounds server-side; exposed in `getState().cart.travelLimitsCm`. |
-| LED     | `sensor-service` set LED command via `setLed(on)`; `led.on` reflected in `getState().led`. |
+| LED     | `physical-sensor-service` set LED command via `setLed(on)`; `led.on` reflected in `getState().led`. |
 | URLs    | `config.motor.grpcUrl` / `config.sensor.grpcUrl` (defaults 50051 / 50052)                                                                                            |
 | Mapping | Teknic measured counts ↔ cm via `railPositionCm`; encoder ticks ↔ degrees for pendulum; normalized `RailMachineState` and `ControlError`                             |
 
@@ -229,8 +229,8 @@ sequenceDiagram
   participant TRPC as tRPC handler
   participant CC as ControlClient
   participant PB as PhysicalControlBackend
-  participant MS as motor-service
-  participant SS as sensor-service
+  participant MS as physical-motor-service
+  participant SS as physical-sensor-service
 
   TRPC->>CC: setJogCmPerSec(cm/s)
   CC->>PB: setJogCmPerSec(cm/s)
@@ -248,7 +248,7 @@ sequenceDiagram
 
 **Purpose:** Same operator API as hardware, but state and motion come from **MuJoCo** via a **direct HTTP client**—not via motor/sensor gRPC.
 
-The simulation stack is **physics-sim only** (`apps/physics-sim`). control-api reads plant state and sends actuator commands there; it does **not** start or call `serve:simulation`, `simulationGrpcServer`, or the motor/sensor SDKs in sim mode. **Controllers are not part of physics-sim** (see §6).
+The simulation stack is **simulation only** (`apps/simulation`). control-api reads plant state and sends actuator commands there; it does **not** start or call `serve:simulation`, `simulationGrpcServer`, or the motor/sensor SDKs in sim mode. **Controllers are not part of simulation** (see §6).
 
 
 | Concern                     | Implementation                                                                                           |
@@ -257,13 +257,13 @@ The simulation stack is **physics-sim only** (`apps/physics-sim`). control-api r
 | **Actuator command**        | `POST /actuator` or `POST /step` with `xRefM` (position setpoint, m) and/or `vCmdMps` (velocity command) |
 | **Advance time**            | `POST /step` `{ dt, … }` after setting actuator command                                                  |
 | **Reset / config**          | `POST /reset`, `PATCH /config`                                                                           |
-| **TS client**               | `@real-pendulum/physics-sim/client` (`physicsSimGetState`, `physicsSimStep`, …)                          |
-| **Mapping**                 | Backend converts m ↔ cm, `thetaRad` ↔ `angleDeg`, limit booleans → `limitSwitch.leftPressed` / `rightPressed`. Sim: `connection.cart` / `connection.sensor` true when physics-sim is reachable (no USB). |
+| **TS client**               | `@real-pendulum/simulation/client` (`physicsSimGetState`, `physicsSimStep`, …)                          |
+| **Mapping**                 | Backend converts m ↔ cm, `thetaRad` ↔ `angleDeg`, limit booleans → `limitSwitch.leftPressed` / `rightPressed`. Sim: `connection.cart` / `connection.sensor` true when simulation is reachable (no USB). |
 | **Travel limits**           | Same server-side limit store as hardware (separate sim bucket); `setTravelLimits` writes cm bounds from tRPC/UI. |
 | **LED**                     | `setLed(on)` updates `led.on` in state (sim mirrors the same field). |
 
 
-#### physics-sim HTTP contract (simulation boundary)
+#### simulation HTTP contract (simulation boundary)
 
 
 | Method | Path             | Role                                                                                        |
@@ -284,7 +284,7 @@ sequenceDiagram
   participant TRPC as tRPC handler
   participant CC as ControlClient
   participant SB as SimulationControlBackend
-  participant PHYS as physics-sim HTTP
+  participant PHYS as simulation HTTP
 
   TRPC->>CC: setJogCmPerSec(cm/s)
   CC->>SB: setJogCmPerSec(cm/s)
@@ -299,7 +299,7 @@ sequenceDiagram
 
 #### Legacy note (do not use for new sim work)
 
-`serve:simulation` / `simulationGrpcServer` (MotorService + SensorService facades over physics-sim) exists in the repo today for **backward compatibility** during migration. It is **not** the target simulation architecture and should not be extended.
+`serve:simulation` / `simulationGrpcServer` (MotorService + SensorService facades over simulation) exists in the repo today for **backward compatibility** during migration. It is **not** the target simulation architecture and should not be extended.
 
 ### 5.3 TwinControlBackend (planned)
 
@@ -315,14 +315,14 @@ In-memory backend for unit tests and local UI work without processes. Used from 
 
 ---
 
-## 6. Rail controllers (outside physics-sim)
+## 6. Rail controllers (outside simulation)
 
-**Today:** controller implementations live under `apps/physics-sim/controllers/` and are served from the physics-sim HTTP server (`POST /controllers/*`). **Target:** move them **out of** `apps/physics-sim` so the sim process is **plant-only** (MuJoCo state + actuators).
+**Today:** controller implementations live under `apps/simulation/controllers/` and are served from the simulation HTTP server (`POST /controllers/*`). **Target:** move them **out of** `apps/simulation` so the sim process is **plant-only** (MuJoCo state + actuators).
 
 ### 6.1 Layout (target)
 
 ```
-packages/rail-controllers/              # Python package — moved from apps/physics-sim/controllers/
+packages/rail-controllers/              # Python package — moved from apps/simulation/controllers/
   pyproject.toml
   rail_controllers/
     __init__.py
@@ -337,9 +337,9 @@ packages/rail-controllers/              # Python package — moved from apps/phy
 apps/controller-service/                # thin HTTP wrapper (separate dev process)
   src/
     server.py                           # /controllers/list, /status, /start, /stop, /tick
-  package.json                          # npm script to start alongside physics-sim
+  package.json                          # npm script to start alongside simulation
 
-apps/physics-sim/                       # plant only — no controllers/ directory
+apps/simulation/                       # plant only — no controllers/ directory
   cart_pendulum/
     server.py                           # /state, /step, /actuator, /reset, /config only
 ```
@@ -355,7 +355,7 @@ sequenceDiagram
   participant CR as controllerRunner
   participant CS as controller-service
   participant CC as ControlClient
-  participant Plant as physics-sim or motor
+  participant Plant as simulation or motor
 
   Web->>API: controllers.start (tRPC)
   API->>CR: startController(id, params, mode)
@@ -369,7 +369,7 @@ sequenceDiagram
   end
 ```
 
-**controllerRunner** (control-api) owns the loop: read rail/pendulum state, call **controller-service** for the next command, apply it through **ControlClient** (physical or sim backend). Controllers never call motor-service or physics-sim HTTP themselves.
+**controllerRunner** (control-api) owns the loop: read rail/pendulum state, call **controller-service** for the next command, apply it through **ControlClient** (physical or sim backend). Controllers never call physical-motor-service or simulation HTTP themselves.
 
 ### 6.3 controller-service HTTP contract
 
@@ -382,16 +382,16 @@ sequenceDiagram
 | POST   | `/controllers/stop`  | Clear active controller                   |
 | POST   | `/controllers/tick`  | `{ positionCm, timeSec, encoderTicks? }` → command |
 
-TS client: `@real-pendulum/controller-service/client` (extracted from today's `@real-pendulum/physics-sim/client` controller helpers).
+TS client: `@real-pendulum/controller-service/client` (extracted from today's `@real-pendulum/simulation/client` controller helpers).
 
 ### 6.4 Migration from today
 
 | Today | Target |
 | ----- | ------ |
-| `apps/physics-sim/controllers/*.py` | `packages/rail-controllers/rail_controllers/*.py` |
-| `/controllers/*` on physics-sim (58871) | `/controllers/*` on **controller-service** (separate port, e.g. 58872) |
-| `physicsSimControllersTick` in `@real-pendulum/physics-sim/client` | `controllerServiceTick` in `@real-pendulum/controller-service/client` |
-| `controllerRunner` → physics-sim HTTP | `controllerRunner` → controller-service HTTP + ControlClient for actuation |
+| `apps/simulation/controllers/*.py` | `packages/rail-controllers/rail_controllers/*.py` |
+| `/controllers/*` on simulation (58871) | `/controllers/*` on **controller-service** (separate port, e.g. 58872) |
+| `physicsSimControllersTick` in `@real-pendulum/simulation/client` | `controllerServiceTick` in `@real-pendulum/controller-service/client` |
+| `controllerRunner` → simulation HTTP | `controllerRunner` → controller-service HTTP + ControlClient for actuation |
 
 ---
 
@@ -443,7 +443,7 @@ function createControlClient(mode: ControlMode): ControlClient {
 ```
 
 - **PhysicalControlBackend:** SDK clients with `withMotorGrpcBaseUrl` / `withSensorGrpcBaseUrl` (existing pattern in `twinGrpc.ts`).
-- **SimulationControlBackend:** `@real-pendulum/physics-sim/client` only (`PHYSICS_SIM_URL`, default `http://127.0.0.1:58871`). No gRPC URL wiring.
+- **SimulationControlBackend:** `@real-pendulum/simulation/client` only (`PHYSICS_SIM_URL`, default `http://127.0.0.1:58871`). No gRPC URL wiring.
 
 ---
 
@@ -455,7 +455,7 @@ These remain dedicated control-api modules until there is a clear benefit to fol
 | Module               | Reason                                                                     |
 | -------------------- | -------------------------------------------------------------------------- |
 | **motionLatch**      | Global safety FSM; cross-cutting                                           |
-| **controllerRunner** | Closed-loop tick loop → **controller-service** HTTP; reads state and actuates via **ControlClient** (not physics-sim). |
+| **controllerRunner** | Closed-loop tick loop → **controller-service** HTTP; reads state and actuates via **ControlClient** (not simulation). |
 | **Firmware flash**   | Sensor-service admin; not rail motion                                      |
 
 
@@ -478,7 +478,7 @@ apps/control-api/src/
       MockControlBackend.ts
     mappers/
       physicalMappers.ts      # Teknic counts, sensor proto → RailMachineState
-      simulationMappers.ts    # physics-sim JSON → RailMachineState
+      simulationMappers.ts    # simulation JSON → RailMachineState
   router.ts          # tRPC → createControlClient(mode) → ControlClient
   twinGrpc.ts        # may shrink once backends own URL wiring
 ```
@@ -494,8 +494,8 @@ A future `**packages/rail-control**` could extract the same types/backends if th
 
 | Process              | Port (default) | Used by                  |
 | -------------------- | -------------- | ------------------------ |
-| motor-service        | 50051          | PhysicalControlBackend   |
-| sensor-service       | 50052          | PhysicalControlBackend   |
+| physical-motor-service        | 50051          | PhysicalControlBackend   |
+| physical-sensor-service       | 50052          | PhysicalControlBackend   |
 | **controller-service** | 58872        | controllerRunner         |
 | control-api          | 4000           | Web tRPC                 |
 | web (Vite)           | 5173           | Browser                  |
@@ -507,24 +507,24 @@ Controllers use the same **controller-service** in hardware and sim; only the **
 
 | Process                         | Port (default) | Used by                  |
 | ------------------------------- | -------------- | ------------------------ |
-| **physics-sim** (MuJoCo plant)  | 58871          | SimulationControlBackend |
+| **simulation** (MuJoCo plant)  | 58871          | SimulationControlBackend |
 | **controller-service**          | 58872          | controllerRunner         |
 | control-api                     | 4000           | Web tRPC                 |
 | web (Vite)                      | 5173           | Browser                  |
 
 
-Simulation mode does **not** require motor-service, sensor-service, or `serve:simulation`. **physics-sim** does not expose `/controllers/*`.
+Simulation mode does **not** require physical-motor-service, physical-sensor-service, or `serve:simulation`. **simulation** does not expose `/controllers/*`.
 
 ### Twin mode
 
-All hardware processes **plus** physics-sim (58871) and controller-service (58872). PhysicalControlBackend and SimulationControlBackend run in parallel inside TwinControlBackend.
+All hardware processes **plus** simulation (58871) and controller-service (58872). PhysicalControlBackend and SimulationControlBackend run in parallel inside TwinControlBackend.
 
 ### Legacy (migration only)
 
 
 | Process          | Port  | Status                                                                                               |
 | ---------------- | ----- | ---------------------------------------------------------------------------------------------------- |
-| serve:simulation | 58870 | Deprecated — gRPC facades; remove once SimulationControlBackend uses physics-sim directly everywhere |
+| serve:simulation | 58870 | Deprecated — gRPC facades; remove once SimulationControlBackend uses simulation directly everywhere |
 
 
 ---
@@ -535,8 +535,8 @@ The architecture is in place when:
 
 1. **Web** talks only to **control-api** (tRPC)—unchanged from an operator perspective.
 2. **control-api** exposes a **ControlClient** used by jog/move/status, travel limits, and sensor LED procedures.
-3. **PhysicalControlBackend** drives **motor-service** + **sensor-service** (real hardware).
-4. **SimulationControlBackend** talks **directly** to **physics-sim** HTTP (get state, set actuator, step)—no motor/sensor gRPC; **no** `/controllers/*` on physics-sim.
+3. **PhysicalControlBackend** drives **physical-motor-service** + **physical-sensor-service** (real hardware).
+4. **SimulationControlBackend** talks **directly** to **simulation** HTTP (get state, set actuator, step)—no motor/sensor gRPC; **no** `/controllers/*` on simulation.
 5. **Rail controllers** live in **`packages/rail-controllers`**; **controller-service** exposes `/controllers/*`; **controllerRunner** orchestrates ticks + ControlClient actuation.
 6. Unit conversion and proto mapping live in **backends**, not in React components.
 7. Tests cover ControlClient delegation and at least one real backend (mock + physical or sim mapper tests).
@@ -545,12 +545,12 @@ The architecture is in place when:
 
 ## 13. Non-goals
 
-- Replacing **protobuf** on the **physical** stack (motor-service / sensor-service remain for hardware).
+- Replacing **protobuf** on the **physical** stack (physical-motor-service / physical-sensor-service remain for hardware).
 - **Simulation stack:** no motor/sensor gRPC facades in the target design (`serve:simulation` is legacy only).
-- Implementing a new physics engine (MuJoCo remains in `apps/physics-sim` **plant code only**).
-- Embedding closed-loop controllers inside **physics-sim** (they belong in **`packages/rail-controllers`**).
+- Implementing a new physics engine (MuJoCo remains in `apps/simulation` **plant code only**).
+- Embedding closed-loop controllers inside **simulation** (they belong in **`packages/rail-controllers`**).
 - Generic robot APIs (`moveLinear`, tool pose, IO banks) in v1.
-- Web calling **motor-service**, **sensor-service**, or **physics-sim** directly (always via control-api tRPC).
+- Web calling **physical-motor-service**, **physical-sensor-service**, or **simulation** directly (always via control-api tRPC).
 - Rewriting the entire **twin.*** tRPC router in the first PR (can follow once ControlClient exists).
 
 ---
@@ -562,12 +562,12 @@ The architecture is in place when:
 | ---- | ------------------------------------------------------------------------------------------------------------ |
 | 1    | Add `control/` types, `ControlBackend`, `ControlClient`, `MockControlBackend`.                               |
 | 2    | Implement `PhysicalControlBackend` (motor/sensor SDK + mappers).                                             |
-| 3    | Implement `SimulationControlBackend` (**physics-sim HTTP client** + `simulationMappers`; no gRPC).           |
+| 3    | Implement `SimulationControlBackend` (**simulation HTTP client** + `simulationMappers`; no gRPC).           |
 | 4    | Wire `jog.setCmPerSec`, `jog.stop`, `rail.limits.*`, `sensor.led.set`, `status.get`, `connection.*` through `createControlClient`. |
 | 5    | Implement `TwinControlBackend`; collapse duplicate tRPC where safe.                                          |
 | 6    | Migrate remaining rail procedures (move absolute, zero, homing).                                   |
 | 7    | Remove sim-mode dependency on `serve:simulation` / `simulationGrpcServer`; update `npm run dev` sim profile. |
-| 8    | Move `apps/physics-sim/controllers/` → **`packages/rail-controllers`**; add **`apps/controller-service`**; remove `/controllers/*` from physics-sim; point `controllerRunner` at controller-service. |
+| 8    | Move `apps/simulation/controllers/` → **`packages/rail-controllers`**; add **`apps/controller-service`**; remove `/controllers/*` from simulation; point `controllerRunner` at controller-service. |
 | 9    | Optional: extract `packages/rail-control`; document in TECHDOC link.                                         |
 
 
@@ -582,6 +582,6 @@ Track answers here as the design is finalized:
 - Controllers stay in **controllerRunner** + **controller-service** (not ControlClient methods).
 - **controller-service** port and env var name (`CONTROLLER_SERVICE_URL`, default 58872).
 - Package extraction timing (`control-api` only vs `packages/rail-control`).
-- Exact physics-sim actuator API shape (`POST /actuator` vs overloaded `/step` only).
+- Exact simulation actuator API shape (`POST /actuator` vs overloaded `/step` only).
 - Sim-mode `connect` / `disconnect` semantics (no USB—likely no-op or reset plant).
 

@@ -3,7 +3,7 @@ import {
   physicsSimHealthCheck,
   physicsSimMoveAbsolute,
   physicsSimStep,
-} from "@real-pendulum/physics-sim/client";
+} from "@real-pendulum/simulation/client";
 import { isMotionBlockedByLatch } from "../../motionLatch.js";
 import { setTravelLimitsFromCm, syncTravelLimitsFromMotorConnection } from "../../railTravelLimits.js";
 import { mpsFromCmPerSec } from "../motionUnits.js";
@@ -98,7 +98,7 @@ export class SimulationControlBackend implements ControlBackend {
   async connect(): Promise<ConnectResult> {
     const ok = await physicsSimHealthCheck();
     this.plantConnected = ok;
-    return ok ? { ok: true, error: "" } : { ok: false, error: "physics-sim is not reachable." };
+    return ok ? { ok: true, error: "" } : { ok: false, error: "simulation is not reachable." };
   }
 
   async disconnect(): Promise<void> {

@@ -1,5 +1,5 @@
 /**
- * Simulation (physics-sim + controller-service) → control-api → Vite for Playwright E2E.
+ * Simulation (simulation + controller-service) → control-api → Vite for Playwright E2E.
  */
 import { spawn, type ChildProcess } from "node:child_process";
 import path from "node:path";
@@ -13,7 +13,7 @@ import {
 } from "@real-pendulum/app-config";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const physicsSimDir = path.join(root, "apps/physics-sim");
+const simulationDir = path.join(root, "apps/simulation");
 const controllerServiceDir = path.join(root, "apps/controller-service");
 const physicsPort = config.e2e.physicsSimHttpPort;
 const controllerPort = config.e2e.controllerServiceHttpPort;
@@ -40,7 +40,7 @@ function launch(
 }
 
 launch("python", ["-m", "cart_pendulum.server", "--port", String(physicsPort)], {
-  cwd: physicsSimDir,
+  cwd: simulationDir,
 });
 
 await waitOn({

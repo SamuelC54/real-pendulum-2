@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-vi.mock("@real-pendulum/motor-service/sdk", () => ({
+vi.mock("@real-pendulum/physical-motor-service/sdk", () => ({
   motorConnectBaseUrl: vi.fn(() => "http://127.0.0.1:50051"),
   defaultMotorGrpcUrl: vi.fn(() => "http://127.0.0.1:50051"),
   normalizeMotorGrpcBaseUrl: vi.fn((s: string) => s),
@@ -16,7 +16,7 @@ vi.mock("@real-pendulum/motor-service/sdk", () => ({
 
 vi.mock("./homing.js", () => ({}));
 
-vi.mock("@real-pendulum/physics-sim/client", () => ({
+vi.mock("@real-pendulum/simulation/client", () => ({
   physicsSimHealthCheck: vi.fn(async () => true),
   physicsSimGetState: vi.fn(async () => ({
     state: {
@@ -42,7 +42,7 @@ vi.mock("@real-pendulum/physics-sim/client", () => ({
   physicsSimMoveAbsolute: vi.fn(async () => ({})),
 }));
 
-vi.mock("@real-pendulum/sensor-service/sdk", () => ({
+vi.mock("@real-pendulum/physical-sensor-service/sdk", () => ({
   sensorConnectBaseUrl: vi.fn(() => "http://127.0.0.1:50052"),
   defaultSensorGrpcUrl: vi.fn(() => "http://127.0.0.1:50052"),
   normalizeSensorGrpcBaseUrl: vi.fn((s: string) => s),
@@ -55,9 +55,9 @@ vi.mock("@real-pendulum/sensor-service/sdk", () => ({
   getSensorStatus: vi.fn(),
 }));
 
-import * as motor from "@real-pendulum/motor-service/sdk";
-import * as sensor from "@real-pendulum/sensor-service/sdk";
-import * as physicsSim from "@real-pendulum/physics-sim/client";
+import * as motor from "@real-pendulum/physical-motor-service/sdk";
+import * as sensor from "@real-pendulum/physical-sensor-service/sdk";
+import * as physicsSim from "@real-pendulum/simulation/client";
 import { resetTravelLimitsStateForTests } from "./railTravelLimits.js";
 import { appRouter } from "./router.js";
 describe("appRouter (motor mocked)", () => {
@@ -201,14 +201,14 @@ describe("appRouter (motor mocked)", () => {
     expect(motor.zeroMeasuredPosition).not.toHaveBeenCalled();
   });
 
-  it("twin.connection.connect returns real ok when physics-sim is down", async () => {
+  it("twin.connection.connect returns real ok when simulation is down", async () => {
     vi.mocked(motor.connectMotor).mockResolvedValue({ ok: true, error: "" });
     vi.mocked(physicsSim.physicsSimHealthCheck).mockResolvedValueOnce(false);
     const caller = appRouter.createCaller({});
     const r = await caller.twin.connection.connect();
     expect(r.real).toEqual({ ok: true, error: "" });
     expect(r.sim.ok).toBe(false);
-    expect(r.sim.error).toContain("physics-sim");
+    expect(r.sim.error).toContain("simulation");
   });
 
   it("twin.status.get returns real and sim motor snapshots", async () => {

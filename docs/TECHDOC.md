@@ -39,7 +39,7 @@ flowchart LR
 
 **Rationale for three layers**
 
-- **Motor service** (folder **`apps/motor-service`**, npm **`@real-pendulum/motor-service`**): **gRPC** exposes `motor.v1.MotorService`. **koffi** loads **`teknic_motor.dll`**, which links Teknic’s C++ SDK (`SysManager`, `INode`) for hub access and motion. One Node process holds the gRPC server and the DLL handle.
+- **Motor service** (folder **`apps/physical-motor-service`**, npm **`@real-pendulum/physical-motor-service`**): **gRPC** exposes `motor.v1.MotorService`. **koffi** loads **`teknic_motor.dll`**, which links Teknic’s C++ SDK (`SysManager`, `INode`) for hub access and motion. One Node process holds the gRPC server and the DLL handle.
 - **TypeScript control API**: Application logic (future estimator/controller), configuration, and a **tRPC** API that maps cleanly onto React hooks and shared types.
 - **React frontend**: Operator UI; Phase 1 focuses on a **jogger** (velocity or step jog) with clear stop/emergency semantics.
 
@@ -50,13 +50,13 @@ flowchart LR
 ```
 real-pendulum-2/
   apps/
-    motor-service/       # @real-pendulum/motor-service — Node gRPC + teknic_motor.dll + proto/
-    sensor-service/      # @real-pendulum/sensor-service — serial / Sensor Board; gRPC sensor.v1
+    physical-motor-service/       # @real-pendulum/physical-motor-service — Node gRPC + teknic_motor.dll + proto/
+    physical-sensor-service/      # @real-pendulum/physical-sensor-service — serial / Sensor Board; gRPC sensor.v1
     control-api/         # tRPC server + gRPC clients to motor + sensor services
     web/                 # React + Vite + TypeScript + Tailwind + shadcn/ui
+    simulation/          # MuJoCo HTTP service + `@real-pendulum/simulation/client` TS bridge
   packages/
     motor-proto/         # Buf-generated motor + sensor protobufs
-    physics-sim/         # MuJoCo HTTP service + `@real-pendulum/physics-sim/client` TS bridge
   docs/
     TECHDOC.md
     simulation-and-bench.md
@@ -66,7 +66,7 @@ Naming is illustrative; adjust to your tooling (pnpm/npm workspaces, Turborepo, 
 
 ---
 
-## 4. Module A — Motor service (`apps/motor-service`, `@real-pendulum/motor-service`)
+## 4. Module A — Motor service (`apps/physical-motor-service`, `@real-pendulum/physical-motor-service`)
 
 The live implementation uses **Node** (`src/server.ts`) for gRPC and a **CMake-built DLL** (`native/teknic_motor/`) for Teknic I/O. The sections below still describe **vendor SDK behavior** used inside the DLL.
 
@@ -99,8 +99,8 @@ Defined by **`proto/motor.proto`** — **Connect**, **Disconnect**, **SetJogVelo
 
 ### 4.3 Native build notes
 
-- Configure **`TEKNIC_SDK_ROOT`** (see **`apps/motor-service/native/README.md`**) so CMake finds Teknic headers and **`sFoundation20`** import libs / DLL copy rules.
-- **`npm run build:native -w @real-pendulum/motor-service`** runs **`scripts/build-native.mjs`** (CMake: Visual Studio 2022 then 2026 generator fallback on Windows, Release; **`motor.cmakeGenerator`** in **`packages/app-config/src/config.ts`**). Output: **`native/build/Release/teknic_motor.dll`** next to copied **`sFoundation20.dll`**.
+- Configure **`TEKNIC_SDK_ROOT`** (see **`apps/physical-motor-service/native/README.md`**) so CMake finds Teknic headers and **`sFoundation20`** import libs / DLL copy rules.
+- **`npm run build:native -w @real-pendulum/physical-motor-service`** runs **`scripts/build-native.mjs`** (CMake: Visual Studio 2022 then 2026 generator fallback on Windows, Release; **`motor.cmakeGenerator`** in **`packages/app-config/src/config.ts`**). Output: **`native/build/Release/teknic_motor.dll`** next to copied **`sFoundation20.dll`**.
 
 ### 4.4 Simulation (simulation gRPC + plant)
 
@@ -168,7 +168,7 @@ Avoid committing secrets; keep machine-specific paths in local config overrides 
 
 ## 9. Implementation order (recommended)
 
-1. **Motor service**: build **`teknic_motor.dll`**, run **`npm run dev -w @real-pendulum/motor-service`**, connect hub, exercise **`Stop`** + **`SetJogVelocity`** (e.g. **`grpcurl`** or UI).
+1. **Motor service**: build **`teknic_motor.dll`**, run **`npm run dev -w @real-pendulum/physical-motor-service`**, connect hub, exercise **`Stop`** + **`SetJogVelocity`** (e.g. **`grpcurl`** or UI).
 2. **control-api**: tRPC wrappers + integration test against running motor service (mock optional).
 3. **web**: jogger wired to tRPC; test full loop with hardware on a cleared bench.
 
@@ -185,7 +185,7 @@ Avoid committing secrets; keep machine-specific paths in local config overrides 
 
 - **[Testing strategy](./testing-strategy.md)** — Vitest layers, Playwright E2E (`e2e/`, `scripts/e2e-stack.mjs`), CI jobs (Ubuntu + Windows native), and Teknic SDK notes for **`native-windows`**.
 - **[Hardware smoke checklist](./hardware-smoke-checklist.md)** — manual verification when motion or native code changes.
-- **[Simulation & bench](./simulation-and-bench.md)** — solo simulation, real+sim comparison, **`physics-sim`**, **§3.5** (physics → simulation motor/sensor gRPC), config sketches, roadmap.
+- **[Simulation & bench](./simulation-and-bench.md)** — solo simulation, real+sim comparison, **`simulation`**, **§3.5** (physics → simulation motor/sensor gRPC), config sketches, roadmap.
 
 ---
 
@@ -197,5 +197,5 @@ Avoid committing secrets; keep machine-specific paths in local config overrides 
 | 2026-05-02 | Link to testing-strategy.md. |
 | 2026-05-02 | Link to hardware-smoke-checklist.md. |
 | 2026-05-03 | Related docs: Playwright E2E + native CI pointers. |
-| 2026-05-03 | Motor service: Node gRPC + DLL architecture; package **`@real-pendulum/motor-service`**; folder **`apps/motor-service`**. |
+| 2026-05-03 | Motor service: Node gRPC + DLL architecture; package **`@real-pendulum/physical-motor-service`**; folder **`apps/physical-motor-service`**. |
 | 2026-05-12 | Simulation: §4.4 points to simulation-and-bench.md §3.5; repo layout; control-api sensor client note. |

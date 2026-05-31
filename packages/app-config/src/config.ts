@@ -65,7 +65,7 @@ export type AppConfig = {
   sim: {
     /** Simulation motor+sensor gRPC (default when sim URLs unset). */
     simulationGrpcPort: number;
-    /** MuJoCo physics HTTP service (`apps/physics-sim`). */
+    /** MuJoCo physics HTTP service (`apps/simulation`). */
     physicsSimHttpPort: number;
     physicsSimHttpUrl?: string;
     /** Rail controller HTTP service (`apps/controller-service`). */
@@ -74,7 +74,7 @@ export type AppConfig = {
     motorSimGrpcUrl?: string;
     sensorSimGrpcUrl?: string;
     /** Plant parameters in `config/simulation.parameters.json` (see `@real-pendulum/app-config/simulation-parameters`). */
-    /** World x (m) of left/right MuJoCo limit-switch plates (`config.sim` → physics-sim). */
+    /** World x (m) of left/right MuJoCo limit-switch plates (`config.sim` → simulation). */
     limitLeftXM: number;
     limitRightXM: number;
   };
@@ -219,7 +219,7 @@ export function webControlApiBaseUrl(): string {
   return `http://127.0.0.1:${config.controlApi.port}`;
 }
 
-/** Playwright E2E sim stack — physics-sim HTTP base URL. */
+/** Playwright E2E sim stack — simulation HTTP base URL. */
 export function e2ePhysicsSimHttpUrl(): string {
   return `http://127.0.0.1:${config.e2e.physicsSimHttpPort}`;
 }

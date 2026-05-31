@@ -7,8 +7,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export default defineConfig({
   resolve: {
     alias: {
-      "@real-pendulum/motor-service/sdk": path.resolve(__dirname, "../motor-service/src/sdk/index.ts"),
-      "@real-pendulum/sensor-service/sdk": path.resolve(__dirname, "../sensor-service/src/sdk/index.ts"),
+      "@real-pendulum/physical-motor-service/sdk": path.resolve(__dirname, "../physical-motor-service/src/sdk/index.ts"),
+      "@real-pendulum/physical-sensor-service/sdk": path.resolve(__dirname, "../physical-sensor-service/src/sdk/index.ts"),
     },
   },
   test: {
@@ -17,6 +17,6 @@ export default defineConfig({
     env: {
       PHYSICS_SIM_URL: "http://127.0.0.1:58971",
     },
-    globalSetup: ["../../scripts/vitest-physics-sim.ts"],
+    globalSetup: ["../../scripts/vitest-simulation.ts"],
   },
 });

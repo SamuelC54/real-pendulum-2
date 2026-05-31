@@ -1,5 +1,5 @@
-import * as motor from "@real-pendulum/motor-service/sdk";
-import * as sensor from "@real-pendulum/sensor-service/sdk";
+import * as motor from "@real-pendulum/physical-motor-service/sdk";
+import * as sensor from "@real-pendulum/physical-sensor-service/sdk";
 import {
   getMotionLatchStatus,
   isMotionBlockedByLatch,
@@ -201,7 +201,7 @@ export function recordTravelLimitSideFromMotor(side: "left" | "right"): Promise<
       return {
         ok: false,
         error:
-          "Motor measured position unavailable — rebuild motor DLL / motor-service for PosnMeasured.",
+          "Motor measured position unavailable — rebuild motor DLL / physical-motor-service for PosnMeasured.",
       };
     }
     const { recordTravelLimitFromTeknicMeasured } = await import("../../railTravelLimits.js");

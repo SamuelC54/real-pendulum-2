@@ -5,7 +5,7 @@ import {
   controllerServiceTick,
   type ControllerTickResult,
 } from "@real-pendulum/controller-service/client";
-import * as motor from "@real-pendulum/motor-service/sdk";
+import * as motor from "@real-pendulum/physical-motor-service/sdk";
 import { createControlClient, createTwinControlBackend } from "./control/createControlClient.js";
 import { rpmToCmPerSec } from "./control/motionUnits.js";
 import { encoderTicksFromPhysicsState } from "./control/mappers/simulationMappers.js";
@@ -17,7 +17,7 @@ import {
 } from "./homingComplete.js";
 import { isMotionBlockedByLatch, runWithHomingBypass } from "./motionLatch.js";
 import { cmToTeknicMeasured } from "./railPositionCm.js";
-import { physicsSimGetState } from "@real-pendulum/physics-sim/client";
+import { physicsSimGetState } from "@real-pendulum/simulation/client";
 
 const TICK_MS = 200;
 const LQR_TICK_MS = 50;

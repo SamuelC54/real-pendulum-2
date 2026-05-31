@@ -62,7 +62,7 @@ export function MotorStatusBlocks() {
                   <span className="font-sans font-normal">cm</span>
                   {positionCm === undefined || !Number.isFinite(positionCm) ? (
                     <span className="ml-1 font-sans text-[10px] font-normal opacity-80">
-                      (update motor-service / DLL)
+                      (update physical-motor-service / DLL)
                     </span>
                   ) : null}
                 </span>

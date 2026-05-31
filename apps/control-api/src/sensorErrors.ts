@@ -9,7 +9,7 @@ export function friendlySensorGrpcError(targetUrl: string, err: unknown): string
       err.code === Code.DeadlineExceeded ||
       err.code === Code.Canceled
     ) {
-      return `Sensor service not reachable at ${targetUrl}. Start @real-pendulum/sensor-service or set SENSOR_GRPC_URL. (${raw})`;
+      return `Sensor service not reachable at ${targetUrl}. Start @real-pendulum/physical-sensor-service or set SENSOR_GRPC_URL. (${raw})`;
     }
   }
   if (
@@ -19,7 +19,7 @@ export function friendlySensorGrpcError(targetUrl: string, err: unknown): string
       "code" in err &&
       (err as { code?: number }).code === 14)
   ) {
-    return `Sensor service not reachable at ${targetUrl}. Start @real-pendulum/sensor-service or set SENSOR_GRPC_URL. (${raw})`;
+    return `Sensor service not reachable at ${targetUrl}. Start @real-pendulum/physical-sensor-service or set SENSOR_GRPC_URL. (${raw})`;
   }
   return raw;
 }

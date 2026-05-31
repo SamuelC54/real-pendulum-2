@@ -1,4 +1,4 @@
-import type { PhysicsSimStatePayload } from "@real-pendulum/physics-sim/client";
+import type { PhysicsSimStatePayload } from "@real-pendulum/simulation/client";
 import { encoderTicksPerRadian } from "../../pendulumEncoder.js";
 import { getTravelLimitDisplays } from "../../railTravelLimits.js";
 import { travelLimitsToCm } from "../../railPositionCm.js";

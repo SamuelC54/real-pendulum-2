@@ -51,13 +51,13 @@ jobs:
           }
       - name: Build teknic_motor.dll (CMake + MSBuild)
         if: steps.sdk.outputs.found == 'true'
-        run: npm run build:native -w @real-pendulum/motor-service
+        run: npm run build:native -w @real-pendulum/physical-motor-service
       - name: Upload DLL artifact
         if: steps.sdk.outputs.found == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: teknic_motor-dll
-          path: apps/motor-service/native/build/Release/teknic_motor.dll
+          path: apps/physical-motor-service/native/build/Release/teknic_motor.dll
       - name: Skip native build (no SDK on runner)
         if: steps.sdk.outputs.found != 'true'
         run: |

@@ -1,5 +1,5 @@
-import * as motor from "@real-pendulum/motor-service/sdk";
-import * as sensor from "@real-pendulum/sensor-service/sdk";
+import * as motor from "@real-pendulum/physical-motor-service/sdk";
+import * as sensor from "@real-pendulum/physical-sensor-service/sdk";
 import { updateLimitSwitchState, updateMotorPositionForLatch } from "./motionLatch.js";
 import { friendlyMotorGrpcError } from "./motorErrors.js";
 import { friendlySensorGrpcError } from "./sensorErrors.js";

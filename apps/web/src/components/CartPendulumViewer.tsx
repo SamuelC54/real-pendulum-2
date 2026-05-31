@@ -4,7 +4,7 @@ import { memo } from "react";
 import { encoderTicksPerRadian } from "@/lib/pendulumEncoder";
 import { cn } from "@/lib/utils";
 
-/** Match default `apps/physics-sim/models/cart_pendulum.xml` rod length. */
+/** Match default `apps/simulation/models/cart_pendulum.xml` rod length. */
 const PENDULUM_LENGTH_M = 0.35;
 const CART_Z_M = 0.05;
 const BOB_RADIUS_M = 0.03;
@@ -59,7 +59,7 @@ function ViewerEnvironment() {
   );
 }
 
-/** Rail + cart + pendulum rig (poses mirror physics-sim / simulation telemetry). */
+/** Rail + cart + pendulum rig (poses mirror simulation telemetry). */
 function CartPendulumRig({ xM, thetaRad }: { xM: number; thetaRad: number }) {
   return (
     <group position={[xM, 0, 0]}>
@@ -130,7 +130,7 @@ function CartPendulumScene({
 
 /**
  * Three.js view of the cart–pendulum (drei + R3F).
- * Pose is driven from motor/encoder telemetry; physics runs in physics-sim only.
+ * Pose is driven from motor/encoder telemetry; physics runs in simulation only.
  */
 export const CartPendulumViewer = memo(function CartPendulumViewer({
   positionCm,

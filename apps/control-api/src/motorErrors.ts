@@ -9,7 +9,7 @@ export function friendlyMotorGrpcError(targetUrl: string, err: unknown): string 
       err.code === Code.DeadlineExceeded ||
       err.code === Code.Canceled
     ) {
-      return `Motor service not reachable at ${targetUrl}. Start @real-pendulum/motor-service (same machine as control-api) or set MOTOR_GRPC_URL. (${raw})`;
+      return `Motor service not reachable at ${targetUrl}. Start @real-pendulum/physical-motor-service (same machine as control-api) or set MOTOR_GRPC_URL. (${raw})`;
     }
   }
   if (
@@ -19,7 +19,7 @@ export function friendlyMotorGrpcError(targetUrl: string, err: unknown): string 
       "code" in err &&
       (err as { code?: number }).code === 14)
   ) {
-    return `Motor service not reachable at ${targetUrl}. Start @real-pendulum/motor-service (same machine as control-api) or set MOTOR_GRPC_URL. (${raw})`;
+    return `Motor service not reachable at ${targetUrl}. Start @real-pendulum/physical-motor-service (same machine as control-api) or set MOTOR_GRPC_URL. (${raw})`;
   }
   return raw;
 }

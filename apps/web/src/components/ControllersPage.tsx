@@ -90,7 +90,7 @@ export function ControllersPage() {
         <h1 className="text-lg font-semibold tracking-tight">Controllers</h1>
         <p className="text-muted-foreground mt-1 max-w-2xl text-sm">
           Automated rail routines written in Python (one file per controller under{" "}
-          <code className="text-xs">apps/physics-sim/controllers/</code>). The control API
+          <code className="text-xs">packages/rail-controllers/</code>). The control API
           polls your controller and issues absolute position moves on the motor (and on the MuJoCo
           twin when backend is Twin).
         </p>
@@ -116,7 +116,7 @@ export function ControllersPage() {
 
       {listQuery.error ? (
         <p className="text-destructive text-sm">
-          Cannot load controllers: {listQuery.error.message}. Ensure physics-sim is running.
+          Cannot load controllers: {listQuery.error.message}. Ensure simulation is running.
         </p>
       ) : null}
 

@@ -48,7 +48,7 @@ function sensorTwinRefetchInterval(query: {
   return d.real?.connected || d.sim?.connected ? 80 : 1500;
 }
 
-/** Subscribes only to Arduino / sensor-service **connected** (hardware side when in twin mode). */
+/** Subscribes only to Arduino / physical-sensor-service **connected** (hardware side when in twin mode). */
 export function useSensorStatusConnected() {
   const mode = useAtomValue(grpcBackendModeAtom);
   const single = trpc.sensor.status.get.useQuery(undefined, {

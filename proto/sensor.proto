@@ -12,7 +12,7 @@ service SensorService {
   rpc ResetEncoder(ResetEncoderRequest) returns (ResetEncoderReply);
 }
 
-// If serial_port is empty, sensor-service falls back to SENSOR_SERIAL_PORT.
+// If serial_port is empty, physical-sensor-service falls back to SENSOR_SERIAL_PORT.
 message ConnectRequest {
   string serial_port = 1;
 }

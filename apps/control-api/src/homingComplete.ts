@@ -1,4 +1,4 @@
-import * as motor from "@real-pendulum/motor-service/sdk";
+import * as motor from "@real-pendulum/physical-motor-service/sdk";
 import type { RailHomingResult } from "./homing.js";
 import { homingResultForClient, type RailHomingResultForClient } from "./homingApi.js";
 import { setTravelLimitsFromHoming } from "./railTravelLimits.js";

@@ -11,8 +11,8 @@ import {
   setTravelLimitsSymmetricAboutCm,
 } from "./railTravelLimits.js";
 import { runLedToggleFlash } from "./runFlashScript.js";
-import * as motor from "@real-pendulum/motor-service/sdk";
-import * as sensor from "@real-pendulum/sensor-service/sdk";
+import * as motor from "@real-pendulum/physical-motor-service/sdk";
+import * as sensor from "@real-pendulum/physical-sensor-service/sdk";
 import {
   clearMotionLatch,
   combineLimitSwitchStates,
@@ -170,7 +170,7 @@ export const appRouter = t.router({
           const p = st.measuredPosition;
           if (p === undefined || !Number.isFinite(p)) {
             throw new Error(
-              "Motor measured position unavailable — rebuild motor DLL / motor-service for PosnMeasured.",
+              "Motor measured position unavailable — rebuild motor DLL / physical-motor-service for PosnMeasured.",
             );
           }
           recordTravelLimitFromTeknicMeasured(p, input.side);
@@ -323,7 +323,7 @@ export const appRouter = t.router({
       }),
     }),
   }),
-  /** Digital twin: hardware + physics-sim via ControlClient (no simulation gRPC). */
+  /** Digital twin: hardware + simulation via ControlClient (no simulation gRPC). */
   twin: t.router({
     status: t.router({
       get: baseProcedure.query(() => twinMotorStatus()),

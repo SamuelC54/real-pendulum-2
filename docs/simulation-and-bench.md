@@ -1,6 +1,6 @@
 # Simulation & bench mode — technical design
 
-This document extends the stack overview in [`TECHDOC.md`](./TECHDOC.md). It describes how to run the application **without physical motor or sensor hardware**, how to combine **live hardware with a simulation plant simulation** for comparison, **§2.2** (simulation motor and sensor as **two facades over one plant**), how **`CartPendulumPlant`** maps onto gRPC (**§3.5**), and the **`@real-pendulum/physics-sim`** MuJoCo service.
+This document extends the stack overview in [`TECHDOC.md`](./TECHDOC.md). It describes how to run the application **without physical motor or sensor hardware**, how to combine **live hardware with a simulation plant simulation** for comparison, **§2.2** (simulation motor and sensor as **two facades over one plant**), how **`CartPendulumPlant`** maps onto gRPC (**§3.5**), and the **`@real-pendulum/simulation`** MuJoCo service.
 
 ---
 
@@ -20,9 +20,9 @@ This document extends the stack overview in [`TECHDOC.md`](./TECHDOC.md). It des
 
 **Keep one tRPC contract; vary what sits behind gRPC.**
 
-- Today, **`apps/control-api`** calls **`@real-pendulum/motor-service/sdk`** and **`@real-pendulum/sensor-service/sdk`** (see `router.ts`, `homing.ts`). URLs come from **`packages/app-config/src/config.ts`** (hardware) and **`config.sim`** (simulator).
+- Today, **`apps/control-api`** calls **`@real-pendulum/physical-motor-service/sdk`** and **`@real-pendulum/physical-sensor-service/sdk`** (see `router.ts`, `homing.ts`). URLs come from **`packages/app-config/src/config.ts`** (hardware) and **`config.sim`** (simulator).
 - **Simulation** should implement the **same protos and RPCs** as production (or a documented subset), so **homing, limits, jog, and UI-facing procedures stay identical** whether the backend is hardware or simulated. **You do not branch business logic** (“if sim then … else …”) inside **`control-api`** for behavior that already exists behind the motor/sensor SDK — only the **target URL** (or an extra bench client) changes.
-- The repo includes a **simulation gRPC** entrypoint: `apps/control-api/scripts/serve-simulation-grpc.ts` → `@real-pendulum/motor-service/test-support/simulation-server` (motor + sensor, one plant; see **§3.5**).
+- The repo includes a **simulation gRPC** entrypoint: `apps/control-api/scripts/serve-simulation-grpc.ts` → `@real-pendulum/physical-motor-service/test-support/simulation-server` (motor + sensor, one plant; see **§3.5**).
 
 ### 2.2 Two gRPC facades, one shared plant (solo sim)
 
@@ -68,7 +68,7 @@ In the simulation design, **simulation** motor and **simulation** sensor process
 
 ### 3.2 Sensor
 
-- Provide a **simulated `SensorService`** (or `sensor-service` dev mode) that returns **`getSensorStatus`** payloads: `encoderTicks`, `limitLeftPressed`, `limitRightPressed`, `connected`, etc.
+- Provide a **simulated `SensorService`** (or `physical-sensor-service` dev mode) that returns **`getSensorStatus`** payloads: `encoderTicks`, `limitLeftPressed`, `limitRightPressed`, `connected`, etc.
 - **Limits**: derive from **simulated cart position** vs recorded left/right thresholds (same semantics as rising-edge capture on the real rig).
 - **Encoder**: drive from the **pendulum shaft angle** in the plant (equations in **§5**; how that maps onto gRPC fields in **§3.5**), not from a disconnected counter unless you are doing a very early smoke test.
 
@@ -83,7 +83,7 @@ In the simulation design, **simulation** motor and **simulation** sensor process
 
 ### 3.5 How physics drives simulation motor and sensor gRPC
 
-When **`control-api`** is pointed at **simulated** motor and/or sensor processes (instead of the DLL-backed motor service and USB-backed sensor service), the **same protobuf RPCs** apply, but **state comes from one `CartPendulumPlant`** (in-memory mirror synced via **`@real-pendulum/physics-sim/client`**) instead of Teknic and the Sensor Board. Physics runs in **MuJoCo** (`apps/physics-sim`); see **§5** for the HTTP API and plant mirror types.
+When **`control-api`** is pointed at **simulated** motor and/or sensor processes (instead of the DLL-backed motor service and USB-backed sensor service), the **same protobuf RPCs** apply, but **state comes from one `CartPendulumPlant`** (in-memory mirror synced via **`@real-pendulum/simulation/client`**) instead of Teknic and the Sensor Board. Physics runs in **MuJoCo** (`apps/simulation`); see **§5** for the HTTP API and plant mirror types.
 
 The **simulation** and **simulation sensor** handlers are **facades** over this one object (**§2.2**): **`GetStatus`** and **`GetSensorStatus`** must reflect the **same** step of physics.
 
@@ -100,11 +100,11 @@ The **simulation** and **simulation sensor** handlers are **facades** over this 
 
 1. Operator **jog** in the UI → **`control-api`** → **`SetJogVelocity`** (RPM) on the simulation.  
 2. Simulation maps **RPM → `vCmdMps`**, stores on **`plant.state.vCmdMps`**.  
-3. On each poll (or timer), the simulation server computes **`dt`**, calls **`physics-sim` `POST /step`** → updates **`xM`**, **`vMps`**, **`θ`**, **`ω`**, encoder integral.  
+3. On each poll (or timer), the simulation server computes **`dt`**, calls **`simulation` `POST /step`** → updates **`xM`**, **`vMps`**, **`θ`**, **`ω`**, encoder integral.  
 4. **`GetStatus`** returns **`xM` / `vMps`** (via counts + RPM fields expected by the UI).  
 5. **`GetSensorStatus`** returns **`encoderTicksInt(plant)`**, **limit booleans** from MuJoCo **touch** sensors on switch plates, **`connected`**.
 
-> **Time stepping (do not skip):** Physics must **not** advance only when a write RPC arrives. Between calls, integrate with real **`dt`** (wall clock or fixed sim clock): on each **`GetStatus`** and/or a **background timer**, compute **`dt`** since the last step and call **`physics-sim` `/step`**. A purely **request-driven** integrator (advancing only on `SetJogVelocity`) produces **inconsistent** motion and wrong coupling when the UI polls slowly.
+> **Time stepping (do not skip):** Physics must **not** advance only when a write RPC arrives. Between calls, integrate with real **`dt`** (wall clock or fixed sim clock): on each **`GetStatus`** and/or a **background timer**, compute **`dt`** since the last step and call **`simulation` `/step`**. A purely **request-driven** integrator (advancing only on `SetJogVelocity`) produces **inconsistent** motion and wrong coupling when the UI polls slowly.
 
 ```mermaid
 flowchart TB
@@ -146,11 +146,11 @@ This repeats **§2.2** for readers who jump straight here: if motor and separate
 
 #### Implementation pointers
 
-- **Simulation (one `CartPendulumPlant`, two facades):** `@real-pendulum/motor-service/test-support/simulation-server` — `createSimulationGrpcModel`, `startSimulationGrpcServer`; registers **`motor.v1.MotorService`** and **`sensor.v1.SensorService`** on one HTTP port.
+- **Simulation (one `CartPendulumPlant`, two facades):** `@real-pendulum/physical-motor-service/test-support/simulation-server` — `createSimulationGrpcModel`, `startSimulationGrpcServer`; registers **`motor.v1.MotorService`** and **`sensor.v1.SensorService`** on one HTTP port.
 
 ##### Running the simulation daemon
 
-- **From motor-service:** `npm run serve:simulation -w @real-pendulum/motor-service`
+- **From physical-motor-service:** `npm run serve:simulation -w @real-pendulum/physical-motor-service`
 - **From control-api (re-exports same server):** `npm run serve:simulation -w @real-pendulum/control-api`
 - Hardware URLs: **`motorGrpcBaseUrl()`** / **`sensorGrpcBaseUrl()`** (defaults **50051** / **50052**).
 - **Web “Simulator”** mode uses **`resolveSimMotorGrpcUrl()`** / **`resolveSimSensorGrpcUrl()`** (default simulation **58870** on **`config.sim.simulationGrpcPort`**). The browser sends **`x-pendulum-backend: sim`**; **Hardware** uses config hardware URLs.
@@ -196,9 +196,9 @@ Pick one pattern (or evolve from A → B):
 
 ## 5. Cart–pendulum physics
 
-**Runtime engine:** [`apps/physics-sim`](../apps/physics-sim/) — **Python + MuJoCo** HTTP service (default `http://127.0.0.1:58871`).  
-**TypeScript bridge:** `apps/physics-sim/client` (`physicsSimClient`).  
-**gRPC facades:** `apps/motor-service` simulation (§3.5) steps the live plant over HTTP on each status poll.
+**Runtime engine:** [`apps/simulation`](../apps/simulation/) — **Python + MuJoCo** HTTP service (default `http://127.0.0.1:58871`).  
+**TypeScript bridge:** `apps/simulation/client` (`physicsSimClient`).  
+**gRPC facades:** `apps/physical-motor-service` simulation (§3.5) steps the live plant over HTTP on each status poll.
 
 ### 5.1 State & parameters
 
@@ -209,7 +209,7 @@ Pick one pattern (or evolve from A → B):
 
 - Cart **slide** joint on +X; pendulum **hinge** on +Y (swing in X–Z).
 - Cart **velocity actuator** tracks `vCmdMps`; pendulum motion couples through rigid-body dynamics.
-- Tunables are patched at runtime via `PATCH /config` (see `apps/physics-sim/README.md`).
+- Tunables are patched at runtime via `PATCH /config` (see `apps/simulation/README.md`).
 
 ### 5.3 HTTP API (live plant)
 
@@ -224,7 +224,7 @@ Pick one pattern (or evolve from A → B):
 | Export | Purpose |
 |--------|---------|
 | `physicsSimStep`, `physicsSimReset`, `physicsSimMoveAbsolute` | HTTP client to MuJoCo service |
-| `createCartPendulumPlant`, `encoderTicksInt` | In-memory state mirror (synced from physics-sim) |
+| `createCartPendulumPlant`, `encoderTicksInt` | In-memory state mirror (synced from simulation) |
 
 ### 5.5 Wiring checklist (implementers)
 
@@ -240,7 +240,7 @@ Pick one pattern (or evolve from A → B):
 | Phase | Deliverable |
 |-------|-------------|
 | **1** | Documented scripts: simulation (+ minimal status) sufficient for web smoke; CI runs control-api tests against sim backends. |
-| **2** | Simulated **sensor** + limit logic from sim `xM`; encoder from physics-sim. |
+| **2** | Simulated **sensor** + limit logic from sim `xM`; encoder from simulation. |
 | **3** | **Simulation** plant in one process; homing against sim limits end-to-end. |
 | **4** | **Bench:** second gRPC client pair + tRPC read (and optional guarded write) + web split view. |
 | **5** | Optional **log comparison** UI for education. |
@@ -249,7 +249,7 @@ Pick one pattern (or evolve from A → B):
 
 ## 7. Testing strategy (cross-reference)
 
-- **Unit:** `pip install -r apps/physics-sim/requirements.txt && npm test -w @real-pendulum/physics-sim` (MuJoCo). Node tests auto-start physics-sim via Vitest global setup.
+- **Unit:** `pip install -r apps/simulation/requirements.txt && npm test -w @real-pendulum/simulation` (MuJoCo). Node tests auto-start simulation via Vitest global setup.
 - **Integration:** control-api against simulation motor and sensor in CI (no DLL, no serial). See also [`testing-strategy.md`](./testing-strategy.md).
 
 ---
@@ -268,4 +268,4 @@ Pick one pattern (or evolve from A → B):
 |------|--------|
 | 2026-05-12 | Review pass: §2 split + no branching logic; §2.2 dual facades; §3 intro; velocity table + E2E jog flow; time step callout; bench wording; §3.5 “Why” reprise. |
 | 2026-05-12 | Simulator gRPC URLs default to simulation host/port (**`SIM_COUPLED_GRPC_PORT`**); **`MOTOR_SIM_GRPC_URL`** optional. |
-| 2026-05-12 | Initial doc: simulation, bench mode, and physics-sim integration notes. |
+| 2026-05-12 | Initial doc: simulation, bench mode, and simulation integration notes. |

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@real-pendulum/motor-service/sdk", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@real-pendulum/motor-service/sdk")>();
+vi.mock("@real-pendulum/physical-motor-service/sdk", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@real-pendulum/physical-motor-service/sdk")>();
   return {
     ...actual,
     getMotorStatus: vi.fn(),
@@ -9,16 +9,16 @@ vi.mock("@real-pendulum/motor-service/sdk", async (importOriginal) => {
   };
 });
 
-vi.mock("@real-pendulum/sensor-service/sdk", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@real-pendulum/sensor-service/sdk")>();
+vi.mock("@real-pendulum/physical-sensor-service/sdk", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@real-pendulum/physical-sensor-service/sdk")>();
   return {
     ...actual,
     getSensorStatus: vi.fn(),
   };
 });
 
-import * as motor from "@real-pendulum/motor-service/sdk";
-import * as sensor from "@real-pendulum/sensor-service/sdk";
+import * as motor from "@real-pendulum/physical-motor-service/sdk";
+import * as sensor from "@real-pendulum/physical-sensor-service/sdk";
 import {
   clearMotionLatch,
   getMotionLatchStatus,
