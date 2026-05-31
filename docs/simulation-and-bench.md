@@ -102,7 +102,7 @@ The **simulation** and **simulation sensor** handlers are **facades** over this 
 2. Simulation maps **RPM → `vCmdMps`**, stores on **`plant.state.vCmdMps`**.  
 3. On each poll (or timer), the simulation server computes **`dt`**, calls **`physics-sim` `POST /step`** → updates **`xM`**, **`vMps`**, **`θ`**, **`ω`**, encoder integral.  
 4. **`GetStatus`** returns **`xM` / `vMps`** (via counts + RPM fields expected by the UI).  
-5. **`GetSensorStatus`** returns **`encoderTicksInt(plant)`**, **limit booleans** from **`xM`** vs thresholds, **`connected`**.
+5. **`GetSensorStatus`** returns **`encoderTicksInt(plant)`**, **limit booleans** from MuJoCo **touch** sensors on switch plates, **`connected`**.
 
 > **Time stepping (do not skip):** Physics must **not** advance only when a write RPC arrives. Between calls, integrate with real **`dt`** (wall clock or fixed sim clock): on each **`GetStatus`** and/or a **background timer**, compute **`dt`** since the last step and call **`physics-sim` `/step`**. A purely **request-driven** integrator (advancing only on `SetJogVelocity`) produces **inconsistent** motion and wrong coupling when the UI polls slowly.
 
@@ -135,7 +135,7 @@ flowchart TB
 | Field / behavior | Physical Sensor Board | Sim-driven by same plant |
 |------------------|----------------------|---------------------------|
 | **encoderTicks** | Quadrature from pendulum shaft | **`encoderTicksInt(plant)`** from **`plant.state.encoderTicksFloat`** (integrates **ω** with **`encoderTicksPerRadian`**). |
-| **limitLeftPressed** / **limitRightPressed** | Digital inputs D4/D5 | Compare **`plant.state.xM`** to stored **left/right** stop positions; assert when the cart crosses the threshold (optional hysteresis). |
+| **limitLeftPressed** / **limitRightPressed** | Digital inputs D4/D5 | MuJoCo **touch** sensors on **`limit_switch_left`** / **`limit_switch_right`** bodies at **`config.sim.limitLeftXM`** / **`limitRightXM`**. |
 | **connected** | Serial session | **`true`** when the sim session is “open”; no USB required. |
 
 Limit positions can mirror **recorded travel limits** (file-backed) or fixed demo values.
@@ -230,7 +230,7 @@ Pick one pattern (or evolve from A → B):
 
 1. **RPM → m/s:** map jog / profile **commanded RPM** to **`vCmdMps`** using belt/reel geometry (meters per motor revolution).
 2. **Cart position → Teknic / display counts:** map `xM` to measured position with the **same sign convention** as `motorCountsForDisplay` / `teknicDisplayCounts` in control-api (avoid a second sign bug vs `RailPendulumSchematic`).
-3. **Limits:** when `xM` crosses stored left/right thresholds (m), set `limitLeftPressed` / `limitRightPressed` with optional debounce/hysteresis to match mechanical switches.
+3. **Limits:** MuJoCo touch sensors on switch plates at `config.sim.limitLeftXM` / `limitRightXM`; exposed as `limitLeftPressed` / `limitRightPressed` after each physics step.
 4. **Encoder ↔ UI:** if the schematic’s horizontal deflection was flipped for the real encoder, apply the **same mapping** from `theta` / ticks in sim.
 
 ---

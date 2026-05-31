@@ -71,7 +71,7 @@ export type AppConfig = {
     motorSimGrpcUrl?: string;
     sensorSimGrpcUrl?: string;
     /** Plant parameters in `config/simulation.parameters.json` (see `@real-pendulum/app-config/simulation-parameters`). */
-    /** Cart position (m) where simulation left/right limit switches assert. */
+    /** World x (m) of left/right MuJoCo limit-switch plates (`config.sim` → physics-sim). */
     limitLeftXM: number;
     limitRightXM: number;
   };

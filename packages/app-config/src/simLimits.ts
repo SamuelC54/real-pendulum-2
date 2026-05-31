@@ -1,11 +1,11 @@
 import { config } from "./config.js";
 
-/** Simulation left travel limit — cart `xM` (m) at or below asserts left switch. */
+/** Simulation left limit-switch plate x (m) in MuJoCo (`limit_switch_left` body). */
 export function simLimitLeftXM(): number {
   return config.sim.limitLeftXM;
 }
 
-/** Simulation right travel limit — cart `xM` (m) at or above asserts right switch. */
+/** Simulation right limit-switch plate x (m) in MuJoCo (`limit_switch_right` body). */
 export function simLimitRightXM(): number {
   return config.sim.limitRightXM;
 }

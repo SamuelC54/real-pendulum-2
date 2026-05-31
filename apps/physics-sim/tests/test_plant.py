@@ -96,6 +96,27 @@ def test_move_to_setpoint_uses_position_actuator():
     assert abs(plant.state.x_m - 0.08) < 0.003
 
 
+def test_limit_switches_use_mujoco_touch():
+    plant = CartPendulumPlant(
+        config=PlantConfig(
+            limit_left_x_m=-0.5,
+            limit_right_x_m=0.5,
+            cart_velocity_tracking_per_sec=80.0,
+        )
+    )
+    plant.state.v_cmd_mps = 0.0
+    plant.sync_state_to_mujoco()
+    assert not plant.state.limit_left_pressed
+    assert not plant.state.limit_right_pressed
+
+    plant.move_to_setpoint(-0.5, tolerance_m=0.01, max_time_sec=8.0)
+    assert plant.state.limit_left_pressed
+    assert not plant.state.limit_right_pressed
+
+    plant.move_to_setpoint(0.5, tolerance_m=0.01, max_time_sec=8.0)
+    assert plant.state.limit_right_pressed
+
+
 def test_cart_motion_couples_to_pendulum():
     plant = CartPendulumPlant(
         config=PlantConfig(

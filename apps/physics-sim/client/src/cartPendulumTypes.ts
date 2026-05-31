@@ -5,6 +5,9 @@ export type CartPendulumConfig = {
   angularDampingPerSec: number;
   encoderTicksPerRadian: number;
   maxInternalStepSec: number;
+  /** MuJoCo limit-switch plate x (m); optional until synced from physics-sim. */
+  limitLeftXM?: number;
+  limitRightXM?: number;
 };
 
 export type CartPendulumState = {
@@ -14,6 +17,9 @@ export type CartPendulumState = {
   omegaRps: number;
   vCmdMps: number;
   encoderTicksFloat: number;
+  /** From MuJoCo touch sensors (updated each physics step). */
+  limitLeftPressed?: boolean;
+  limitRightPressed?: boolean;
 };
 
 export type CartPendulumPlant = {

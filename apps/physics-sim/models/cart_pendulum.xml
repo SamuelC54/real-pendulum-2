@@ -15,6 +15,16 @@
     <camera name="side" pos="0 -1.2 0.35" xyaxes="1 0 0 0 0 1"/>
 
     <geom name="rail" type="box" size="2 0.02 0.01" pos="0 0 0" rgba="0.35 0.35 0.4 1" contype="0" conaffinity="0"/>
+    <!-- Fixed limit-switch plates (cart_geom collides; touch sensors on sites). -->
+    <body name="limit_switch_left" pos="-0.8 0 0.05">
+      <geom name="limit_left_plate" type="box" size="0.02 0.12 0.05" rgba="0.85 0.25 0.2 0.9"/>
+      <site name="limit_left_site" type="box" size="0.03 0.14 0.06"/>
+    </body>
+    <body name="limit_switch_right" pos="0.8 0 0.05">
+      <geom name="limit_right_plate" type="box" size="0.02 0.12 0.05" rgba="0.85 0.25 0.2 0.9"/>
+      <site name="limit_right_site" type="box" size="0.03 0.14 0.06"/>
+    </body>
+
     <body name="cart" pos="0 0 0.05">
       <joint name="cart_slide" type="slide" axis="1 0 0" damping="0.5" limited="false"/>
       <geom name="cart_geom" type="box" size="0.06 0.04 0.03" mass="0.8"/>
@@ -31,6 +41,11 @@
     <position name="cart_pos" joint="cart_slide" kp="1200" kv="120"
               ctrllimited="true" ctrlrange="-1.8 1.8"/>
   </actuator>
+
+  <sensor>
+    <touch name="limit_left_touch" site="limit_left_site"/>
+    <touch name="limit_right_touch" site="limit_right_site"/>
+  </sensor>
 
   <keyframe>
     <key name="upright_0deg" qpos="0 3.14159265359" ctrl="0"/>

@@ -47,6 +47,8 @@ def _state_payload() -> dict[str, Any]:
             "omegaRps": s.omega_rps,
             "vCmdMps": s.v_cmd_mps,
             "encoderTicksFloat": s.encoder_ticks_float,
+            "limitLeftPressed": s.limit_left_pressed,
+            "limitRightPressed": s.limit_right_pressed,
         },
         "config": {
             "gravity": c.gravity,
@@ -55,6 +57,8 @@ def _state_payload() -> dict[str, Any]:
             "angularDampingPerSec": c.angular_damping_per_sec,
             "encoderTicksPerRadian": c.encoder_ticks_per_radian,
             "maxInternalStepSec": c.max_internal_step_sec,
+            "limitLeftXM": c.limit_left_x_m,
+            "limitRightXM": c.limit_right_x_m,
         },
     }
 

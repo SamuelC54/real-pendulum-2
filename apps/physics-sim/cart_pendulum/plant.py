@@ -21,6 +21,11 @@ _CART_KV_RATIO = 0.1
 _CART_KP_MAX = 5000.0
 
 _V_CMD_ZERO_EPS = 1e-9
+_TOUCH_FORCE_EPS = 1e-6
+_BODY_LIMIT_LEFT = "limit_switch_left"
+_BODY_LIMIT_RIGHT = "limit_switch_right"
+_SENSOR_LIMIT_LEFT = "limit_left_touch"
+_SENSOR_LIMIT_RIGHT = "limit_right_touch"
 
 
 @dataclass
@@ -34,6 +39,10 @@ class PlantConfig:
     angular_damping_per_sec: float = 0.04
     encoder_ticks_per_radian: float = 2400.0 / (2.0 * math.pi)
     max_internal_step_sec: float = 1.0 / 240.0
+
+    """World-frame x (m) of left/right limit-switch plates (MuJoCo touch collision)."""
+    limit_left_x_m: float = -0.8
+    limit_right_x_m: float = 0.8
 
 
 @dataclass
@@ -52,6 +61,9 @@ class PlantState:
 
     encoder_ticks_float: float = 0.0
 
+    limit_left_pressed: bool = False
+    limit_right_pressed: bool = False
+
 
 @dataclass
 class CartPendulumPlant:
@@ -67,6 +79,10 @@ class CartPendulumPlant:
     _pend_qvel: int = field(init=False, repr=False)
     _act_id: int = field(init=False, repr=False)
     _servo_hold_setpoint: bool = field(init=False, repr=False)
+    _body_limit_left: int = field(init=False, repr=False)
+    _body_limit_right: int = field(init=False, repr=False)
+    _sensor_limit_left_adr: int = field(init=False, repr=False)
+    _sensor_limit_right_adr: int = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
         self._servo_hold_setpoint = False
@@ -81,6 +97,12 @@ class CartPendulumPlant:
         self._pend_qpos = self._model.joint(_JOINT_PENDULUM).qposadr[0]
         self._pend_qvel = self._model.joint(_JOINT_PENDULUM).dofadr[0]
         self._act_id = self._model.actuator(_ACT_CART).id
+        self._body_limit_left = self._model.body(_BODY_LIMIT_LEFT).id
+        self._body_limit_right = self._model.body(_BODY_LIMIT_RIGHT).id
+        self._sensor_limit_left_adr = int(self._model.sensor_adr[self._model.sensor(_SENSOR_LIMIT_LEFT).id])
+        self._sensor_limit_right_adr = int(
+            self._model.sensor_adr[self._model.sensor(_SENSOR_LIMIT_RIGHT).id]
+        )
 
         self._apply_config_to_model()
         self.sync_state_to_mujoco()
@@ -111,6 +133,15 @@ class CartPendulumPlant:
         self._model.geom_size[rod_gid, 1] = length / 2.0
         self._model.geom_pos[bob_gid, 2] = -length
 
+        self._model.body_pos[self._body_limit_left, 0] = cfg.limit_left_x_m
+        self._model.body_pos[self._body_limit_right, 0] = cfg.limit_right_x_m
+
+    def _read_limit_switches_from_mujoco(self) -> None:
+        left_force = float(self._data.sensordata[self._sensor_limit_left_adr])
+        right_force = float(self._data.sensordata[self._sensor_limit_right_adr])
+        self.state.limit_left_pressed = left_force > _TOUCH_FORCE_EPS
+        self.state.limit_right_pressed = right_force > _TOUCH_FORCE_EPS
+
     def sync_encoder_from_theta(self) -> None:
         """Quadrature encoder readout tracks MuJoCo hinge angle with no separate integration."""
 
@@ -130,7 +161,7 @@ class CartPendulumPlant:
         self._data.ctrl[self._act_id] = s.x_ref_m
 
         mujoco.mj_forward(self._model, self._data)
-
+        self._read_limit_switches_from_mujoco()
         self.sync_encoder_from_theta()
 
     def sync_state_from_mujoco(self) -> None:
@@ -140,6 +171,7 @@ class CartPendulumPlant:
         s.v_mps = float(self._data.qvel[self._cart_qvel])
         s.theta_rad = float(self._data.qpos[self._pend_qpos])
         s.omega_rps = float(self._data.qvel[self._pend_qvel])
+        self._read_limit_switches_from_mujoco()
 
     def _advance_cart_setpoint(self, dt_sec: float) -> None:
         s = self.state
@@ -196,6 +228,8 @@ class CartPendulumPlant:
             "angularDampingPerSec": "angular_damping_per_sec",
             "encoderTicksPerRadian": "encoder_ticks_per_radian",
             "maxInternalStepSec": "max_internal_step_sec",
+            "limitLeftXM": "limit_left_x_m",
+            "limitRightXM": "limit_right_x_m",
         }
 
         for key, attr in mapping.items():
@@ -203,6 +237,8 @@ class CartPendulumPlant:
                 setattr(self.config, attr, float(patch[key]))
 
         self._apply_config_to_model()
+        mujoco.mj_forward(self._model, self._data)
+        self._read_limit_switches_from_mujoco()
 
     def step(self, dt_sec: float) -> None:
         if not (dt_sec > 0) or not math.isfinite(dt_sec):

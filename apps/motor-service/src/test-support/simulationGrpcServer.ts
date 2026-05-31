@@ -89,8 +89,8 @@ export function getSimulationConfigSnapshot(model: SimulationGrpcModel): Simulat
   return {
     metersPerDisplayCount: metersPerDisplayCount(),
     mpsPerRpm: model.mpsPerRpm,
-    limitLeftXM: simLimitLeftXM(),
-    limitRightXM: simLimitRightXM(),
+    limitLeftXM: model.limitLeftXM,
+    limitRightXM: model.limitRightXM,
     plant: {
       gravity: plantGravityMS2(),
       pendulumLengthM: c.pendulumLengthM,
@@ -108,7 +108,22 @@ export async function patchSimulationConfig(
   if (patch.mpsPerRpm != null && Number.isFinite(patch.mpsPerRpm)) {
     model.mpsPerRpm = patch.mpsPerRpm;
   }
-  const plantPatch: Partial<SimulationConfigSnapshot["plant"]> = {};
+  if (patch.limitLeftXM != null && Number.isFinite(patch.limitLeftXM)) {
+    model.limitLeftXM = patch.limitLeftXM;
+  }
+  if (patch.limitRightXM != null && Number.isFinite(patch.limitRightXM)) {
+    model.limitRightXM = patch.limitRightXM;
+  }
+  const plantPatch: Partial<SimulationConfigSnapshot["plant"]> & {
+    limitLeftXM?: number;
+    limitRightXM?: number;
+  } = {};
+  if (patch.limitLeftXM != null && Number.isFinite(patch.limitLeftXM)) {
+    plantPatch.limitLeftXM = patch.limitLeftXM;
+  }
+  if (patch.limitRightXM != null && Number.isFinite(patch.limitRightXM)) {
+    plantPatch.limitRightXM = patch.limitRightXM;
+  }
   if (patch.plant) {
     const cfg = model.plant.config as CartPendulumPlant["config"] & Record<string, number>;
     if (patch.plant.gravity != null && Number.isFinite(patch.plant.gravity)) {
@@ -134,6 +149,12 @@ export async function patchSimulationConfig(
   if (Object.keys(plantPatch).length > 0) {
     const payload = await physicsSimPatchConfig(plantPatch);
     applyPhysicsPayloadToPlant(model.plant, payload);
+  }
+  if (plantPatch.limitLeftXM != null) {
+    model.plant.config.limitLeftXM = plantPatch.limitLeftXM;
+  }
+  if (plantPatch.limitRightXM != null) {
+    model.plant.config.limitRightXM = plantPatch.limitRightXM;
   }
 }
 
@@ -216,7 +237,11 @@ export async function createSimulationGrpcModel(
     );
   }
   const payload = await physicsSimReset({
-    config: { ...plant.config },
+    config: {
+      ...plant.config,
+      limitLeftXM: limitLeftXM,
+      limitRightXM: limitRightXM,
+    },
     initial: { ...plant.state },
   });
   applyPhysicsPayloadToPlant(plant, payload);
@@ -233,9 +258,8 @@ function teknicMeasuredFromPlant(model: SimulationGrpcModel): number {
 /** Stop velocity commands that would drive further into an active limit switch. */
 function enforceTravelLimitOnPlant(model: SimulationGrpcModel): void {
   if (!model.sensorConnected) return;
-  const x = model.plant.state.xM;
-  const atLeft = x <= model.limitLeftXM;
-  const atRight = x >= model.limitRightXM;
+  const atLeft = model.plant.state.limitLeftPressed === true;
+  const atRight = model.plant.state.limitRightPressed === true;
   // Jog left (+rpm) → vCmdMps < 0; jog right → vCmdMps > 0 (see setJogVelocity).
   if (atLeft && model.plant.state.vCmdMps < 0) {
     model.plant.state.vCmdMps = 0;
@@ -396,9 +420,8 @@ export function startSimulationGrpcServer(
       },
       async getStatus() {
         await advancePhysics(model, lastMs);
-        const x = model.plant.state.xM;
-        const left = model.sensorConnected && x <= model.limitLeftXM;
-        const right = model.sensorConnected && x >= model.limitRightXM;
+        const left = model.sensorConnected && model.plant.state.limitLeftPressed === true;
+        const right = model.sensorConnected && model.plant.state.limitRightPressed === true;
         const ticks = encoderTicksInt(model.plant);
         const clamped = Math.max(-2_147_483_648, Math.min(2_147_483_647, ticks));
         return create(SensorGetStatusReplySchema, {

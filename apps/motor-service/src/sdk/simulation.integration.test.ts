@@ -107,7 +107,7 @@ describe("Simulation (MotorService + SensorService, one plant)", () => {
     await disconnectMotor();
   });
 
-  it("limits follow plant xM when sensor is connected", async () => {
+  it("limits follow MuJoCo touch sensors when sensor is connected", async () => {
     await connectMotor();
     await sensor.connect({});
     await moveToPosition(teknicCountsForXM(model.limitLeftXM));
