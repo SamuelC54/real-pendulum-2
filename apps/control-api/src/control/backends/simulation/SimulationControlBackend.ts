@@ -32,12 +32,17 @@ import {
 } from "./simulationMappers.js";
 
 const SIM_DT_SEC = 0.02;
+/** Wall-clock jog tick — physics must advance between jog RPCs, not only on each set. */
+const JOG_TICK_MS = 50;
 
 export class SimulationControlBackend implements ControlBackend {
   readonly mode = "simulation" as const;
 
   readonly travelLimits = new TravelLimitsStore();
   private readonly listeners = new Set<(state: MachineStateSources) => void>();
+  private jogCmPerSec = 0;
+  private jogTimer: ReturnType<typeof setInterval> | null = null;
+  private jogStepInFlight = false;
 
   /** @internal Vitest */
   resetTravelLimitsForTests(): void {
@@ -53,6 +58,45 @@ export class SimulationControlBackend implements ControlBackend {
     const state = await this.getState();
     for (const listener of this.listeners) {
       listener(state);
+    }
+  }
+
+  private stopJogLoop(): void {
+    this.jogCmPerSec = 0;
+    if (this.jogTimer != null) {
+      clearInterval(this.jogTimer);
+      this.jogTimer = null;
+    }
+  }
+
+  private startJogLoop(cmPerSec: number): void {
+    this.jogCmPerSec = cmPerSec;
+    if (this.jogTimer != null) return;
+    this.jogTimer = setInterval(() => void this.runJogStep(), JOG_TICK_MS);
+  }
+
+  private async runJogStep(): Promise<boolean> {
+    if (this.jogCmPerSec === 0 || this.jogStepInFlight) return true;
+    if (isMotionBlocked()) {
+      this.stopJogLoop();
+      try {
+        await physicsSimStep({ dt: SIM_DT_SEC, vCmdCmPerSec: 0 });
+        await this.emit();
+      } catch {
+        /* plant down */
+      }
+      return false;
+    }
+    this.jogStepInFlight = true;
+    try {
+      await physicsSimStep({ dt: SIM_DT_SEC, vCmdCmPerSec: this.jogCmPerSec });
+      await this.emit();
+      return true;
+    } catch {
+      this.stopJogLoop();
+      return false;
+    } finally {
+      this.jogStepInFlight = false;
     }
   }
 
@@ -155,6 +199,7 @@ export class SimulationControlBackend implements ControlBackend {
   }
 
   async disconnectMotor(): Promise<void> {
+    this.stopJogLoop();
     try {
       await physicsSimStep({ dt: SIM_DT_SEC, vCmdCmPerSec: 0 });
     } catch {
@@ -177,16 +222,19 @@ export class SimulationControlBackend implements ControlBackend {
     if (isMotionBlocked()) {
       return { ok: false, error: "Motion latch is engaged." };
     }
-    try {
-      await physicsSimStep({ dt: SIM_DT_SEC, vCmdCmPerSec: cmPerSec });
-      await this.emit();
-      return { ok: true, error: "" };
-    } catch (e) {
-      return { ok: false, error: e instanceof Error ? e.message : String(e) };
+    if (cmPerSec === 0) {
+      return this.stop();
     }
+    this.startJogLoop(cmPerSec);
+    const stepped = await this.runJogStep();
+    if (!stepped) {
+      return { ok: false, error: "Simulation jog step failed." };
+    }
+    return { ok: true, error: "" };
   }
 
   async stop(): Promise<CommandResult> {
+    this.stopJogLoop();
     try {
       await physicsSimStep({ dt: SIM_DT_SEC, vCmdCmPerSec: 0 });
       await this.emit();
@@ -200,6 +248,7 @@ export class SimulationControlBackend implements ControlBackend {
     if (isMotionBlocked() && !opts?.recovery) {
       return { ok: false, error: "Motion latch is engaged." };
     }
+    this.stopJogLoop();
     try {
       await physicsSimMoveAbsolute({
         xCm: cm + simulationCartOffsetCm(),

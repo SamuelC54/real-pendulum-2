@@ -54,9 +54,11 @@ const JogDirectionButton = memo(function JogDirectionButton({
         void onPointerHold(direction);
       }}
       onPointerUp={() => void onPointerRelease()}
+      onPointerCancel={() => void onPointerRelease()}
       onPointerLeave={(e) => {
         if (e.buttons === 0) void onPointerRelease();
       }}
+      onLostPointerCapture={() => void onPointerRelease()}
     >
       {direction === "left" ? (
         <>

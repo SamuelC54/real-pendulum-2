@@ -166,8 +166,11 @@ export function MotorSessionProvider({ children }: { children: ReactNode }) {
 
   const applyPointerRelease = useCallback(async () => {
     pointerDirRef.current = null;
+    if (keyboardDirRef.current === null) {
+      setHolding(null);
+    }
     await runSyncJog();
-  }, [runSyncJog]);
+  }, [runSyncJog, setHolding]);
 
   const applyKeyboardJog = useCallback(
     async (dir: JogHold) => {
