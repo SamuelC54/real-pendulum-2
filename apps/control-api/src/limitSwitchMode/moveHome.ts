@@ -1,5 +1,6 @@
 import { config } from "@real-pendulum/app-config";
-import { createControlClient } from "../control/createControlClient.js";
+import { rpmToCmPerSec } from "@real-pendulum/physical-motor-service/sdk";
+import { getControlBackend } from "../control/getControlBackend.js";
 import type { ControlMode } from "../control/types.js";
 import { railStateForMode } from "../control/types.js";
 import { runWithRecoveryBypass, tryClearIfSafe } from "./state.js";
@@ -11,8 +12,10 @@ export type MoveHomeResult =
   | MoveHomeLeafResult
   | { real: MoveHomeLeafResult; sim: MoveHomeLeafResult };
 
-const DEFAULT_VEL_RPM = Math.min(120, Math.max(5, config.homing.jogRpm));
-const DEFAULT_ACC_RPM_PER_SEC = 1000;
+const DEFAULT_VEL_CM_PER_SEC = Math.abs(
+  rpmToCmPerSec(Math.min(120, Math.max(5, config.homing.jogRpm))),
+);
+const DEFAULT_ACC_CM_PER_SEC2 = Math.abs(rpmToCmPerSec(1000));
 const HOME_CM = 0;
 const HOME_TOLERANCE_CM = 0.5;
 const HOME_TIMEOUT_MS = 120_000;
@@ -31,7 +34,7 @@ async function waitForHome(
   let reachedAt: number | undefined;
 
   while (Date.now() < deadline) {
-    const state = railStateForMode(await createControlClient(mode).getState(), mode);
+    const state = railStateForMode(await getControlBackend(mode).getState(), mode);
     if (!state.connection.cart) {
       return { ok: false, error: "Motor disconnected during move to home." };
     }
@@ -53,9 +56,9 @@ async function waitForHome(
 
 async function moveToHome(
   mode: Exclude<ControlMode, "twin">,
-  opts: { maxVelocityRpm: number; maxAccelerationRpmPerSec: number },
+  opts: { maxVelocityCmPerSec: number; maxAccelerationCmPerSec2: number },
 ): Promise<{ ok: boolean; error: string }> {
-  const start = await createControlClient(mode).moveToPositionCm(HOME_CM, {
+  const start = await getControlBackend(mode).moveToPositionCm(HOME_CM, {
     ...opts,
     recovery: true,
   });
@@ -65,7 +68,7 @@ async function moveToHome(
   if (!waited.ok) return waited;
 
   try {
-    const state = railStateForMode(await createControlClient(mode).getState(), mode);
+    const state = railStateForMode(await getControlBackend(mode).getState(), mode);
     tryClearIfSafe(
       state.cart.positionCm ?? undefined,
       {
@@ -73,7 +76,7 @@ async function moveToHome(
         limitLeftPressed: state.limitSwitch.leftPressed,
         limitRightPressed: state.limitSwitch.rightPressed,
       },
-      mode,
+      state.cart.travelLimitsCm,
     );
   } catch {
     /* offline — latch stays */
@@ -85,13 +88,13 @@ async function moveToHome(
 export async function moveHomeWhileLatched(
   mode: ControlMode,
   options?: {
-    maxVelocityRpm?: number;
-    maxAccelerationRpmPerSec?: number;
+    maxVelocityCmPerSec?: number;
+    maxAccelerationCmPerSec2?: number;
   },
 ): Promise<MoveHomeResult> {
   const moveOpts = {
-    maxVelocityRpm: options?.maxVelocityRpm ?? DEFAULT_VEL_RPM,
-    maxAccelerationRpmPerSec: options?.maxAccelerationRpmPerSec ?? DEFAULT_ACC_RPM_PER_SEC,
+    maxVelocityCmPerSec: options?.maxVelocityCmPerSec ?? DEFAULT_VEL_CM_PER_SEC,
+    maxAccelerationCmPerSec2: options?.maxAccelerationCmPerSec2 ?? DEFAULT_ACC_CM_PER_SEC2,
   };
 
   return runWithRecoveryBypass(() => runOnTwinLegs(mode, (leg) => moveToHome(leg, moveOpts)));

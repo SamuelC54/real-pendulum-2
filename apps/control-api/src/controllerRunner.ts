@@ -14,12 +14,11 @@ import {
 
 import * as motor from "@real-pendulum/physical-motor-service/sdk";
 
-import type { ControlClient } from "./control/ControlClient.js";
+import type { ControlBackend } from "./control/types.js";
 import { railStateForMode } from "./control/types.js";
 
-import { rpmToCmPerSec } from "./control/motionUnits.js";
 
-import { encoderTicksFromPhysicsState } from "./control/mappers/simulationMappers.js";
+import { encoderTicksFromPhysicsState } from "./control/backends/simulation/simulationMappers.js";
 
 import {
 
@@ -51,7 +50,7 @@ const ARRIVAL_TOLERANCE_CM = 0.5;
 
 let activeControllerId: string | null = null;
 
-let activeControlClient: ControlClient | null = null;
+let activeBackend: ControlBackend | null = null;
 
 
 
@@ -81,7 +80,7 @@ function stopLoopTimer(): void {
 
   activeControllerId = null;
 
-  activeControlClient = null;
+  activeBackend = null;
 
 }
 
@@ -149,11 +148,9 @@ async function readControllerTickState(): Promise<{
 
 }> {
 
-  const client = activeControlClient!;
+  const backend = activeBackend!;
 
-  const mode = client.mode;
-
-  const state = railStateForMode(await client.getState(), mode);
+  const state = railStateForMode(await backend.getState(), backend.mode);
 
   if (!state.connection.cart) {
 
@@ -269,7 +266,7 @@ async function applyHomingTickResult(out: ControllerTickResult): Promise<boolean
 
       out.motorAbsRevolutions,
 
-      activeControlClient!,
+      activeBackend!,
 
     );
 
@@ -285,7 +282,7 @@ async function applyHomingTickResult(out: ControllerTickResult): Promise<boolean
 
 async function controllerTick(): Promise<boolean> {
 
-  const client = activeControlClient!;
+  const backend = activeBackend!;
 
   try {
 
@@ -307,9 +304,9 @@ async function controllerTick(): Promise<boolean> {
 
     if (activeControllerId === "rail_homing") {
 
-      if (out.rpm !== undefined && Number.isFinite(out.rpm)) {
+      if (out.cmPerSec !== undefined && Number.isFinite(out.cmPerSec)) {
 
-        const jog = await client.setJogCmPerSec(rpmToCmPerSec(out.rpm));
+        const jog = await backend.setJogCmPerSec(out.cmPerSec);
 
         if (!jog.ok) {
 
@@ -317,9 +314,9 @@ async function controllerTick(): Promise<boolean> {
 
         }
 
-      } else if (out.rpm === 0) {
+      } else if (out.cmPerSec === 0) {
 
-        await client.stop();
+        await backend.stop();
 
       }
 
@@ -349,9 +346,9 @@ async function controllerTick(): Promise<boolean> {
 
 
 
-    if (out.rpm !== undefined && Number.isFinite(out.rpm)) {
+    if (out.cmPerSec !== undefined && Number.isFinite(out.cmPerSec)) {
 
-      const jog = await client.setJogCmPerSec(rpmToCmPerSec(out.rpm));
+      const jog = await backend.setJogCmPerSec(out.cmPerSec);
 
       if (!jog.ok) {
 
@@ -383,11 +380,11 @@ async function controllerTick(): Promise<boolean> {
 
       if (needsMove) {
 
-        const move = await client.moveToPositionCm(target, {
+        const move = await backend.moveToPositionCm(target, {
 
-          maxVelocityRpm: out.maxVelocityRpm,
+          maxVelocityCmPerSec: out.maxVelocityCmPerSec,
 
-          maxAccelerationRpmPerSec: out.maxAccelerationRpmPerSec,
+          maxAccelerationCmPerSec2: out.maxAccelerationCmPerSec2,
 
         });
 
@@ -439,7 +436,7 @@ export async function startControllerRunner(
 
   params: Record<string, number>,
 
-  controlClient: ControlClient,
+  backend: ControlBackend,
 
 ): Promise<void> {
 
@@ -463,7 +460,7 @@ export async function startControllerRunner(
 
     controllerStartedAtSec = Date.now() / 1000;
 
-    activeControlClient = controlClient;
+    activeBackend = backend;
 
 
 
@@ -483,7 +480,7 @@ export async function startControllerRunner(
 
       }
 
-    } else if (id === "lqr_position" && controlClient.mode !== "simulation") {
+    } else if (id === "lqr_position" && backend.mode !== "simulation") {
 
       if (!tickState.sensorConnected) {
 
@@ -539,13 +536,13 @@ export async function startControllerRunner(
 
 export async function stopControllerRunner(): Promise<void> {
 
-  const client = activeControlClient;
+  const backend = activeBackend;
 
   stopLoopTimer();
 
-  if (client) {
+  if (backend) {
 
-    await client.stop().catch(() => {});
+    await backend.stop().catch(() => {});
 
   }
 

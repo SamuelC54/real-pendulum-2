@@ -1,20 +1,27 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-vi.mock("@real-pendulum/physical-motor-service/sdk", () => ({
-  motorConnectBaseUrl: vi.fn(() => "http://127.0.0.1:50051"),
-  defaultMotorGrpcUrl: vi.fn(() => "http://127.0.0.1:50051"),
-  normalizeMotorGrpcBaseUrl: vi.fn((s: string) => s),
-  withMotorGrpcBaseUrl: vi.fn((_url: string, fn: () => unknown) => fn()),
-  connectMotor: vi.fn(),
-  disconnectMotor: vi.fn(),
-  setJogVelocityRpm: vi.fn(),
-  stopMotor: vi.fn(),
-  getMotorStatus: vi.fn(),
-  moveToPosition: vi.fn(),
-  zeroMeasuredPosition: vi.fn(),
-}));
+vi.mock("@real-pendulum/physical-motor-service/sdk", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@real-pendulum/physical-motor-service/sdk")>();
+  return {
+    ...actual,
+    motorConnectBaseUrl: vi.fn(() => "http://127.0.0.1:50051"),
+    defaultMotorGrpcUrl: vi.fn(() => "http://127.0.0.1:50051"),
+    normalizeMotorGrpcBaseUrl: vi.fn((s: string) => s),
+    withMotorGrpcBaseUrl: vi.fn((_url: string, fn: () => unknown) => fn()),
+    connectMotor: vi.fn(),
+    disconnectMotor: vi.fn(),
+    setJogVelocityCmPerSec: vi.fn(),
+    stopMotor: vi.fn(),
+    getMotorStatus: vi.fn(),
+    moveToPosition: vi.fn(),
+    zeroMeasuredPosition: vi.fn(),
+  };
+});
 
-vi.mock("@real-pendulum/simulation/client", () => ({
+vi.mock("@real-pendulum/simulation/client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@real-pendulum/simulation/client")>();
+  return {
+    ...actual,
   physicsSimHealthCheck: vi.fn(async () => true),
   physicsSimGetState: vi.fn(async () => ({
     state: {
@@ -38,7 +45,8 @@ vi.mock("@real-pendulum/simulation/client", () => ({
   })),
   physicsSimStep: vi.fn(async () => ({})),
   physicsSimMoveAbsolute: vi.fn(async () => ({})),
-}));
+  };
+});
 
 vi.mock("@real-pendulum/physical-sensor-service/sdk", () => ({
   sensorConnectBaseUrl: vi.fn(() => "http://127.0.0.1:50052"),
@@ -56,14 +64,14 @@ vi.mock("@real-pendulum/physical-sensor-service/sdk", () => ({
 import * as motor from "@real-pendulum/physical-motor-service/sdk";
 import * as physicsSim from "@real-pendulum/simulation/client";
 import * as sensor from "@real-pendulum/physical-sensor-service/sdk";
-import { resetTravelLimitsStateForTests } from "./railTravelLimits.js";
+import { resetTravelLimitsStateForTests } from "./control/backends/instances.js";
 import { appRouter } from "./router.js";
 
 describe("appRouter (motor mocked)", () => {
   beforeEach(() => {
     vi.mocked(motor.connectMotor).mockReset();
     vi.mocked(motor.disconnectMotor).mockReset();
-    vi.mocked(motor.setJogVelocityRpm).mockReset();
+    vi.mocked(motor.setJogVelocityCmPerSec).mockReset();
     vi.mocked(motor.stopMotor).mockReset();
     vi.mocked(motor.getMotorStatus).mockReset();
     vi.mocked(physicsSim.physicsSimHealthCheck).mockReset().mockResolvedValue(true);
@@ -96,7 +104,7 @@ describe("appRouter (motor mocked)", () => {
   it("machine.state.get returns live status when client succeeds", async () => {
     vi.mocked(motor.getMotorStatus).mockResolvedValue({
       connected: true,
-      commandedRpm: 12.5,
+      commandedCmPerSec: -0.875,
       detail: "ok",
       measuredPosition: 7,
     });
@@ -104,7 +112,7 @@ describe("appRouter (motor mocked)", () => {
     const res = await caller.machine.state.get();
     const state = res.physical!;
     expect(state.connection.cart).toBe(true);
-    expect(state.cart.commandedCmPerSec).toBeCloseTo(-12.5 * 0.0007 * 100);
+    expect(state.cart.commandedCmPerSec).toBeCloseTo(-0.875);
     expect(state.cart.positionCm).toBeCloseTo(-7 / 232.8, 6);
     expect(state.cart.travelLimitsCm).toEqual({ left: null, right: null });
   });
@@ -121,24 +129,26 @@ describe("appRouter (motor mocked)", () => {
     await expect(caller.machine.connect()).resolves.toEqual({ ok: true, error: "" });
   });
 
-  it("machine.jog.set forwards cm/s as rpm to motor", async () => {
-    vi.mocked(motor.setJogVelocityRpm).mockResolvedValue({ ok: true, error: "" });
+  it("machine.jog.set forwards cm/s to motor", async () => {
+    vi.mocked(motor.setJogVelocityCmPerSec).mockResolvedValue({ ok: true, error: "" });
     vi.mocked(motor.getMotorStatus).mockResolvedValue({
       connected: true,
-      commandedRpm: 0,
+      commandedCmPerSec: 0,
       detail: "ok",
       measuredPosition: 0,
     });
     const caller = appRouter.createCaller({ controlBackend: "physical" });
     await caller.machine.jog.set({ cmPerSec: -7 });
-    expect(motor.setJogVelocityRpm).toHaveBeenCalledWith(expect.closeTo(100));
+    expect(motor.setJogVelocityCmPerSec).toHaveBeenCalledWith(-7, {
+      maxAccelerationCmPerSec2: undefined,
+    });
   });
 
   it("machine.jog.set blocks jog when left limit is pressed", async () => {
-    vi.mocked(motor.setJogVelocityRpm).mockResolvedValue({ ok: true, error: "" });
+    vi.mocked(motor.setJogVelocityCmPerSec).mockResolvedValue({ ok: true, error: "" });
     vi.mocked(motor.getMotorStatus).mockResolvedValue({
       connected: true,
-      commandedRpm: 0,
+      commandedCmPerSec: 0,
       detail: "ok",
       measuredPosition: 0,
     });
@@ -154,13 +164,13 @@ describe("appRouter (motor mocked)", () => {
     const caller = appRouter.createCaller({ controlBackend: "physical" });
     const res = await caller.machine.jog.set({ cmPerSec: -7 });
     expect(res.ok).toBe(false);
-    expect(motor.setJogVelocityRpm).not.toHaveBeenCalled();
+    expect(motor.setJogVelocityCmPerSec).not.toHaveBeenCalled();
   });
 
   it("machine.travelLimits.recordSide stores limit from cart position", async () => {
     vi.mocked(motor.getMotorStatus).mockResolvedValue({
       connected: true,
-      commandedRpm: 0,
+      commandedCmPerSec: 0,
       detail: "ok",
       measuredPosition: 42,
     });
@@ -173,7 +183,7 @@ describe("appRouter (motor mocked)", () => {
   it("machine.zeroAtCurrent calls Teknic zero when motor is connected", async () => {
     vi.mocked(motor.getMotorStatus).mockResolvedValue({
       connected: true,
-      commandedRpm: 0,
+      commandedCmPerSec: 0,
       detail: "ok",
       measuredPosition: 12,
     });
@@ -186,7 +196,7 @@ describe("appRouter (motor mocked)", () => {
   it("machine.travelLimits.setSymmetricSpan sets left/right from current position ± half span", async () => {
     vi.mocked(motor.getMotorStatus).mockResolvedValue({
       connected: true,
-      commandedRpm: 0,
+      commandedCmPerSec: 0,
       detail: "ok",
       measuredPosition: 0,
     });
@@ -204,7 +214,7 @@ describe("appRouter (motor mocked)", () => {
   it("machine.zeroAtCurrent zeros simulation display frame", async () => {
     vi.mocked(motor.getMotorStatus).mockResolvedValue({
       connected: true,
-      commandedRpm: 0,
+      commandedCmPerSec: 0,
       detail: "ok",
       measuredPosition: 0,
     });
@@ -218,7 +228,7 @@ describe("appRouter (motor mocked)", () => {
     vi.mocked(motor.zeroMeasuredPosition).mockClear();
     vi.mocked(motor.getMotorStatus).mockResolvedValue({
       connected: false,
-      commandedRpm: 0,
+      commandedCmPerSec: 0,
       detail: "",
     });
     const caller = appRouter.createCaller({ controlBackend: "physical" });
@@ -229,7 +239,7 @@ describe("appRouter (motor mocked)", () => {
   it("machine.state.get returns physical and simulation sources in twin mode", async () => {
     vi.mocked(motor.getMotorStatus).mockResolvedValue({
       connected: true,
-      commandedRpm: 3,
+      commandedCmPerSec: -0.21,
       detail: "ok",
       measuredPosition: 9,
     });

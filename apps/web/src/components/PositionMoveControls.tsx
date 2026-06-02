@@ -11,6 +11,7 @@ import {
   POSITION_TARGET_SLIDER_MAX_CM,
   POSITION_TARGET_SLIDER_MIN_CM,
   isMoveTargetBlockedByTravelLimit,
+  rpmToCmPerSec,
 } from "@/lib/jogMath";
 import { boundsFromTravelLimitsCm } from "@/lib/railPositionCm";
 import { travelLimitsCm } from "@/lib/machineState";
@@ -119,8 +120,10 @@ export const PositionMoveControls = memo(function PositionMoveControls() {
     (positionCm: number) => {
       void moveAbsolute.mutateAsync({
         positionCm,
-        maxVelocityRpm: clamp(maxVelRpm, 1, POSITION_MOVE_VEL_SLIDER_MAX),
-        maxAccelerationRpmPerSec: clamp(maxAccelRpmPerSec, 1, POSITION_MOVE_ACC_SLIDER_MAX),
+        maxVelocityCmPerSec: Math.abs(rpmToCmPerSec(clamp(maxVelRpm, 1, POSITION_MOVE_VEL_SLIDER_MAX))),
+        maxAccelerationCmPerSec2: Math.abs(
+          rpmToCmPerSec(clamp(maxAccelRpmPerSec, 1, POSITION_MOVE_ACC_SLIDER_MAX)),
+        ),
       });
     },
     [maxAccelRpmPerSec, maxVelRpm, moveAbsolute],

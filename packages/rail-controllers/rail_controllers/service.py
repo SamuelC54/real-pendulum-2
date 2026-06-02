@@ -4,6 +4,7 @@ import threading
 import time
 from typing import Any
 
+from .motion_units import tick_command_to_cm_units
 from .registry import create_controller, list_metadata
 
 _lock = threading.Lock()
@@ -73,7 +74,7 @@ def tick(state: dict[str, Any]) -> dict[str, Any]:
             return {"idle": True}
         _step_count += 1
         try:
-            return _controller.tick(state)
+            return tick_command_to_cm_units(_controller.tick(state))
         except Exception as e:
             _error = str(e)
             _active_id = None

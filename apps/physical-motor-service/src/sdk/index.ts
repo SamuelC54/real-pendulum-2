@@ -7,6 +7,11 @@ import { createConnectTransport } from "@connectrpc/connect-node";
 import type { MotorInfo as ProtoMotorInfo } from "@real-pendulum/motor-proto/gen/motor_pb.js";
 import { MotorService } from "@real-pendulum/motor-proto/gen/motor_pb.js";
 import {
+  cmPerSec2ToRpmPerSec,
+  cmPerSecToRpm,
+  rpmToCmPerSec,
+} from "../motionUnits.js";
+import {
   defaultMotorGrpcUrl,
   peekMotorGrpcBaseUrlOverride,
   withMotorGrpcBaseUrl,
@@ -76,6 +81,20 @@ export async function setJogVelocityRpm(
   return { ok: r.ok, error: r.errorMessage ?? "" };
 }
 
+export async function setJogVelocityCmPerSec(
+  cmPerSec: number,
+  options?: { maxAccelerationCmPerSec2?: number },
+): Promise<{ ok: boolean; error: string }> {
+  return setJogVelocityRpm(cmPerSecToRpm(cmPerSec), {
+    maxAccelerationRpmPerSec:
+      options?.maxAccelerationCmPerSec2 !== undefined
+        ? cmPerSec2ToRpmPerSec(options.maxAccelerationCmPerSec2)
+        : undefined,
+  });
+}
+
+export { rpmToCmPerSec, cmPerSecToRpm } from "../motionUnits.js";
+
 export async function stopMotor(): Promise<{ ok: boolean; error: string }> {
   const r = await getClient().stop({});
   return { ok: r.ok, error: r.errorMessage ?? "" };
@@ -112,22 +131,53 @@ export function mapMotorInfo(m: ProtoMotorInfo | Record<string, unknown>): Motor
   };
 }
 
-export async function getMotorStatus(): Promise<{
+export type MotorStatus = {
   connected: boolean;
-  commandedRpm: number;
+  /** Commanded cart speed in cm/s (UI / control-api convention). */
+  commandedCmPerSec: number;
   detail: string;
   motor?: MotorInfo;
   /** Teknic **`Motion.PosnMeasured`** (counts). Absent when not reported by firmware. */
   measuredPosition?: number;
-}> {
+};
+
+export async function getMotorStatus(): Promise<MotorStatus> {
   const r = await getClient().getStatus({});
+  return mapMotorStatus(r);
+}
+
+function mapMotorStatus(r: {
+  connected: boolean;
+  commandedRpm: number;
+  detail?: string;
+  motor?: ProtoMotorInfo;
+  measuredPosition?: number;
+}) {
+  const commandedRpm = Number(r.commandedRpm);
   return {
     connected: r.connected,
-    commandedRpm: Number(r.commandedRpm),
+    commandedCmPerSec: r.connected ? rpmToCmPerSec(commandedRpm) : 0,
     detail: r.detail ?? "",
     motor: r.motor ? mapMotorInfo(r.motor) : undefined,
     measuredPosition: r.measuredPosition,
   };
+}
+
+/** Consumes {@link MotorService.SubscribeStatus} server stream (Connect RPC). */
+export function subscribeMotorStatus(
+  onStatus: (status: ReturnType<typeof mapMotorStatus>) => void,
+): () => void {
+  const abort = new AbortController();
+  void (async () => {
+    try {
+      for await (const r of getClient().subscribeStatus({}, { signal: abort.signal })) {
+        onStatus(mapMotorStatus(r));
+      }
+    } catch {
+      /* stream closed */
+    }
+  })();
+  return () => abort.abort();
 }
 
 /** Zeros measured position at the current location (`AddToPosition(-PosnMeasured)`). */
@@ -140,17 +190,28 @@ export async function zeroMeasuredPosition(): Promise<{ ok: boolean; error: stri
 export async function moveToPosition(
   positionCounts: number,
   options?: {
+    maxVelocityCmPerSec?: number;
+    maxAccelerationCmPerSec2?: number;
+    /** @deprecated Prefer cm/s fields — used by in-process simulation motor gRPC. */
     maxVelocityRpm?: number;
     maxAccelerationRpmPerSec?: number;
   },
 ): Promise<{ ok: boolean; error: string }> {
+  const maxVelocityRpm =
+    options?.maxVelocityRpm ??
+    (options?.maxVelocityCmPerSec !== undefined
+      ? cmPerSecToRpm(options.maxVelocityCmPerSec)
+      : undefined);
+  const maxAccelerationRpmPerSec =
+    options?.maxAccelerationRpmPerSec ??
+    (options?.maxAccelerationCmPerSec2 !== undefined
+      ? cmPerSec2ToRpmPerSec(options.maxAccelerationCmPerSec2)
+      : undefined);
   const r = await getClient().moveToPosition({
     positionCounts,
-    ...(options?.maxVelocityRpm !== undefined
-      ? { maxVelocityRpm: options.maxVelocityRpm }
-      : {}),
-    ...(options?.maxAccelerationRpmPerSec !== undefined
-      ? { maxAccelerationRpmPerSec: options.maxAccelerationRpmPerSec }
+    ...(maxVelocityRpm !== undefined ? { maxVelocityRpm } : {}),
+    ...(maxAccelerationRpmPerSec !== undefined
+      ? { maxAccelerationRpmPerSec: maxAccelerationRpmPerSec }
       : {}),
   });
   return { ok: r.ok, error: r.errorMessage ?? "" };

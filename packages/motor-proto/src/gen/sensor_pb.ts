@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file sensor.proto.
  */
 export const file_sensor: GenFile = /*@__PURE__*/
-  fileDesc("CgxzZW5zb3IucHJvdG8SCXNlbnNvci52MSIlCg5Db25uZWN0UmVxdWVzdBITCgtzZXJpYWxfcG9ydBgBIAEoCSIxCgxDb25uZWN0UmVwbHkSCgoCb2sYASABKAgSFQoNZXJyb3JfbWVzc2FnZRgCIAEoCSITChFEaXNjb25uZWN0UmVxdWVzdCI0Cg9EaXNjb25uZWN0UmVwbHkSCgoCb2sYASABKAgSFQoNZXJyb3JfbWVzc2FnZRgCIAEoCSISChBUb2dnbGVMZWRSZXF1ZXN0IkMKDlRvZ2dsZUxlZFJlcGx5EgoKAm9rGAEgASgIEhUKDWVycm9yX21lc3NhZ2UYAiABKAkSDgoGbGVkX29uGAMgASgIIhIKEEdldFN0YXR1c1JlcXVlc3QiGAoWTGlzdFNlcmlhbFBvcnRzUmVxdWVzdCJiCg5TZXJpYWxQb3J0SW5mbxIMCgRwYXRoGAEgASgJEhQKDG1hbnVmYWN0dXJlchgCIAEoCRIVCg1zZXJpYWxfbnVtYmVyGAMgASgJEhUKDWZyaWVuZGx5X25hbWUYBCABKAkiQAoUTGlzdFNlcmlhbFBvcnRzUmVwbHkSKAoFcG9ydHMYASADKAsyGS5zZW5zb3IudjEuU2VyaWFsUG9ydEluZm8iqAEKDkdldFN0YXR1c1JlcGx5EhEKCWNvbm5lY3RlZBgBIAEoCBIOCgZsZWRfb24YAiABKAgSDgoGZGV0YWlsGAMgASgJEhMKC3NlcmlhbF9wb3J0GAQgASgJEhUKDWVuY29kZXJfdGlja3MYBSABKBESGgoSbGltaXRfbGVmdF9wcmVzc2VkGAYgASgIEhsKE2xpbWl0X3JpZ2h0X3ByZXNzZWQYByABKAgiFQoTUmVzZXRFbmNvZGVyUmVxdWVzdCJNChFSZXNldEVuY29kZXJSZXBseRIKCgJvaxgBIAEoCBIVCg1lcnJvcl9tZXNzYWdlGAIgASgJEhUKDWVuY29kZXJfdGlja3MYAyABKBEyxQMKDVNlbnNvclNlcnZpY2USPQoHQ29ubmVjdBIZLnNlbnNvci52MS5Db25uZWN0UmVxdWVzdBoXLnNlbnNvci52MS5Db25uZWN0UmVwbHkSRgoKRGlzY29ubmVjdBIcLnNlbnNvci52MS5EaXNjb25uZWN0UmVxdWVzdBoaLnNlbnNvci52MS5EaXNjb25uZWN0UmVwbHkSQwoJVG9nZ2xlTGVkEhsuc2Vuc29yLnYxLlRvZ2dsZUxlZFJlcXVlc3QaGS5zZW5zb3IudjEuVG9nZ2xlTGVkUmVwbHkSQwoJR2V0U3RhdHVzEhsuc2Vuc29yLnYxLkdldFN0YXR1c1JlcXVlc3QaGS5zZW5zb3IudjEuR2V0U3RhdHVzUmVwbHkSVQoPTGlzdFNlcmlhbFBvcnRzEiEuc2Vuc29yLnYxLkxpc3RTZXJpYWxQb3J0c1JlcXVlc3QaHy5zZW5zb3IudjEuTGlzdFNlcmlhbFBvcnRzUmVwbHkSTAoMUmVzZXRFbmNvZGVyEh4uc2Vuc29yLnYxLlJlc2V0RW5jb2RlclJlcXVlc3QaHC5zZW5zb3IudjEuUmVzZXRFbmNvZGVyUmVwbHliBnByb3RvMw");
+  fileDesc("CgxzZW5zb3IucHJvdG8SCXNlbnNvci52MSIlCg5Db25uZWN0UmVxdWVzdBITCgtzZXJpYWxfcG9ydBgBIAEoCSIxCgxDb25uZWN0UmVwbHkSCgoCb2sYASABKAgSFQoNZXJyb3JfbWVzc2FnZRgCIAEoCSITChFEaXNjb25uZWN0UmVxdWVzdCI0Cg9EaXNjb25uZWN0UmVwbHkSCgoCb2sYASABKAgSFQoNZXJyb3JfbWVzc2FnZRgCIAEoCSISChBUb2dnbGVMZWRSZXF1ZXN0IkMKDlRvZ2dsZUxlZFJlcGx5EgoKAm9rGAEgASgIEhUKDWVycm9yX21lc3NhZ2UYAiABKAkSDgoGbGVkX29uGAMgASgIIhIKEEdldFN0YXR1c1JlcXVlc3QiGAoWU3Vic2NyaWJlU3RhdHVzUmVxdWVzdCIYChZMaXN0U2VyaWFsUG9ydHNSZXF1ZXN0ImIKDlNlcmlhbFBvcnRJbmZvEgwKBHBhdGgYASABKAkSFAoMbWFudWZhY3R1cmVyGAIgASgJEhUKDXNlcmlhbF9udW1iZXIYAyABKAkSFQoNZnJpZW5kbHlfbmFtZRgEIAEoCSJAChRMaXN0U2VyaWFsUG9ydHNSZXBseRIoCgVwb3J0cxgBIAMoCzIZLnNlbnNvci52MS5TZXJpYWxQb3J0SW5mbyKoAQoOR2V0U3RhdHVzUmVwbHkSEQoJY29ubmVjdGVkGAEgASgIEg4KBmxlZF9vbhgCIAEoCBIOCgZkZXRhaWwYAyABKAkSEwoLc2VyaWFsX3BvcnQYBCABKAkSFQoNZW5jb2Rlcl90aWNrcxgFIAEoERIaChJsaW1pdF9sZWZ0X3ByZXNzZWQYBiABKAgSGwoTbGltaXRfcmlnaHRfcHJlc3NlZBgHIAEoCCIVChNSZXNldEVuY29kZXJSZXF1ZXN0Ik0KEVJlc2V0RW5jb2RlclJlcGx5EgoKAm9rGAEgASgIEhUKDWVycm9yX21lc3NhZ2UYAiABKAkSFQoNZW5jb2Rlcl90aWNrcxgDIAEoETKYBAoNU2Vuc29yU2VydmljZRI9CgdDb25uZWN0Ehkuc2Vuc29yLnYxLkNvbm5lY3RSZXF1ZXN0Ghcuc2Vuc29yLnYxLkNvbm5lY3RSZXBseRJGCgpEaXNjb25uZWN0Ehwuc2Vuc29yLnYxLkRpc2Nvbm5lY3RSZXF1ZXN0Ghouc2Vuc29yLnYxLkRpc2Nvbm5lY3RSZXBseRJDCglUb2dnbGVMZWQSGy5zZW5zb3IudjEuVG9nZ2xlTGVkUmVxdWVzdBoZLnNlbnNvci52MS5Ub2dnbGVMZWRSZXBseRJDCglHZXRTdGF0dXMSGy5zZW5zb3IudjEuR2V0U3RhdHVzUmVxdWVzdBoZLnNlbnNvci52MS5HZXRTdGF0dXNSZXBseRJRCg9TdWJzY3JpYmVTdGF0dXMSIS5zZW5zb3IudjEuU3Vic2NyaWJlU3RhdHVzUmVxdWVzdBoZLnNlbnNvci52MS5HZXRTdGF0dXNSZXBseTABElUKD0xpc3RTZXJpYWxQb3J0cxIhLnNlbnNvci52MS5MaXN0U2VyaWFsUG9ydHNSZXF1ZXN0Gh8uc2Vuc29yLnYxLkxpc3RTZXJpYWxQb3J0c1JlcGx5EkwKDFJlc2V0RW5jb2RlchIeLnNlbnNvci52MS5SZXNldEVuY29kZXJSZXF1ZXN0Ghwuc2Vuc29yLnYxLlJlc2V0RW5jb2RlclJlcGx5YgZwcm90bzM");
 
 /**
  * If serial_port is empty, physical-sensor-service falls back to SENSOR_SERIAL_PORT.
@@ -142,6 +142,19 @@ export const GetStatusRequestSchema: GenMessage<GetStatusRequest> = /*@__PURE__*
   messageDesc(file_sensor, 6);
 
 /**
+ * @generated from message sensor.v1.SubscribeStatusRequest
+ */
+export type SubscribeStatusRequest = Message<"sensor.v1.SubscribeStatusRequest"> & {
+};
+
+/**
+ * Describes the message sensor.v1.SubscribeStatusRequest.
+ * Use `create(SubscribeStatusRequestSchema)` to create a new message.
+ */
+export const SubscribeStatusRequestSchema: GenMessage<SubscribeStatusRequest> = /*@__PURE__*/
+  messageDesc(file_sensor, 7);
+
+/**
  * @generated from message sensor.v1.ListSerialPortsRequest
  */
 export type ListSerialPortsRequest = Message<"sensor.v1.ListSerialPortsRequest"> & {
@@ -152,7 +165,7 @@ export type ListSerialPortsRequest = Message<"sensor.v1.ListSerialPortsRequest">
  * Use `create(ListSerialPortsRequestSchema)` to create a new message.
  */
 export const ListSerialPortsRequestSchema: GenMessage<ListSerialPortsRequest> = /*@__PURE__*/
-  messageDesc(file_sensor, 7);
+  messageDesc(file_sensor, 8);
 
 /**
  * @generated from message sensor.v1.SerialPortInfo
@@ -184,7 +197,7 @@ export type SerialPortInfo = Message<"sensor.v1.SerialPortInfo"> & {
  * Use `create(SerialPortInfoSchema)` to create a new message.
  */
 export const SerialPortInfoSchema: GenMessage<SerialPortInfo> = /*@__PURE__*/
-  messageDesc(file_sensor, 8);
+  messageDesc(file_sensor, 9);
 
 /**
  * @generated from message sensor.v1.ListSerialPortsReply
@@ -201,7 +214,7 @@ export type ListSerialPortsReply = Message<"sensor.v1.ListSerialPortsReply"> & {
  * Use `create(ListSerialPortsReplySchema)` to create a new message.
  */
 export const ListSerialPortsReplySchema: GenMessage<ListSerialPortsReply> = /*@__PURE__*/
-  messageDesc(file_sensor, 9);
+  messageDesc(file_sensor, 10);
 
 /**
  * @generated from message sensor.v1.GetStatusReply
@@ -252,7 +265,7 @@ export type GetStatusReply = Message<"sensor.v1.GetStatusReply"> & {
  * Use `create(GetStatusReplySchema)` to create a new message.
  */
 export const GetStatusReplySchema: GenMessage<GetStatusReply> = /*@__PURE__*/
-  messageDesc(file_sensor, 10);
+  messageDesc(file_sensor, 11);
 
 /**
  * @generated from message sensor.v1.ResetEncoderRequest
@@ -265,7 +278,7 @@ export type ResetEncoderRequest = Message<"sensor.v1.ResetEncoderRequest"> & {
  * Use `create(ResetEncoderRequestSchema)` to create a new message.
  */
 export const ResetEncoderRequestSchema: GenMessage<ResetEncoderRequest> = /*@__PURE__*/
-  messageDesc(file_sensor, 11);
+  messageDesc(file_sensor, 12);
 
 /**
  * @generated from message sensor.v1.ResetEncoderReply
@@ -292,7 +305,7 @@ export type ResetEncoderReply = Message<"sensor.v1.ResetEncoderReply"> & {
  * Use `create(ResetEncoderReplySchema)` to create a new message.
  */
 export const ResetEncoderReplySchema: GenMessage<ResetEncoderReply> = /*@__PURE__*/
-  messageDesc(file_sensor, 12);
+  messageDesc(file_sensor, 13);
 
 /**
  * Arduino / USB-serial test hardware (LED toggle, etc.).
@@ -330,6 +343,14 @@ export const SensorService: GenService<{
   getStatus: {
     methodKind: "unary";
     input: typeof GetStatusRequestSchema;
+    output: typeof GetStatusReplySchema;
+  },
+  /**
+   * @generated from rpc sensor.v1.SensorService.SubscribeStatus
+   */
+  subscribeStatus: {
+    methodKind: "server_streaming";
+    input: typeof SubscribeStatusRequestSchema;
     output: typeof GetStatusReplySchema;
   },
   /**

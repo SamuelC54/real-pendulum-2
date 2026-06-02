@@ -8,6 +8,7 @@ service SensorService {
   rpc Disconnect(DisconnectRequest) returns (DisconnectReply);
   rpc ToggleLed(ToggleLedRequest) returns (ToggleLedReply);
   rpc GetStatus(GetStatusRequest) returns (GetStatusReply);
+  rpc SubscribeStatus(SubscribeStatusRequest) returns (stream GetStatusReply);
   rpc ListSerialPorts(ListSerialPortsRequest) returns (ListSerialPortsReply);
   rpc ResetEncoder(ResetEncoderRequest) returns (ResetEncoderReply);
 }
@@ -38,6 +39,8 @@ message ToggleLedReply {
 }
 
 message GetStatusRequest {}
+
+message SubscribeStatusRequest {}
 
 message ListSerialPortsRequest {}
 

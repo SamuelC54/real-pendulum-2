@@ -4,7 +4,7 @@ import {
   type ControllerMeta,
   type ControllerStatus,
 } from "@real-pendulum/controller-service/client";
-import type { ControlClient } from "./control/ControlClient.js";
+import type { ControlBackend } from "./control/types.js";
 import {
   getControllerLoopError,
   isControllerLoopRunning,
@@ -35,9 +35,9 @@ export async function getControllerStatus(): Promise<
 export async function startController(
   id: string,
   params: Record<string, number>,
-  controlClient: ControlClient,
+  backend: ControlBackend,
 ): Promise<ReturnType<typeof getControllerStatus>> {
-  await startControllerRunner(id, params, controlClient);
+  await startControllerRunner(id, params, backend);
   return getControllerStatus();
 }
 

@@ -1,7 +1,5 @@
 import type { TravelLimitSwitchState } from "../railLimitGuards.js";
-import { displayCountsToCm } from "../railPositionCm.js";
-import type { TravelLimitLeg } from "../railTravelLimits.js";
-import { getTravelLimitDisplays } from "../railTravelLimits.js";
+import type { TravelLimitsCm } from "../control/types.js";
 
 export type LimitSide = "left" | "right";
 export type LimitReason = "switch" | "position";
@@ -85,13 +83,13 @@ export function clearLimitSwitchMode(): void {
 export function tryClearIfSafe(
   positionCm: number | undefined,
   limits: TravelLimitSwitchState,
-  leg: TravelLimitLeg = "physical",
+  travelLimitsCm: TravelLimitsCm,
 ): void {
   if (!latched || !limits.connected) return;
   if (limits.limitLeftPressed || limits.limitRightPressed) return;
   if (positionCm === undefined || !Number.isFinite(positionCm)) return;
 
-  const bounds = travelLimitBoundsCm(leg);
+  const bounds = travelLimitBoundsCm(travelLimitsCm);
   if (bounds) {
     const tol = POSITION_TOLERANCE_CM;
     if (positionCm < bounds.min - tol || positionCm > bounds.max + tol) return;
@@ -132,23 +130,20 @@ export function combineLimitSwitchStates(
   return { connected, limitLeftPressed, limitRightPressed };
 }
 
-function travelLimitBoundsCm(leg: TravelLimitLeg): { min: number; max: number } | null {
-  const limits = getTravelLimitDisplays(leg);
+function travelLimitBoundsCm(limits: TravelLimitsCm): { min: number; max: number } | null {
   if (limits.left == null || limits.right == null) return null;
   if (!Number.isFinite(limits.left) || !Number.isFinite(limits.right)) return null;
-  const leftCm = displayCountsToCm(limits.left);
-  const rightCm = displayCountsToCm(limits.right);
-  return { min: Math.min(leftCm, rightCm), max: Math.max(leftCm, rightCm) };
+  return { min: Math.min(limits.left, limits.right), max: Math.max(limits.left, limits.right) };
 }
 
 export function updateMotorPosition(
   positionCm: number | undefined,
-  leg: TravelLimitLeg = "physical",
+  travelLimitsCm: TravelLimitsCm,
 ): void {
   if (monitoringSuppressed() || latched) return;
   if (positionCm === undefined || !Number.isFinite(positionCm)) return;
 
-  const bounds = travelLimitBoundsCm(leg);
+  const bounds = travelLimitBoundsCm(travelLimitsCm);
   if (!bounds) return;
 
   const tol = POSITION_TOLERANCE_CM;

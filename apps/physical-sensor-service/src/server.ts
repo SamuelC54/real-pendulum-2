@@ -22,6 +22,25 @@ import { ArduinoSerialSession } from "./serial/arduinoSession.js";
 
 const session = new ArduinoSerialSession();
 
+function buildStatusReply() {
+  const connected = session.isOpen();
+  const portPath = session.getSerialPath();
+  const detail = connected
+    ? `Serial open (${portPath})`
+    : config.sensor.serialPort?.trim()
+      ? "Serial closed"
+      : "Pick a port in the UI or set config.sensor.serialPort";
+  return create(GetStatusReplySchema, {
+    connected,
+    ledOn: session.getLastLedOn(),
+    detail,
+    serialPort: portPath,
+    encoderTicks: session.getEncoderTicks(),
+    limitLeftPressed: session.getLimitLeftPressed(),
+    limitRightPressed: session.getLimitRightPressed(),
+  });
+}
+
 function routes(router: ConnectRouter): void {
   router.service(SensorService, {
     async connect(req) {
@@ -54,22 +73,35 @@ function routes(router: ConnectRouter): void {
       });
     },
     async getStatus() {
-      const connected = session.isOpen();
-      const portPath = session.getSerialPath();
-      const detail = connected
-        ? `Serial open (${portPath})`
-        : config.sensor.serialPort?.trim()
-          ? "Serial closed"
-          : "Pick a port in the UI or set config.sensor.serialPort";
-      return create(GetStatusReplySchema, {
-        connected,
-        ledOn: session.getLastLedOn(),
-        detail,
-        serialPort: portPath,
-        encoderTicks: session.getEncoderTicks(),
-        limitLeftPressed: session.getLimitLeftPressed(),
-        limitRightPressed: session.getLimitRightPressed(),
+      return buildStatusReply();
+    },
+    async *subscribeStatus(_req, context) {
+      const signal = context.signal;
+      let pending = true;
+      const off = session.onStatusChange(() => {
+        pending = true;
+        wake?.();
+        wake = undefined;
       });
+      let wake: (() => void) | undefined;
+      try {
+        while (!signal.aborted) {
+          if (pending) {
+            pending = false;
+            yield buildStatusReply();
+          }
+          await new Promise<void>((resolve) => {
+            if (signal.aborted) {
+              resolve();
+              return;
+            }
+            wake = resolve;
+            signal.addEventListener("abort", resolve, { once: true });
+          });
+        }
+      } finally {
+        off();
+      }
     },
     async listSerialPorts() {
       const list = await SerialPort.list();

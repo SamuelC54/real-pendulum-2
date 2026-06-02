@@ -10,6 +10,7 @@ service MotorService {
   rpc SetJogVelocity(SetJogVelocityRequest) returns (SetJogVelocityReply);
   rpc Stop(StopRequest) returns (StopReply);
   rpc GetStatus(GetStatusRequest) returns (GetStatusReply);
+  rpc SubscribeStatus(SubscribeStatusRequest) returns (stream GetStatusReply);
   // Teknic Motion.MovePosnStart(counts, absolute=true) — absolute move to commanded counts (same frame as measured_position).
   rpc MoveToPosition(MoveToPositionRequest) returns (MoveToPositionReply);
   // Teknic Motion.PosnMeasured / AddToPosition — shaft position in drive counts (see ClearView docs).
@@ -49,6 +50,8 @@ message StopReply {
 }
 
 message GetStatusRequest {}
+
+message SubscribeStatusRequest {}
 
 // Teknic IInfo fields — same family of data as SCNetworkReport (node scan).
 message MotorInfo {

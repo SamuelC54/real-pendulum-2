@@ -6,14 +6,14 @@ export type { TravelLimitsCm };
 /** Motor status exposed on control-api tRPC (rail position in cm, not Teknic counts). */
 export type MotorStatusForClient = {
   connected: boolean;
-  commandedRpm: number;
+  commandedCmPerSec: number;
   detail: string;
   motor?: motor.MotorInfo;
   positionCm?: number;
   travelLimits: TravelLimitsCm;
 };
 
-/** Sensor board snapshot derived from {@link RailMachineState} (control/mappers/statusMappers). */
+/** Sensor board snapshot derived from {@link RailMachineState} (control/backends/physical/railStateMappers). */
 export type SensorStatusPayload = {
   connected: boolean;
   ledOn: boolean;

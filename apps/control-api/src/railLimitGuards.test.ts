@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  clampJogRpmForTravelLimits,
+  clampJogCmPerSecForTravelLimits,
   guardMoveAbsolutePositionCm,
 } from "./railLimitGuards.js";
 
@@ -10,29 +10,33 @@ const limits = {
   limitRightPressed: false,
 };
 
-describe("clampJogRpmForTravelLimits", () => {
-  it("blocks positive rpm when left limit is pressed", () => {
+describe("clampJogCmPerSecForTravelLimits", () => {
+  it("blocks negative cm/s when left limit is pressed", () => {
     expect(
-      clampJogRpmForTravelLimits(120, { ...limits, limitLeftPressed: true }),
+      clampJogCmPerSecForTravelLimits(-7, { ...limits, limitLeftPressed: true }),
     ).toBe(0);
   });
 
-  it("blocks negative rpm when right limit is pressed", () => {
+  it("blocks positive cm/s when right limit is pressed", () => {
     expect(
-      clampJogRpmForTravelLimits(-120, { ...limits, limitRightPressed: true }),
+      clampJogCmPerSecForTravelLimits(7, { ...limits, limitRightPressed: true }),
     ).toBe(0);
   });
 
   it("allows stop and motion away from limits", () => {
-    expect(clampJogRpmForTravelLimits(0, { ...limits, limitLeftPressed: true })).toBe(0);
-    expect(clampJogRpmForTravelLimits(-50, { ...limits, limitLeftPressed: true })).toBe(-50);
-    expect(clampJogRpmForTravelLimits(50, { ...limits, limitRightPressed: true })).toBe(50);
+    expect(clampJogCmPerSecForTravelLimits(0, { ...limits, limitLeftPressed: true })).toBe(0);
+    expect(clampJogCmPerSecForTravelLimits(7, { ...limits, limitLeftPressed: true })).toBe(7);
+    expect(clampJogCmPerSecForTravelLimits(-7, { ...limits, limitRightPressed: true })).toBe(-7);
   });
 
   it("does not clamp when sensor is disconnected", () => {
     expect(
-      clampJogRpmForTravelLimits(120, { connected: false, limitLeftPressed: true, limitRightPressed: false }),
-    ).toBe(120);
+      clampJogCmPerSecForTravelLimits(-7, {
+        connected: false,
+        limitLeftPressed: true,
+        limitRightPressed: false,
+      }),
+    ).toBe(-7);
   });
 });
 

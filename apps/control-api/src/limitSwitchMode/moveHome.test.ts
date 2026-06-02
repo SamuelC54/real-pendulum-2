@@ -23,9 +23,9 @@ import { clearLimitSwitchMode, getLimitSwitchModeStatus, updateMotorPosition } f
 import { moveHomeWhileLatched } from "./moveHome.js";
 import { cmToTeknicMeasured } from "../railPositionCm.js";
 import {
+  physicalBackend,
   resetTravelLimitsStateForTests,
-  setTravelLimitsSymmetricAboutCm,
-} from "../railTravelLimits.js";
+} from "../control/backends/instances.js";
 
 describe("moveHomeWhileLatched", () => {
   beforeEach(() => {
@@ -45,8 +45,8 @@ describe("moveHomeWhileLatched", () => {
   });
 
   it("holds recovery until position reaches home and clears latch when safe", async () => {
-    setTravelLimitsSymmetricAboutCm(0, 10, "physical");
-    updateMotorPosition(-11, "physical");
+    physicalBackend.travelLimits.setSymmetricAboutCm(0, 10);
+    updateMotorPosition(-11, physicalBackend.getTravelLimits());
     expect(getLimitSwitchModeStatus().latched).toBe(true);
 
     let reads = 0;

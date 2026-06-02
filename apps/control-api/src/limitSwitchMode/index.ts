@@ -16,7 +16,15 @@ export {
   type LimitSwitchModeStatus,
 } from "./state.js";
 
-export { startRecoveryJog, stopRecoveryJog, recoveryJogRpmTowardCenter } from "./recoveryJog.js";
+export {
+  startRecoveryJog,
+  stopRecoveryJog,
+  recoveryJogCmPerSecTowardCenter,
+  recoveryJogRpmTowardCenter,
+} from "./recoveryJog.js";
 export { moveHomeWhileLatched, type MoveHomeLeafResult, type MoveHomeResult } from "./moveHome.js";
 
-import "./stopOnEngage.js";
+import { registerOnEngage } from "./state.js";
+import { stopAllMotionOnEngage } from "./stopOnEngage.js";
+
+registerOnEngage(stopAllMotionOnEngage);

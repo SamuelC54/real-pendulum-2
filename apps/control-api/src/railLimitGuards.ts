@@ -4,14 +4,14 @@ export type TravelLimitSwitchState = {
   limitRightPressed: boolean;
 };
 
-export function clampJogRpmForTravelLimits(
-  rpm: number,
+export function clampJogCmPerSecForTravelLimits(
+  cmPerSec: number,
   limits: TravelLimitSwitchState,
 ): number {
-  if (rpm === 0 || !limits.connected) return rpm;
-  if (limits.limitLeftPressed && rpm > 0) return 0;
-  if (limits.limitRightPressed && rpm < 0) return 0;
-  return rpm;
+  if (cmPerSec === 0 || !limits.connected) return cmPerSec;
+  if (limits.limitLeftPressed && cmPerSec < 0) return 0;
+  if (limits.limitRightPressed && cmPerSec > 0) return 0;
+  return cmPerSec;
 }
 
 export function guardMoveAbsolutePositionCm(

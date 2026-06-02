@@ -23,9 +23,9 @@ export type ControllerStatus = {
 export type ControllerTickResult = {
   idle?: boolean;
   positionCm?: number;
-  rpm?: number;
-  maxVelocityRpm?: number;
-  maxAccelerationRpmPerSec?: number;
+  cmPerSec?: number;
+  maxVelocityCmPerSec?: number;
+  maxAccelerationCmPerSec2?: number;
   done?: boolean;
   streamPosition?: boolean;
   minCommandDeltaCm?: number;

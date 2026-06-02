@@ -21,6 +21,7 @@ export class ArduinoSerialSession {
   private pendingToggle: PendingToggle = null;
   private pendingReset: PendingReset = null;
   private openedPath: string | null = null;
+  private readonly statusListeners = new Set<() => void>();
 
   getLastLedOn(): boolean {
     return this.ledOn;
@@ -47,6 +48,19 @@ export class ArduinoSerialSession {
     return this.port !== null && this.port.isOpen;
   }
 
+  onStatusChange(listener: () => void): () => void {
+    this.statusListeners.add(listener);
+    return () => {
+      this.statusListeners.delete(listener);
+    };
+  }
+
+  private emitStatusChange(): void {
+    for (const listener of this.statusListeners) {
+      listener();
+    }
+  }
+
   async open(path: string, baudRate: number): Promise<{ ok: boolean; error: string }> {
     await this.close();
     return new Promise((resolve) => {
@@ -63,7 +77,10 @@ export class ArduinoSerialSession {
           this.onLine(String(line));
         });
         // Many boards reset on serial open; give the sketch time to boot.
-        setTimeout(() => resolve({ ok: true, error: "" }), 400);
+        setTimeout(() => {
+          this.emitStatusChange();
+          resolve({ ok: true, error: "" });
+        }, 400);
       });
     });
   }
@@ -84,6 +101,7 @@ export class ArduinoSerialSession {
     if (lim) {
       this.limitLeftPressed = lim[1] === "1";
       this.limitRightPressed = lim[2] === "1";
+      this.emitStatusChange();
       return;
     }
     const enc = /^ENC:(-?\d+)$/i.exec(trimmed);
@@ -91,12 +109,14 @@ export class ArduinoSerialSession {
       const v = Number(enc[1]);
       if (Number.isSafeInteger(v)) {
         this.encoderTicks = v;
+        this.emitStatusChange();
       }
       return;
     }
     const m = /^LED:([01])$/i.exec(trimmed);
     if (!m) return;
     this.ledOn = m[1] === "1";
+    this.emitStatusChange();
     if (this.pendingToggle) {
       const fn = this.pendingToggle;
       this.pendingToggle = null;
@@ -165,6 +185,7 @@ export class ArduinoSerialSession {
     this.port = null;
     this.parser = null;
     this.openedPath = null;
+    this.emitStatusChange();
     if (!p) return;
 
     await new Promise<void>((resolve) => {

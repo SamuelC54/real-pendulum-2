@@ -1,5 +1,4 @@
-import { registerOnEngage } from "./state.js";
-import { createControlClient } from "../control/createControlClient.js";
+import { getControlBackend } from "../control/getControlBackend.js";
 import { withControlBackend } from "../helpers/backendContext.js";
 
 async function stopMotorSafe(run: () => Promise<{ ok: boolean; error: string }>): Promise<void> {
@@ -10,13 +9,11 @@ async function stopMotorSafe(run: () => Promise<{ ok: boolean; error: string }>)
   }
 }
 
-async function stopAllMotionOnEngage(): Promise<void> {
+export async function stopAllMotionOnEngage(): Promise<void> {
   await Promise.allSettled([
-    withControlBackend("physical", () => stopMotorSafe(() => createControlClient("physical").stop())),
+    withControlBackend("physical", () => stopMotorSafe(() => getControlBackend("physical").stop())),
     withControlBackend("simulation", () =>
-      stopMotorSafe(() => createControlClient("simulation").stop()),
+      stopMotorSafe(() => getControlBackend("simulation").stop()),
     ),
   ]);
 }
-
-registerOnEngage(stopAllMotionOnEngage);

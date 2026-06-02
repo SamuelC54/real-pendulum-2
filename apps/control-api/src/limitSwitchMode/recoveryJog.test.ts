@@ -4,14 +4,14 @@ vi.mock("@real-pendulum/physical-motor-service/sdk", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@real-pendulum/physical-motor-service/sdk")>();
   return {
     ...actual,
-    setJogVelocityRpm: vi.fn(),
+    setJogVelocityCmPerSec: vi.fn(),
     stopMotor: vi.fn(),
   };
 });
 
 import * as motor from "@real-pendulum/physical-motor-service/sdk";
 import { clearLimitSwitchMode, registerOnEngage, updateLimitSwitchState } from "./state.js";
-import { recoveryJogRpmTowardCenter, startRecoveryJog } from "./recoveryJog.js";
+import { recoveryJogCmPerSecTowardCenter, startRecoveryJog } from "./recoveryJog.js";
 import { withControlBackend } from "../helpers/backendContext.js";
 
 const limits = {
@@ -25,24 +25,24 @@ describe("recoveryJog", () => {
     clearLimitSwitchMode();
     registerOnEngage(async () => {});
     updateLimitSwitchState({ ...limits, limitLeftPressed: false, limitRightPressed: false });
-    vi.mocked(motor.setJogVelocityRpm).mockReset().mockResolvedValue({ ok: true, error: "" });
+    vi.mocked(motor.setJogVelocityCmPerSec).mockReset().mockResolvedValue({ ok: true, error: "" });
     vi.mocked(motor.stopMotor).mockReset().mockResolvedValue({ ok: true, error: "" });
   });
 
-  it("recoveryJogRpmTowardCenter signs rpm from latch side", () => {
+  it("recoveryJogCmPerSecTowardCenter signs cm/s from latch side", () => {
     updateLimitSwitchState({ ...limits, limitLeftPressed: true });
-    expect(recoveryJogRpmTowardCenter(50)).toBe(-50);
+    expect(recoveryJogCmPerSecTowardCenter(5)).toBe(-5);
     clearLimitSwitchMode();
     updateLimitSwitchState({ ...limits, limitRightPressed: true });
-    expect(recoveryJogRpmTowardCenter(50)).toBe(50);
+    expect(recoveryJogCmPerSecTowardCenter(5)).toBe(5);
   });
 
-  it("startRecoveryJog calls motor with toward-center rpm inside bypass", async () => {
+  it("startRecoveryJog calls motor with toward-center cm/s inside bypass", async () => {
     updateLimitSwitchState({ ...limits, limitLeftPressed: true });
-    await withControlBackend("physical", () => startRecoveryJog("physical", { rpm: 40 }));
-    expect(motor.setJogVelocityRpm).toHaveBeenCalledWith(
-      expect.closeTo(-40),
-      expect.objectContaining({ maxAccelerationRpmPerSec: 1000 }),
+    await withControlBackend("physical", () => startRecoveryJog("physical", { cmPerSec: 4 }));
+    expect(motor.setJogVelocityCmPerSec).toHaveBeenCalledWith(
+      -4,
+      expect.objectContaining({ maxAccelerationCmPerSec2: expect.any(Number) }),
     );
   });
 });

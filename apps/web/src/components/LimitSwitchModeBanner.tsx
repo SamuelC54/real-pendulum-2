@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import {
   DEFAULT_PROFILE_ACC_RPM_PER_SEC,
   JOG_RPM_DEFAULT,
+  rpmToCmPerSec,
 } from "@/lib/jogMath";
 import { useMotorStatusConnected } from "@/services/useMotorStatusQuery";
 import { useLimitSwitchModeSubscription } from "@/hooks/useLimitSwitchModeSubscription";
@@ -118,8 +119,8 @@ export function LimitSwitchModeBanner() {
 
   const startRecoveryJog = useCallback(async () => {
     await jogStart.mutateAsync({
-      rpm: JOG_RPM_DEFAULT,
-      maxAccelerationRpmPerSec: DEFAULT_PROFILE_ACC_RPM_PER_SEC,
+      cmPerSec: Math.abs(rpmToCmPerSec(JOG_RPM_DEFAULT)),
+      maxAccelerationCmPerSec2: Math.abs(rpmToCmPerSec(DEFAULT_PROFILE_ACC_RPM_PER_SEC)),
     });
   }, [jogStart]);
 
@@ -177,8 +178,8 @@ export function LimitSwitchModeBanner() {
           title="Absolute move to 0 cm"
           onClick={() =>
             moveHome.mutate({
-              maxVelocityRpm: JOG_RPM_DEFAULT,
-              maxAccelerationRpmPerSec: DEFAULT_PROFILE_ACC_RPM_PER_SEC,
+              maxVelocityCmPerSec: Math.abs(rpmToCmPerSec(JOG_RPM_DEFAULT)),
+              maxAccelerationCmPerSec2: Math.abs(rpmToCmPerSec(DEFAULT_PROFILE_ACC_RPM_PER_SEC)),
             })
           }
         >

@@ -1,3 +1,5 @@
+import type { SymmetricTravelLimitsCm } from "./travelLimitsStore.js";
+
 export type ControlMode = "physical" | "simulation" | "twin";
 
 export type CommandResult = { ok: boolean; error: string };
@@ -5,12 +7,12 @@ export type CommandResult = { ok: boolean; error: string };
 export type ConnectResult = CommandResult;
 
 export type JogOptions = {
-  maxAccelerationRpmPerSec?: number;
+  maxAccelerationCmPerSec2?: number;
 };
 
 export type MoveOptions = {
-  maxVelocityRpm?: number;
-  maxAccelerationRpmPerSec?: number;
+  maxVelocityCmPerSec?: number;
+  maxAccelerationCmPerSec2?: number;
   recovery?: boolean;
 };
 
@@ -63,8 +65,12 @@ export function railStateForMode(
 export type Unsubscribe = () => void;
 
 export interface ControlBackend {
+  readonly mode: ControlMode;
+
   getState(): Promise<MachineStateSources>;
-  subscribeToState?(callback: (state: MachineStateSources) => void): Unsubscribe;
+  subscribeToState(callback: (state: MachineStateSources) => void): Unsubscribe;
+
+  getTravelLimits(): TravelLimitsCm;
 
   connectMotor(): Promise<ConnectResult>;
   disconnectMotor(): Promise<void>;
@@ -74,6 +80,13 @@ export interface ControlBackend {
   stop(): Promise<CommandResult>;
   moveToPositionCm(cm: number, opts?: MoveOptions): Promise<CommandResult>;
   setTravelLimits(limits: TravelLimitsCm): Promise<CommandResult>;
+  recordTravelLimitSide(side: "left" | "right"): Promise<CommandResult>;
+  setSymmetricTravelSpan(halfSpanCm: number): Promise<CommandResult & SymmetricTravelLimitsCm>;
+  applyHomingTravelLimits(
+    posAtLeftMotor: number,
+    posAtRightMotor: number,
+    zeroedAtMid: boolean,
+  ): void;
   setLed(on: boolean): Promise<CommandResult>;
   zeroCartAtCurrent(): Promise<CommandResult>;
 }

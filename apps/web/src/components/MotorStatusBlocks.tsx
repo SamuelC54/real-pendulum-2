@@ -4,7 +4,6 @@ import { Card } from "@/components/ui/card";
 import { CartRailVisualizer } from "@/components/CartRailVisualizer";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { cmPerSecToRpm } from "@/lib/jogMath";
 import { useMotorSession } from "@/services/motorSession";
 import { useSimulationBackendAutoConnect } from "@/services/useSimulationBackendAutoConnect";
 import { useMotorStatusQuery } from "@/services/useMotorStatusQuery";
@@ -48,9 +47,9 @@ export function MotorStatusBlocks() {
                   <>
                     commanded{" "}
                     <span className="text-foreground font-semibold">
-                      {cmPerSecToRpm(state!.cart.commandedCmPerSec).toFixed(1)}
+                      {state!.cart.commandedCmPerSec.toFixed(2)}
                     </span>{" "}
-                    rpm
+                    cm/s
                   </>
                 ) : (
                   <span className="text-destructive">not connected</span>
@@ -72,7 +71,7 @@ export function MotorStatusBlocks() {
               ) : null}
               {twinSim ? (
                 <span className="text-muted-foreground block font-mono text-[10px] leading-tight">
-                  Sim: {cmPerSecToRpm(twinSim.cart.commandedCmPerSec).toFixed(1)} rpm · pos{" "}
+                  Sim: {twinSim.cart.commandedCmPerSec.toFixed(2)} cm/s · pos{" "}
                   <span className="text-sky-900 dark:text-sky-200">
                     {formatPositionCm(twinSim.cart.positionCm)}
                   </span>{" "}

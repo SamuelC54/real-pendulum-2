@@ -10,7 +10,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file motor.proto.
  */
 export const file_motor: GenFile = /*@__PURE__*/
-  fileDesc("Cgttb3Rvci5wcm90bxIIbW90b3IudjEiEAoOQ29ubmVjdFJlcXVlc3QiMQoMQ29ubmVjdFJlcGx5EgoKAm9rGAEgASgIEhUKDWVycm9yX21lc3NhZ2UYAiABKAkiEwoRRGlzY29ubmVjdFJlcXVlc3QiNAoPRGlzY29ubmVjdFJlcGx5EgoKAm9rGAEgASgIEhUKDWVycm9yX21lc3NhZ2UYAiABKAkicAoVU2V0Sm9nVmVsb2NpdHlSZXF1ZXN0EgsKA3JwbRgBIAEoARIpChxtYXhfYWNjZWxlcmF0aW9uX3JwbV9wZXJfc2VjGAIgASgBSACIAQFCHwodX21heF9hY2NlbGVyYXRpb25fcnBtX3Blcl9zZWMiOAoTU2V0Sm9nVmVsb2NpdHlSZXBseRIKCgJvaxgBIAEoCBIVCg1lcnJvcl9tZXNzYWdlGAIgASgJIg0KC1N0b3BSZXF1ZXN0Ii4KCVN0b3BSZXBseRIKCgJvaxgBIAEoCBIVCg1lcnJvcl9tZXNzYWdlGAIgASgJIhIKEEdldFN0YXR1c1JlcXVlc3QioQEKCU1vdG9ySW5mbxISCgpub2RlX2luZGV4GAEgASgFEhYKDm5vZGVfdHlwZV9jb2RlGAIgASgFEhcKD25vZGVfdHlwZV9sYWJlbBgDIAEoCRIPCgd1c2VyX2lkGAQgASgJEhgKEGZpcm13YXJlX3ZlcnNpb24YBSABKAkSFQoNc2VyaWFsX251bWJlchgGIAEoBBINCgVtb2RlbBgHIAEoCSKkAQoOR2V0U3RhdHVzUmVwbHkSEQoJY29ubmVjdGVkGAEgASgIEhUKDWNvbW1hbmRlZF9ycG0YAiABKAESDgoGZGV0YWlsGAMgASgJEiIKBW1vdG9yGAQgASgLMhMubW90b3IudjEuTW90b3JJbmZvEh4KEW1lYXN1cmVkX3Bvc2l0aW9uGAUgASgBSACIAQFCFAoSX21lYXN1cmVkX3Bvc2l0aW9uIrABChVNb3ZlVG9Qb3NpdGlvblJlcXVlc3QSFwoPcG9zaXRpb25fY291bnRzGAEgASgBEh0KEG1heF92ZWxvY2l0eV9ycG0YAiABKAFIAIgBARIpChxtYXhfYWNjZWxlcmF0aW9uX3JwbV9wZXJfc2VjGAMgASgBSAGIAQFCEwoRX21heF92ZWxvY2l0eV9ycG1CHwodX21heF9hY2NlbGVyYXRpb25fcnBtX3Blcl9zZWMiOAoTTW92ZVRvUG9zaXRpb25SZXBseRIKCgJvaxgBIAEoCBIVCg1lcnJvcl9tZXNzYWdlGAIgASgJIh0KG1plcm9NZWFzdXJlZFBvc2l0aW9uUmVxdWVzdCI+ChlaZXJvTWVhc3VyZWRQb3NpdGlvblJlcGx5EgoKAm9rGAEgASgIEhUKDWVycm9yX21lc3NhZ2UYAiABKAkykAQKDE1vdG9yU2VydmljZRI7CgdDb25uZWN0EhgubW90b3IudjEuQ29ubmVjdFJlcXVlc3QaFi5tb3Rvci52MS5Db25uZWN0UmVwbHkSRAoKRGlzY29ubmVjdBIbLm1vdG9yLnYxLkRpc2Nvbm5lY3RSZXF1ZXN0GhkubW90b3IudjEuRGlzY29ubmVjdFJlcGx5ElAKDlNldEpvZ1ZlbG9jaXR5Eh8ubW90b3IudjEuU2V0Sm9nVmVsb2NpdHlSZXF1ZXN0Gh0ubW90b3IudjEuU2V0Sm9nVmVsb2NpdHlSZXBseRIyCgRTdG9wEhUubW90b3IudjEuU3RvcFJlcXVlc3QaEy5tb3Rvci52MS5TdG9wUmVwbHkSQQoJR2V0U3RhdHVzEhoubW90b3IudjEuR2V0U3RhdHVzUmVxdWVzdBoYLm1vdG9yLnYxLkdldFN0YXR1c1JlcGx5ElAKDk1vdmVUb1Bvc2l0aW9uEh8ubW90b3IudjEuTW92ZVRvUG9zaXRpb25SZXF1ZXN0Gh0ubW90b3IudjEuTW92ZVRvUG9zaXRpb25SZXBseRJiChRaZXJvTWVhc3VyZWRQb3NpdGlvbhIlLm1vdG9yLnYxLlplcm9NZWFzdXJlZFBvc2l0aW9uUmVxdWVzdBojLm1vdG9yLnYxLlplcm9NZWFzdXJlZFBvc2l0aW9uUmVwbHliBnByb3RvMw");
+  fileDesc("Cgttb3Rvci5wcm90bxIIbW90b3IudjEiEAoOQ29ubmVjdFJlcXVlc3QiMQoMQ29ubmVjdFJlcGx5EgoKAm9rGAEgASgIEhUKDWVycm9yX21lc3NhZ2UYAiABKAkiEwoRRGlzY29ubmVjdFJlcXVlc3QiNAoPRGlzY29ubmVjdFJlcGx5EgoKAm9rGAEgASgIEhUKDWVycm9yX21lc3NhZ2UYAiABKAkicAoVU2V0Sm9nVmVsb2NpdHlSZXF1ZXN0EgsKA3JwbRgBIAEoARIpChxtYXhfYWNjZWxlcmF0aW9uX3JwbV9wZXJfc2VjGAIgASgBSACIAQFCHwodX21heF9hY2NlbGVyYXRpb25fcnBtX3Blcl9zZWMiOAoTU2V0Sm9nVmVsb2NpdHlSZXBseRIKCgJvaxgBIAEoCBIVCg1lcnJvcl9tZXNzYWdlGAIgASgJIg0KC1N0b3BSZXF1ZXN0Ii4KCVN0b3BSZXBseRIKCgJvaxgBIAEoCBIVCg1lcnJvcl9tZXNzYWdlGAIgASgJIhIKEEdldFN0YXR1c1JlcXVlc3QiGAoWU3Vic2NyaWJlU3RhdHVzUmVxdWVzdCKhAQoJTW90b3JJbmZvEhIKCm5vZGVfaW5kZXgYASABKAUSFgoObm9kZV90eXBlX2NvZGUYAiABKAUSFwoPbm9kZV90eXBlX2xhYmVsGAMgASgJEg8KB3VzZXJfaWQYBCABKAkSGAoQZmlybXdhcmVfdmVyc2lvbhgFIAEoCRIVCg1zZXJpYWxfbnVtYmVyGAYgASgEEg0KBW1vZGVsGAcgASgJIqQBCg5HZXRTdGF0dXNSZXBseRIRCgljb25uZWN0ZWQYASABKAgSFQoNY29tbWFuZGVkX3JwbRgCIAEoARIOCgZkZXRhaWwYAyABKAkSIgoFbW90b3IYBCABKAsyEy5tb3Rvci52MS5Nb3RvckluZm8SHgoRbWVhc3VyZWRfcG9zaXRpb24YBSABKAFIAIgBAUIUChJfbWVhc3VyZWRfcG9zaXRpb24isAEKFU1vdmVUb1Bvc2l0aW9uUmVxdWVzdBIXCg9wb3NpdGlvbl9jb3VudHMYASABKAESHQoQbWF4X3ZlbG9jaXR5X3JwbRgCIAEoAUgAiAEBEikKHG1heF9hY2NlbGVyYXRpb25fcnBtX3Blcl9zZWMYAyABKAFIAYgBAUITChFfbWF4X3ZlbG9jaXR5X3JwbUIfCh1fbWF4X2FjY2VsZXJhdGlvbl9ycG1fcGVyX3NlYyI4ChNNb3ZlVG9Qb3NpdGlvblJlcGx5EgoKAm9rGAEgASgIEhUKDWVycm9yX21lc3NhZ2UYAiABKAkiHQobWmVyb01lYXN1cmVkUG9zaXRpb25SZXF1ZXN0Ij4KGVplcm9NZWFzdXJlZFBvc2l0aW9uUmVwbHkSCgoCb2sYASABKAgSFQoNZXJyb3JfbWVzc2FnZRgCIAEoCTLhBAoMTW90b3JTZXJ2aWNlEjsKB0Nvbm5lY3QSGC5tb3Rvci52MS5Db25uZWN0UmVxdWVzdBoWLm1vdG9yLnYxLkNvbm5lY3RSZXBseRJECgpEaXNjb25uZWN0EhsubW90b3IudjEuRGlzY29ubmVjdFJlcXVlc3QaGS5tb3Rvci52MS5EaXNjb25uZWN0UmVwbHkSUAoOU2V0Sm9nVmVsb2NpdHkSHy5tb3Rvci52MS5TZXRKb2dWZWxvY2l0eVJlcXVlc3QaHS5tb3Rvci52MS5TZXRKb2dWZWxvY2l0eVJlcGx5EjIKBFN0b3ASFS5tb3Rvci52MS5TdG9wUmVxdWVzdBoTLm1vdG9yLnYxLlN0b3BSZXBseRJBCglHZXRTdGF0dXMSGi5tb3Rvci52MS5HZXRTdGF0dXNSZXF1ZXN0GhgubW90b3IudjEuR2V0U3RhdHVzUmVwbHkSTwoPU3Vic2NyaWJlU3RhdHVzEiAubW90b3IudjEuU3Vic2NyaWJlU3RhdHVzUmVxdWVzdBoYLm1vdG9yLnYxLkdldFN0YXR1c1JlcGx5MAESUAoOTW92ZVRvUG9zaXRpb24SHy5tb3Rvci52MS5Nb3ZlVG9Qb3NpdGlvblJlcXVlc3QaHS5tb3Rvci52MS5Nb3ZlVG9Qb3NpdGlvblJlcGx5EmIKFFplcm9NZWFzdXJlZFBvc2l0aW9uEiUubW90b3IudjEuWmVyb01lYXN1cmVkUG9zaXRpb25SZXF1ZXN0GiMubW90b3IudjEuWmVyb01lYXN1cmVkUG9zaXRpb25SZXBseWIGcHJvdG8z");
 
 /**
  * @generated from message motor.v1.ConnectRequest
@@ -177,6 +177,19 @@ export const GetStatusRequestSchema: GenMessage<GetStatusRequest> = /*@__PURE__*
   messageDesc(file_motor, 8);
 
 /**
+ * @generated from message motor.v1.SubscribeStatusRequest
+ */
+export type SubscribeStatusRequest = Message<"motor.v1.SubscribeStatusRequest"> & {
+};
+
+/**
+ * Describes the message motor.v1.SubscribeStatusRequest.
+ * Use `create(SubscribeStatusRequestSchema)` to create a new message.
+ */
+export const SubscribeStatusRequestSchema: GenMessage<SubscribeStatusRequest> = /*@__PURE__*/
+  messageDesc(file_motor, 9);
+
+/**
  * Teknic IInfo fields — same family of data as SCNetworkReport (node scan).
  *
  * @generated from message motor.v1.MotorInfo
@@ -223,7 +236,7 @@ export type MotorInfo = Message<"motor.v1.MotorInfo"> & {
  * Use `create(MotorInfoSchema)` to create a new message.
  */
 export const MotorInfoSchema: GenMessage<MotorInfo> = /*@__PURE__*/
-  messageDesc(file_motor, 9);
+  messageDesc(file_motor, 10);
 
 /**
  * @generated from message motor.v1.GetStatusReply
@@ -262,7 +275,7 @@ export type GetStatusReply = Message<"motor.v1.GetStatusReply"> & {
  * Use `create(GetStatusReplySchema)` to create a new message.
  */
 export const GetStatusReplySchema: GenMessage<GetStatusReply> = /*@__PURE__*/
-  messageDesc(file_motor, 10);
+  messageDesc(file_motor, 11);
 
 /**
  * @generated from message motor.v1.MoveToPositionRequest
@@ -295,7 +308,7 @@ export type MoveToPositionRequest = Message<"motor.v1.MoveToPositionRequest"> & 
  * Use `create(MoveToPositionRequestSchema)` to create a new message.
  */
 export const MoveToPositionRequestSchema: GenMessage<MoveToPositionRequest> = /*@__PURE__*/
-  messageDesc(file_motor, 11);
+  messageDesc(file_motor, 12);
 
 /**
  * @generated from message motor.v1.MoveToPositionReply
@@ -317,7 +330,7 @@ export type MoveToPositionReply = Message<"motor.v1.MoveToPositionReply"> & {
  * Use `create(MoveToPositionReplySchema)` to create a new message.
  */
 export const MoveToPositionReplySchema: GenMessage<MoveToPositionReply> = /*@__PURE__*/
-  messageDesc(file_motor, 12);
+  messageDesc(file_motor, 13);
 
 /**
  * @generated from message motor.v1.ZeroMeasuredPositionRequest
@@ -330,7 +343,7 @@ export type ZeroMeasuredPositionRequest = Message<"motor.v1.ZeroMeasuredPosition
  * Use `create(ZeroMeasuredPositionRequestSchema)` to create a new message.
  */
 export const ZeroMeasuredPositionRequestSchema: GenMessage<ZeroMeasuredPositionRequest> = /*@__PURE__*/
-  messageDesc(file_motor, 13);
+  messageDesc(file_motor, 14);
 
 /**
  * @generated from message motor.v1.ZeroMeasuredPositionReply
@@ -352,7 +365,7 @@ export type ZeroMeasuredPositionReply = Message<"motor.v1.ZeroMeasuredPositionRe
  * Use `create(ZeroMeasuredPositionReplySchema)` to create a new message.
  */
 export const ZeroMeasuredPositionReplySchema: GenMessage<ZeroMeasuredPositionReply> = /*@__PURE__*/
-  messageDesc(file_motor, 14);
+  messageDesc(file_motor, 15);
 
 /**
  * Motor control service (ClearPath / Teknic node behind this implementation).
@@ -400,6 +413,14 @@ export const MotorService: GenService<{
   getStatus: {
     methodKind: "unary";
     input: typeof GetStatusRequestSchema;
+    output: typeof GetStatusReplySchema;
+  },
+  /**
+   * @generated from rpc motor.v1.MotorService.SubscribeStatus
+   */
+  subscribeStatus: {
+    methodKind: "server_streaming";
+    input: typeof SubscribeStatusRequestSchema;
     output: typeof GetStatusReplySchema;
   },
   /**

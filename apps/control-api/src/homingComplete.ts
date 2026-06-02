@@ -1,7 +1,6 @@
 import * as motor from "@real-pendulum/physical-motor-service/sdk";
-import type { ControlClient } from "./control/ControlClient.js";
+import type { ControlBackend } from "./control/types.js";
 import { displayCountsToCm, teknicMeasuredToCm } from "./railPositionCm.js";
-import { setTravelLimitsFromHoming } from "./railTravelLimits.js";
 
 export type HomingTickComplete = {
   posAtLeft: number;
@@ -75,12 +74,12 @@ export async function completeHomingFromTick(
   payload: HomingTickComplete,
   log: string[],
   motorAbsRevolutions: number | undefined,
-  controlClient: ControlClient,
+  backend: ControlBackend,
 ): Promise<RailHomingResultForClient> {
   const { posAtLeft, posAtRight, zeroMotorAtMid } = payload;
   const span = Math.abs(posAtRight - posAtLeft);
   const mid = (posAtLeft + posAtRight) / 2;
-  const mode = controlClient.mode;
+  const mode = backend.mode;
 
   let motorPositionZeroedAtMid: boolean | undefined;
   if (zeroMotorAtMid && mode !== "simulation") {
@@ -93,11 +92,10 @@ export async function completeHomingFromTick(
     }
   }
 
-  setTravelLimitsFromHoming(
+  backend.applyHomingTravelLimits(
     posAtLeft,
     posAtRight,
     motorPositionZeroedAtMid === true,
-    mode === "simulation" ? "simulation" : "physical",
   );
 
   const result: RailHomingResultRaw = {

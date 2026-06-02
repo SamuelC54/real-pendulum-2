@@ -37,6 +37,44 @@ try {
   process.exit(1);
 }
 
+function buildStatusReply() {
+  const connected = teknic.isConnected();
+  const detail = teknic.getDetail().trim() || "Teknic ClearPath";
+  const pos = connected ? teknic.getPosnMeasured() : Number.NaN;
+  const reply = create(GetStatusReplySchema, {
+    connected,
+    commandedRpm: teknic.getCommandedRpm(),
+    detail,
+  });
+  if (connected && Number.isFinite(pos)) {
+    reply.measuredPosition = pos;
+  }
+  if (connected) {
+    const json = teknic.getMotorInfoJson();
+    if (json) {
+      try {
+        reply.motor = fromJsonString(MotorInfoSchema, json);
+      } catch {
+        /* invalid MotorInfo JSON from native */
+      }
+    }
+  }
+  return reply;
+}
+
+function statusSnapshot(reply: ReturnType<typeof buildStatusReply>): string {
+  return JSON.stringify({
+    connected: reply.connected,
+    commandedRpm: reply.commandedRpm,
+    detail: reply.detail,
+    measuredPosition: reply.measuredPosition,
+  });
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function routes(router: ConnectRouter): void {
   router.service(MotorService, {
     async connect() {
@@ -80,28 +118,24 @@ function routes(router: ConnectRouter): void {
       return create(StopReplySchema, { ok: true, errorMessage: "" });
     },
     async getStatus() {
-      const connected = teknic.isConnected();
-      const detail = teknic.getDetail().trim() || "Teknic ClearPath";
-      const pos = connected ? teknic.getPosnMeasured() : Number.NaN;
-      const reply = create(GetStatusReplySchema, {
-        connected,
-        commandedRpm: teknic.getCommandedRpm(),
-        detail,
-      });
-      if (connected && Number.isFinite(pos)) {
-        reply.measuredPosition = pos;
-      }
-      if (connected) {
-        const json = teknic.getMotorInfoJson();
-        if (json) {
-          try {
-            reply.motor = fromJsonString(MotorInfoSchema, json);
-          } catch {
-            /* invalid MotorInfo JSON from native */
+      return buildStatusReply();
+    },
+    async *subscribeStatus(_req, context) {
+      const signal = context.signal;
+      let lastSnapshot = "";
+      try {
+        while (!signal.aborted) {
+          const reply = buildStatusReply();
+          const snapshot = statusSnapshot(reply);
+          if (snapshot !== lastSnapshot) {
+            lastSnapshot = snapshot;
+            yield reply;
           }
+          await sleep(50);
         }
+      } finally {
+        /* stream closed */
       }
-      return reply;
     },
     async zeroMeasuredPosition() {
       const code = teknic.zeroMeasuredPosition();

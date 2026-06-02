@@ -12,5 +12,8 @@ export {
   physicsSimMoveAbsolute,
   physicsSimReset,
   physicsSimStep,
+  physicsStateToCm,
+  type PhysicsSimStateCm,
   type PhysicsSimStatePayload,
 } from "./physicsSimClient.js";
+export { cmPerSecToMps, cmToM, mpsToCmPerSec, mToCm } from "./motionUnits.js";

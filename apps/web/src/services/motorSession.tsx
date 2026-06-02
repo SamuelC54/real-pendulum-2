@@ -119,7 +119,7 @@ export function MotorSessionProvider({ children }: { children: ReactNode }) {
     const rpm = jogRpmForDirection(dir, jogRpm);
     const result = await setVelocity.mutateAsync({
       cmPerSec: rpmToCmPerSec(rpm),
-      maxAccelerationRpmPerSec: jogAccelRpmPerSec,
+      maxAccelerationCmPerSec2: Math.abs(rpmToCmPerSec(jogAccelRpmPerSec)),
     });
     if (!result.ok) {
       console.warn("[jog] set rejected:", result.error);

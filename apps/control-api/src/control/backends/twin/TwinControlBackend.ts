@@ -1,14 +1,16 @@
-import { withControlBackend } from "../../helpers/backendContext.js";
+import { withControlBackend } from "../../../helpers/backendContext.js";
+import type { SymmetricTravelLimitsCm } from "../../travelLimitsStore.js";
 import type {
   CommandResult,
   ConnectResult,
   ControlBackend,
   JogOptions,
   MoveOptions,
-  RailMachineState,
   MachineStateSources,
+  RailMachineState,
   TravelLimitsCm,
-} from "../types.js";
+  Unsubscribe,
+} from "../../types.js";
 
 export type TwinWireResult<T> = { real: T; sim: T };
 
@@ -25,6 +27,8 @@ async function twinRun<T>(
 }
 
 export class TwinControlBackend implements ControlBackend {
+  readonly mode = "twin" as const;
+
   constructor(
     readonly physical: ControlBackend,
     readonly simulation: ControlBackend,
@@ -36,6 +40,18 @@ export class TwinControlBackend implements ControlBackend {
       withControlBackend("simulation", async () => (await this.simulation.getState()).simulation!),
     ]);
     return { physical, simulation };
+  }
+
+  subscribeToState(callback: (state: MachineStateSources) => void): Unsubscribe {
+    const forward = () => {
+      void this.getState().then(callback);
+    };
+    const offPhysical = this.physical.subscribeToState(forward);
+    const offSimulation = this.simulation.subscribeToState(forward);
+    return () => {
+      offPhysical();
+      offSimulation();
+    };
   }
 
   async getPhysicalState(): Promise<RailMachineState> {
@@ -152,6 +168,39 @@ export class TwinControlBackend implements ControlBackend {
     if (!real.ok) return real;
     if (!sim.ok) return sim;
     return { ok: true, error: "" };
+  }
+
+  getTravelLimits(): TravelLimitsCm {
+    return this.physical.getTravelLimits();
+  }
+
+  async recordTravelLimitSide(side: "left" | "right"): Promise<CommandResult> {
+    const { real, sim } = await twinRun(this.physical, this.simulation, (b) =>
+      b.recordTravelLimitSide(side),
+    );
+    if (!real.ok) return real;
+    if (!sim.ok) return sim;
+    return { ok: true, error: "" };
+  }
+
+  async setSymmetricTravelSpan(
+    halfSpanCm: number,
+  ): Promise<CommandResult & SymmetricTravelLimitsCm> {
+    const { real, sim } = await twinRun(this.physical, this.simulation, (b) =>
+      b.setSymmetricTravelSpan(halfSpanCm),
+    );
+    if (!real.ok) return real;
+    if (!sim.ok) return sim;
+    return real;
+  }
+
+  applyHomingTravelLimits(
+    posAtLeftMotor: number,
+    posAtRightMotor: number,
+    zeroedAtMid: boolean,
+  ): void {
+    this.physical.applyHomingTravelLimits(posAtLeftMotor, posAtRightMotor, zeroedAtMid);
+    this.simulation.applyHomingTravelLimits(posAtLeftMotor, posAtRightMotor, zeroedAtMid);
   }
 
   async setLed(on: boolean): Promise<CommandResult> {

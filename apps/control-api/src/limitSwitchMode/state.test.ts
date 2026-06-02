@@ -11,9 +11,9 @@ import {
   updateMotorPosition,
 } from "./state.js";
 import {
+  physicalBackend,
   resetTravelLimitsStateForTests,
-  setTravelLimitsSymmetricAboutCm,
-} from "../railTravelLimits.js";
+} from "../control/backends/instances.js";
 
 const limits = {
   connected: true,
@@ -56,22 +56,22 @@ describe("limitSwitchMode", () => {
   });
 
   it("latches when position is outside recorded travel limits", () => {
-    setTravelLimitsSymmetricAboutCm(0, 10, "physical");
-    updateMotorPosition(-11, "physical");
+    physicalBackend.travelLimits.setSymmetricAboutCm(0, 10);
+    updateMotorPosition(-11, physicalBackend.getTravelLimits());
     expect(getLimitSwitchModeStatus().latched).toBe(true);
     expect(getLimitSwitchModeStatus().side).toBe("left");
     expect(getLimitSwitchModeStatus().reason).toBe("position");
   });
 
   it("does not latch on position when travel limits are unknown", () => {
-    updateMotorPosition(999, "physical");
+    updateMotorPosition(999, physicalBackend.getTravelLimits());
     expect(getLimitSwitchModeStatus().latched).toBe(false);
   });
 
   it("does not latch on position while homing bypass is active", async () => {
-    setTravelLimitsSymmetricAboutCm(0, 10, "physical");
+    physicalBackend.travelLimits.setSymmetricAboutCm(0, 10);
     await runWithHomingBypass(async () => {
-      updateMotorPosition(99, "physical");
+      updateMotorPosition(99, physicalBackend.getTravelLimits());
       expect(getLimitSwitchModeStatus().latched).toBe(false);
     });
   });
@@ -86,16 +86,16 @@ describe("limitSwitchMode", () => {
   });
 
   it("tryClearIfSafe clears when in range and switches open", () => {
-    setTravelLimitsSymmetricAboutCm(0, 10, "physical");
-    updateMotorPosition(-11, "physical");
+    physicalBackend.travelLimits.setSymmetricAboutCm(0, 10);
+    updateMotorPosition(-11, physicalBackend.getTravelLimits());
     expect(getLimitSwitchModeStatus().latched).toBe(true);
-    tryClearIfSafe(0, limits, "physical");
+    tryClearIfSafe(0, limits, physicalBackend.getTravelLimits());
     expect(getLimitSwitchModeStatus().latched).toBe(false);
   });
 
   it("tryClearIfSafe keeps latch when a switch is pressed", () => {
     updateLimitSwitchState({ ...limits, limitLeftPressed: true });
-    tryClearIfSafe(0, { ...limits, limitLeftPressed: true }, "physical");
+    tryClearIfSafe(0, { ...limits, limitLeftPressed: true }, physicalBackend.getTravelLimits());
     expect(getLimitSwitchModeStatus().latched).toBe(true);
   });
 

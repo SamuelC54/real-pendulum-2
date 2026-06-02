@@ -4,15 +4,14 @@ import {
   physicsSimMoveAbsolute,
   physicsSimStep,
 } from "@real-pendulum/simulation/client";
-import { isMotionBlocked, updateLimitSwitchState, updateMotorPosition } from "../../limitSwitchMode/index.js";
-import { setTravelLimitsFromCm, syncTravelLimitsFromMotorConnection } from "../../railTravelLimits.js";
-import { mpsFromCmPerSec } from "../motionUnits.js";
 import {
-  railStateFromPhysicsSim,
-  setSimulationCartOffsetAtCurrent,
-  setSimulationLedState,
-  simulationCartOffsetM,
-} from "../mappers/simulationMappers.js";
+  isMotionBlocked,
+  updateLimitSwitchState,
+  updateMotorPosition,
+} from "../../../limitSwitchMode/index.js";
+import { recordTravelLimitSide, setSymmetricTravelSpan } from "../../travelLimitsActions.js";
+import { TravelLimitsStore } from "../../travelLimitsStore.js";
+import { physicsStateToCm } from "@real-pendulum/simulation/client";
 import type {
   CommandResult,
   ConnectResult,
@@ -22,16 +21,46 @@ import type {
   MachineStateSources,
   RailMachineState,
   TravelLimitsCm,
-} from "../types.js";
+  Unsubscribe,
+} from "../../types.js";
+import type { SymmetricTravelLimitsCm } from "../../travelLimitsStore.js";
+import {
+  railStateFromPhysicsSim,
+  setSimulationCartOffsetAtCurrent,
+  setSimulationLedState,
+  simulationCartOffsetCm,
+} from "./simulationMappers.js";
 
 const SIM_DT_SEC = 0.02;
 
 export class SimulationControlBackend implements ControlBackend {
+  readonly mode = "simulation" as const;
+
+  readonly travelLimits = new TravelLimitsStore();
+  private readonly listeners = new Set<(state: MachineStateSources) => void>();
+
+  /** @internal Vitest */
+  resetTravelLimitsForTests(): void {
+    this.travelLimits.clear();
+  }
+
+  getTravelLimits(): TravelLimitsCm {
+    return this.travelLimits.getTravelLimitsCm();
+  }
+
+  private async emit(): Promise<void> {
+    if (this.listeners.size === 0) return;
+    const state = await this.getState();
+    for (const listener of this.listeners) {
+      listener(state);
+    }
+  }
+
   private async readRailState(): Promise<RailMachineState> {
     try {
       const reachable = await physicsSimHealthCheck();
       if (!reachable) {
-        syncTravelLimitsFromMotorConnection(false, "simulation");
+        this.travelLimits.syncFromMotorConnection(false);
         return railStateFromPhysicsSim(
           {
             state: {
@@ -53,16 +82,21 @@ export class SimulationControlBackend implements ControlBackend {
               maxInternalStepSec: 0.01,
             },
           },
+          this.travelLimits.getTravelLimitsCm(),
           { plantReachable: false },
         );
       }
-      syncTravelLimitsFromMotorConnection(true, "simulation");
+      this.travelLimits.syncFromMotorConnection(true);
       const payload = await physicsSimGetState();
-      const state = railStateFromPhysicsSim(payload, { plantReachable: true });
+      const state = railStateFromPhysicsSim(
+        payload,
+        this.travelLimits.getTravelLimitsCm(),
+        { plantReachable: true },
+      );
       if (isMotionBlocked()) {
         state.status = "latched";
       }
-      updateMotorPosition(state.cart.positionCm ?? undefined, "simulation");
+      updateMotorPosition(state.cart.positionCm ?? undefined, state.cart.travelLimitsCm);
       updateLimitSwitchState({
         connected: state.connection.sensor,
         limitLeftPressed: state.limitSwitch.leftPressed,
@@ -70,7 +104,7 @@ export class SimulationControlBackend implements ControlBackend {
       });
       return state;
     } catch (e) {
-      syncTravelLimitsFromMotorConnection(false, "simulation");
+      this.travelLimits.syncFromMotorConnection(false);
       const msg = e instanceof Error ? e.message : String(e);
       const state = railStateFromPhysicsSim(
         {
@@ -91,6 +125,7 @@ export class SimulationControlBackend implements ControlBackend {
             maxInternalStepSec: 0.01,
           },
         },
+        this.travelLimits.getTravelLimitsCm(),
         { plantReachable: false },
       );
       state.error = msg;
@@ -103,17 +138,30 @@ export class SimulationControlBackend implements ControlBackend {
     return { simulation: await this.readRailState() };
   }
 
+  subscribeToState(callback: (state: MachineStateSources) => void): Unsubscribe {
+    this.listeners.add(callback);
+    void this.getState().then(callback);
+
+    return () => {
+      this.listeners.delete(callback);
+    };
+  }
+
   async connectMotor(): Promise<ConnectResult> {
     const ok = await physicsSimHealthCheck();
-    return ok ? { ok: true, error: "" } : { ok: false, error: "simulation is not reachable." };
+    const r = ok ? { ok: true, error: "" } : { ok: false, error: "simulation is not reachable." };
+    await this.emit();
+    return r;
   }
 
   async disconnectMotor(): Promise<void> {
     try {
-      await physicsSimStep({ dt: SIM_DT_SEC, vCmdMps: 0 });
+      await physicsSimStep({ dt: SIM_DT_SEC, vCmdCmPerSec: 0 });
     } catch {
       /* plant may already be down */
     }
+    this.travelLimits.syncFromMotorConnection(false);
+    await this.emit();
   }
 
   async connectSensor(): Promise<ConnectResult> {
@@ -130,7 +178,8 @@ export class SimulationControlBackend implements ControlBackend {
       return { ok: false, error: "Motion latch is engaged." };
     }
     try {
-      await physicsSimStep({ dt: SIM_DT_SEC, vCmdMps: mpsFromCmPerSec(cmPerSec) });
+      await physicsSimStep({ dt: SIM_DT_SEC, vCmdCmPerSec: cmPerSec });
+      await this.emit();
       return { ok: true, error: "" };
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : String(e) };
@@ -139,7 +188,8 @@ export class SimulationControlBackend implements ControlBackend {
 
   async stop(): Promise<CommandResult> {
     try {
-      await physicsSimStep({ dt: SIM_DT_SEC, vCmdMps: 0 });
+      await physicsSimStep({ dt: SIM_DT_SEC, vCmdCmPerSec: 0 });
+      await this.emit();
       return { ok: true, error: "" };
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : String(e) };
@@ -151,14 +201,12 @@ export class SimulationControlBackend implements ControlBackend {
       return { ok: false, error: "Motion latch is engaged." };
     }
     try {
-      const xM = cm / 100 + simulationCartOffsetM();
-      const maxVelocityMps =
-        opts?.maxVelocityRpm != null ? (opts.maxVelocityRpm * 0.0007) : undefined;
       await physicsSimMoveAbsolute({
-        xM,
-        maxVelocityMps,
-        toleranceM: 0.002,
+        xCm: cm + simulationCartOffsetCm(),
+        maxVelocityCmPerSec: opts?.maxVelocityCmPerSec,
+        toleranceCm: 0.2,
       });
+      await this.emit();
       return { ok: true, error: "" };
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : String(e) };
@@ -166,12 +214,45 @@ export class SimulationControlBackend implements ControlBackend {
   }
 
   async setTravelLimits(limits: TravelLimitsCm): Promise<CommandResult> {
-    setTravelLimitsFromCm(limits, "simulation");
+    this.travelLimits.setFromCm(limits);
+    await this.emit();
     return { ok: true, error: "" };
+  }
+
+  async recordTravelLimitSide(side: "left" | "right"): Promise<CommandResult> {
+    return recordTravelLimitSide(
+      this.travelLimits,
+      () => this.getState(),
+      "simulation",
+      side,
+      () => void this.emit(),
+    );
+  }
+
+  async setSymmetricTravelSpan(
+    halfSpanCm: number,
+  ): Promise<CommandResult & SymmetricTravelLimitsCm> {
+    return setSymmetricTravelSpan(
+      this.travelLimits,
+      () => this.getState(),
+      "simulation",
+      halfSpanCm,
+      () => void this.emit(),
+    );
+  }
+
+  applyHomingTravelLimits(
+    posAtLeftMotor: number,
+    posAtRightMotor: number,
+    zeroedAtMid: boolean,
+  ): void {
+    this.travelLimits.setFromHoming(posAtLeftMotor, posAtRightMotor, zeroedAtMid);
+    void this.emit();
   }
 
   async setLed(on: boolean): Promise<CommandResult> {
     setSimulationLedState(on);
+    await this.emit();
     return { ok: true, error: "" };
   }
 
@@ -182,7 +263,8 @@ export class SimulationControlBackend implements ControlBackend {
     }
     try {
       const payload = await physicsSimGetState();
-      setSimulationCartOffsetAtCurrent(payload.state.xM);
+      setSimulationCartOffsetAtCurrent(physicsStateToCm(payload.state).xCm);
+      await this.emit();
       return { ok: true, error: "" };
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : String(e) };

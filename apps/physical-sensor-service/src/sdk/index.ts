@@ -100,6 +100,18 @@ export async function getSensorStatus(): Promise<{
   limitRightPressed: boolean;
 }> {
   const r = await getClient().getStatus({});
+  return mapSensorStatus(r);
+}
+
+function mapSensorStatus(r: {
+  connected: boolean;
+  ledOn: boolean;
+  detail?: string;
+  serialPort?: string;
+  encoderTicks?: number;
+  limitLeftPressed?: boolean;
+  limitRightPressed?: boolean;
+}) {
   return {
     connected: r.connected,
     ledOn: r.ledOn,
@@ -109,6 +121,23 @@ export async function getSensorStatus(): Promise<{
     limitLeftPressed: r.limitLeftPressed ?? false,
     limitRightPressed: r.limitRightPressed ?? false,
   };
+}
+
+/** Consumes {@link SensorService.SubscribeStatus} server stream (Connect RPC). */
+export function subscribeSensorStatus(
+  onStatus: (status: ReturnType<typeof mapSensorStatus>) => void,
+): () => void {
+  const abort = new AbortController();
+  void (async () => {
+    try {
+      for await (const r of getClient().subscribeStatus({}, { signal: abort.signal })) {
+        onStatus(mapSensorStatus(r));
+      }
+    } catch {
+      /* stream closed */
+    }
+  })();
+  return () => abort.abort();
 }
 
 export async function resetEncoder(): Promise<{
