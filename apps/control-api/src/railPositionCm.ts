@@ -24,15 +24,10 @@ export function cmToTeknicMeasured(cm: number): number {
   return -cmToDisplayCounts(cm);
 }
 
-export type TravelLimitsCm = {
-  leftCm: number | null;
-  rightCm: number | null;
-};
-
 export function travelLimitsToCm(limits: {
   left: number | null;
   right: number | null;
-}): TravelLimitsCm {
+}): { leftCm: number | null; rightCm: number | null } {
   return {
     leftCm: limits.left != null ? displayCountsToCm(limits.left) : null,
     rightCm: limits.right != null ? displayCountsToCm(limits.right) : null,

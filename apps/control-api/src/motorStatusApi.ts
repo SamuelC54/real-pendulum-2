@@ -1,7 +1,10 @@
 import type * as motor from "@real-pendulum/physical-motor-service/sdk";
-import type { TravelLimitsCm } from "./railPositionCm.js";
 
-export type { TravelLimitsCm };
+/** Travel limits on legacy motor status wire (cm field names). */
+export type MotorTravelLimitsCm = {
+  leftCm: number | null;
+  rightCm: number | null;
+};
 
 /** Motor status exposed on control-api tRPC (rail position in cm, not Teknic counts). */
 export type MotorStatusForClient = {
@@ -10,7 +13,7 @@ export type MotorStatusForClient = {
   detail: string;
   motor?: motor.MotorInfo;
   positionCm?: number;
-  travelLimits: TravelLimitsCm;
+  travelLimits: MotorTravelLimitsCm;
 };
 
 /** Sensor board snapshot derived from {@link RailMachineState} (control/backends/physical/railStateMappers). */

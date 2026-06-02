@@ -23,7 +23,7 @@ export async function* subscribeToStateStream(
             return;
           }
           wake = resolve;
-          signal?.addEventListener("abort", resolve, { once: true });
+          signal?.addEventListener("abort", () => resolve(), { once: true });
         });
       }
       while (queue.length > 0 && !signal?.aborted) {

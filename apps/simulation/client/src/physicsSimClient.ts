@@ -119,3 +119,12 @@ export async function physicsSimMoveAbsolute(options: {
 export async function physicsSimGetState(): Promise<PhysicsSimStatePayload> {
   return physicsFetch<PhysicsSimStatePayload>("/state");
 }
+
+export async function physicsSimPatchConfig(
+  patch: Partial<CartPendulumConfig> | Record<string, unknown>,
+): Promise<PhysicsSimStatePayload> {
+  return physicsFetch<PhysicsSimStatePayload>("/config", {
+    method: "PATCH",
+    body: JSON.stringify({ plant: patch }),
+  });
+}

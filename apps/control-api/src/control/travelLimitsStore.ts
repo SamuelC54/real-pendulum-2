@@ -1,4 +1,5 @@
-import { cmToDisplayCounts, displayCountsToCm, type TravelLimitsCm } from "../railPositionCm.js";
+import { cmToDisplayCounts, displayCountsToCm } from "../railPositionCm.js";
+import type { TravelLimitsCm } from "./types.js";
 import { teknicMeasuredToDisplayCounts } from "../helpers/physical/teknicDisplayCounts.js";
 
 export type SymmetricTravelLimitsCm = {

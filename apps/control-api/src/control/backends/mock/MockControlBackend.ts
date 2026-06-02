@@ -130,7 +130,6 @@ export class MockControlBackend implements ControlBackend {
     const leftCm = centerCm - halfSpanCm;
     const rightCm = centerCm + halfSpanCm;
     const r = await this.setTravelLimits({ left: leftCm, right: rightCm });
-    if (!r.ok) return r;
     return { ...r, centerCm, halfSpanCm, leftCm, rightCm };
   }
 

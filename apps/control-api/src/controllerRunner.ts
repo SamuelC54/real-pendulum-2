@@ -149,8 +149,9 @@ async function readControllerTickState(): Promise<{
 }> {
 
   const backend = activeBackend!;
+  const mode = backend.mode;
 
-  const state = railStateForMode(await backend.getState(), backend.mode);
+  const state = railStateForMode(await backend.getState(), mode);
 
   if (!state.connection.cart) {
 
